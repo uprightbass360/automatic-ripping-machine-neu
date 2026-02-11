@@ -244,7 +244,7 @@ def calc_process_time(starttime, cur_iter, max_iter):
         if cur <= 0 or mx <= 0 or starttime is None:
             raise ValueError("Invalid ETA parameters")
         time_elapsed = datetime.datetime.now() - starttime
-        time_estimated = (time_elapsed.seconds / cur) * mx
+        time_estimated = (time_elapsed.total_seconds() / cur) * mx
         finish_time = (starttime + datetime.timedelta(seconds=int(time_estimated)))
         test = finish_time - datetime.datetime.now()
     except (TypeError, ValueError, ZeroDivisionError):
