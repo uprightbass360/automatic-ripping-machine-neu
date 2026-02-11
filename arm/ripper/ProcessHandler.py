@@ -5,10 +5,10 @@ Function definition
 
 import logging
 import subprocess
-from typing import Optional, List
+from typing import Optional, List, Union
 
 
-def arm_subprocess(cmd: str | List[str], shell=False, check=False) -> Optional[str]:
+def arm_subprocess(cmd: Union[str, List[str]], shell=False, check=False) -> Optional[str]:
     """
     Spawn blocking subprocess
 
