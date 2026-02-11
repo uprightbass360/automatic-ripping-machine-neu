@@ -1,8 +1,8 @@
 name: Publish Docker Image
 
 on:
-  push:
-    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
   packages: write
 
 env:
@@ -57,24 +57,3 @@ jobs:
             ${{ env.GHCR_IMAGE }}:${{ steps.version.outputs.version }}
           labels: |
             org.opencontainers.image.version=${{ steps.version.outputs.version }}
-
-      - name: Check if git tag exists
-        id: tagged
-        run: |
-          git fetch --depth=1 origin +refs/tags/*:refs/tags/* 2>/dev/null || true
-          if git show-ref --tags --verify --quiet -- "refs/tags/${{ steps.version.outputs.version }}"; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create GitHub Release
-        if: steps.tagged.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          generate_release_notes: true
-          files: |
-            LICENSE
-            VERSION

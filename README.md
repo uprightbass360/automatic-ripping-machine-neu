@@ -39,7 +39,7 @@ All features from the original ARM, plus:
 
 ## Docker Images
 
-Pre-built multi-platform images (`amd64`, `arm64`, `arm/v7`) are published on every push to `main`:
+Pre-built multi-platform images (`amd64`, `arm64`, `arm/v7`) are available from Docker Hub and GHCR:
 
 ```bash
 # Docker Hub
