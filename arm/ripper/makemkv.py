@@ -1193,7 +1193,6 @@ def run(options, select):
         raise MakeMkvRuntimeError(proc.returncode, cmd, output=os.linesep.join(buffer))
     if buffer:
         logging.warning(f"Cannot parse {len(buffer)} lines: {os.linesep.join(buffer)}")
-        raise MakeMkvRuntimeError(proc.returncode, cmd, output=os.linesep.join(buffer))
     logging.info("MakeMKV exits gracefully.")
 
 

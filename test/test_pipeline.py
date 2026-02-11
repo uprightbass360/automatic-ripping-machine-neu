@@ -431,3 +431,46 @@ class TestMusicBrainzCheckData:
             result = check_musicbrainz_data(sample_job, disc_info)
         assert 'Artist Name' in result
         assert 'Album Title' in result
+
+
+class TestMakeMkvRunParserFragility:
+    """Test that makemkv.run() doesn't raise on unparsed lines when exit code is 0 (#1688)."""
+
+    def test_unparsed_lines_with_exit_zero_no_raise(self):
+        """Unrecognized output lines should be warned, not fatal, when makemkvcon exits 0."""
+        from arm.ripper.makemkv import run, OutputType
+
+        # Simulate makemkvcon output with a valid TCOUNT line and an unparsable debug line
+        fake_stdout = [
+            'TCOUNT:1\n',
+            'Direct disc access mode enabled\n',  # unparsable debug line
+        ]
+        mock_proc = unittest.mock.MagicMock()
+        mock_proc.stdout = iter(fake_stdout)
+        mock_proc.returncode = 0
+        mock_proc.pid = 12345
+        mock_proc.__enter__ = lambda s: s
+        mock_proc.__exit__ = unittest.mock.MagicMock(return_value=False)
+
+        with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
+             unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
+            results = list(run(['info', 'disc:0'], OutputType.TCOUNT))
+
+        assert len(results) == 1  # TCOUNT parsed successfully
+
+    def test_unparsed_lines_with_nonzero_exit_raises(self):
+        """When makemkvcon exits non-zero, MakeMkvRuntimeError should still be raised."""
+        from arm.ripper.makemkv import run, OutputType, MakeMkvRuntimeError
+
+        fake_stdout = ['Some error output\n']
+        mock_proc = unittest.mock.MagicMock()
+        mock_proc.stdout = iter(fake_stdout)
+        mock_proc.returncode = 1
+        mock_proc.pid = 12345
+        mock_proc.__enter__ = lambda s: s
+        mock_proc.__exit__ = unittest.mock.MagicMock(return_value=False)
+
+        with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
+             unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
+            with pytest.raises(MakeMkvRuntimeError):
+                list(run(['info', 'disc:0'], OutputType.MSG))
