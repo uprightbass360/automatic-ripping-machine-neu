@@ -134,11 +134,11 @@ class TestRipData:
             rip_data(sample_job)
 
             # move_files_main should have been called with a timestamped .iso filename
-            if mock_move.called:
-                dest_file = mock_move.call_args[0][0]  # incomplete_filename
-                final_file = mock_move.call_args[0][1]  # full_final_file
-                # The ISO filename should NOT be just "MYDATA.iso" — it should have a suffix
-                assert "MYDATA.iso" not in final_file or "_" in os.path.basename(final_file)
+            assert mock_move.called, "move_files_main was never called"
+            dest_file = mock_move.call_args[0][0]  # incomplete_filename
+            final_file = mock_move.call_args[0][1]  # full_final_file
+            # The ISO filename should NOT be just "MYDATA.iso" — it should have a suffix
+            assert os.path.basename(final_file) != "MYDATA.iso"
 
     def test_unique_label_uses_plain_filename(self, app_context, sample_job, tmp_path):
         """Data disc with unique label uses plain label as filename."""
@@ -160,9 +160,9 @@ class TestRipData:
             mock_dd.return_value = b""
             rip_data(sample_job)
 
-            if mock_move.called:
-                final_file = mock_move.call_args[0][1]
-                assert final_file.endswith("UNIQUE_DISC.iso")
+            assert mock_move.called, "move_files_main was never called"
+            final_file = mock_move.call_args[0][1]
+            assert final_file.endswith("UNIQUE_DISC.iso")
 
 
 class TestRipMusic:

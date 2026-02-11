@@ -477,9 +477,11 @@ def rip_music(job, logfile):
             try:
                 with open(logpath, "r", errors="replace") as f:
                     log_content = f.read()
-            except OSError:
+            except OSError as e:
+                logging.warning(f"Could not read abcde log {logpath}: {e}")
                 log_content = ""
-            if "[ERROR]" in log_content or "CDROM drive unavailable" in log_content:
+            if re.search(r"^\[ERROR\]", log_content, re.MULTILINE) \
+                    or "CDROM drive unavailable" in log_content:
                 err = "abcde reported errors during rip (possible drive/media failure)"
                 logging.error(err)
                 args = {"status": JobState.FAILURE.value, "errors": err}
@@ -522,7 +524,7 @@ def rip_data(job):
             sys.exit()
 
     final_path = os.path.join(final_path, final_file_name)
-    incomplete_filename = os.path.join(raw_path, str(job.label) + ".part")
+    incomplete_filename = os.path.join(raw_path, final_file_name + ".part")
     make_dir(final_path)
     logging.info(f"Ripping data disc to: {incomplete_filename}")
     # Added from pull 366
