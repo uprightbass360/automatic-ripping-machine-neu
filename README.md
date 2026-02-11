@@ -37,6 +37,20 @@ All features from the original ARM, plus:
 - One or more optical drives
 - Storage for your media library (local or NAS)
 
+## Docker Images
+
+Pre-built multi-platform images (`amd64`, `arm64`, `arm/v7`) are published on every push to `main`:
+
+```bash
+# Docker Hub
+docker pull uprightbass360/automatic-ripping-machine:latest
+docker pull uprightbass360/automatic-ripping-machine:2.21.5
+
+# GHCR
+docker pull ghcr.io/uprightbass360/automatic-ripping-machine-neu:latest
+docker pull ghcr.io/uprightbass360/automatic-ripping-machine-neu:2.21.5
+```
+
 ## Install
 
 Docker is the recommended deployment method:
