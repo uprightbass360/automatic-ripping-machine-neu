@@ -542,7 +542,7 @@ class TestOmdbShortTitleFallback:
         """Create a mock urlopen that returns different responses per call."""
         call_count = [0]
 
-        def side_effect(url):
+        def side_effect(url, **kwargs):
             idx = min(call_count[0], len(responses) - 1)
             call_count[0] += 1
             mock_resp = unittest.mock.MagicMock()
@@ -614,5 +614,36 @@ class TestOmdbShortTitleFallback:
 
             assert result is not None
             assert result['Search'][0]['Title'] == 'The Matrix'
+        finally:
+            cfg.arm_config['OMDB_API_KEY'] = original_key
+
+    def test_fallback_network_error_returns_none(self):
+        """When ?s= fails and ?t= raises a network error, returns None gracefully (#1430)."""
+        from arm.ui.metadata import call_omdb_api
+        import arm.config.config as cfg
+
+        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
+        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
+        try:
+            call_count = [0]
+
+            def mock_urlopen(url, **kwargs):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    # First call (?s=) returns error response
+                    mock_resp = unittest.mock.MagicMock()
+                    mock_resp.read.return_value = json.dumps(
+                        {"Response": "False", "Error": "Too many results."}
+                    ).encode()
+                    return mock_resp
+                # Second call (?t=) raises network error
+                raise urllib.error.URLError("DNS lookup failed")
+
+            import urllib.error
+            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen',
+                                     side_effect=mock_urlopen):
+                result = call_omdb_api(title="9", year="2009")
+
+            assert result is None
         finally:
             cfg.arm_config['OMDB_API_KEY'] = original_key
