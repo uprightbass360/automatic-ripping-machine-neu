@@ -433,6 +433,96 @@ class TestMusicBrainzCheckData:
         assert 'Album Title' in result
 
 
+class TestReconcileFilenames:
+    """Test _reconcile_filenames() scan-to-rip filename reconciliation (#1355, #1281)."""
+
+    def test_matching_filename_unchanged(self, app_context, sample_job, tmp_path):
+        """When DB filename matches actual file, no update is made."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # Create track with correct filename
+        put_track(sample_job, 0, 3600, '16:9', '24.0', False, 'MakeMKV', 'title_t00.mkv')
+        db.session.commit()
+
+        # Create matching file on disk
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'title_t00.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        track = sample_job.tracks.first()
+        assert track.filename == 'title_t00.mkv'
+
+    def test_mismatched_filename_reconciled(self, app_context, sample_job, tmp_path):
+        """When scan filename differs from rip filename, DB is updated (#1281)."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # Scan-time: MakeMKV reported "Last Vermeer"
+        put_track(sample_job, 0, 3600, '16:9', '24.0', False, 'MakeMKV', 'Last Vermeer')
+        db.session.commit()
+
+        # Rip-time: actual file has comma and suffix
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'Last Vermeer, The-B1_t00.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        track = sample_job.tracks.first()
+        assert track.filename == 'Last Vermeer, The-B1_t00.mkv'
+
+    def test_series_multi_track_reconciled(self, app_context, sample_job, tmp_path):
+        """Multiple tracks with mismatched filenames are each reconciled (#1355)."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # Scan-time filenames are just disc title
+        put_track(sample_job, 0, 1800, '16:9', '24.0', False, 'MakeMKV', 'COSMOS')
+        put_track(sample_job, 1, 1800, '16:9', '24.0', False, 'MakeMKV', 'COSMOS')
+        db.session.commit()
+
+        # Actual rip created episode files
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'COSMOS, Season 1 Disc 1-EPL_0102_t00.mkv').write_bytes(b'\x00')
+        (raw / 'COSMOS, Season 1 Disc 1-EPL_0103_t01.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        tracks = list(sample_job.tracks.order_by('track_number'))
+        assert tracks[0].filename == 'COSMOS, Season 1 Disc 1-EPL_0102_t00.mkv'
+        assert tracks[1].filename == 'COSMOS, Season 1 Disc 1-EPL_0103_t01.mkv'
+
+    def test_no_files_on_disk_no_change(self, app_context, sample_job, tmp_path):
+        """When rawpath is empty, no changes are made."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        put_track(sample_job, 0, 3600, '16:9', '24.0', False, 'MakeMKV', 'title.mkv')
+        db.session.commit()
+
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        track = sample_job.tracks.first()
+        assert track.filename == 'title.mkv'
+
+    def test_none_rawpath_no_error(self, app_context, sample_job):
+        """None rawpath (failed rip) doesn't crash."""
+        from arm.ripper.makemkv import _reconcile_filenames
+
+        _reconcile_filenames(sample_job, None)
+
+
 class TestMakeMkvRunParserFragility:
     """Test that makemkv.run() doesn't raise on unparsed lines when exit code is 0 (#1688)."""
 

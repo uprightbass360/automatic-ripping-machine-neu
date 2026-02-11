@@ -13,6 +13,7 @@ import enum
 import itertools
 import logging
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -706,6 +707,48 @@ def makemkv_mkv(job, rawpath):
         process_single_tracks(job, rawpath, 'auto')
 
 
+def _reconcile_filenames(job, rawpath):
+    """Update track filenames to match actual files on disk after MakeMKV rip.
+
+    MakeMKV's scan-time filenames (from 'makemkvcon info') may differ from
+    the actual rip-time filenames. For example, the scan might report
+    "Last Vermeer" but the rip creates "Last Vermeer, The-B1_t00.mkv".
+    This reconciliation ensures the database reflects the files that were
+    actually created (#1355, #1281).
+    """
+    if not rawpath or not os.path.isdir(rawpath):
+        return
+
+    actual_files = sorted(
+        f for f in os.listdir(rawpath)
+        if os.path.isfile(os.path.join(rawpath, f))
+    )
+    if not actual_files:
+        return
+
+    tracks = list(job.tracks.filter_by(source=SOURCE).order_by(Track.track_number))
+    updated = False
+
+    for track in tracks:
+        # If current filename matches an actual file, no update needed
+        if track.filename in actual_files:
+            continue
+
+        # Match by track number suffix — MakeMKV uses _t00, _t01, etc.
+        track_num = int(track.track_number)
+        for f in actual_files:
+            base = os.path.splitext(f)[0]
+            if re.search(rf'_t0*{track_num}\b', base):
+                logging.info(f"Reconciled track #{track_num} filename: "
+                             f"'{track.filename}' -> '{f}'")
+                track.filename = f
+                updated = True
+                break
+
+    if updated:
+        db.session.commit()
+
+
 def makemkv(job):
     """
     Rip Blu-rays/DVDs with MakeMKV
@@ -754,6 +797,8 @@ def makemkv(job):
     else:
         logging.info("I'm confused what to do....  Passing on MakeMKV")
     job.eject()
+    # Reconcile scan-time filenames with actual rip output (#1355, #1281)
+    _reconcile_filenames(job, rawpath)
     logging.info(f"Exiting MakeMKV processing with return value of: {rawpath}")
     return rawpath
 
