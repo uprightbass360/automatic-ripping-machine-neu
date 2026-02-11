@@ -239,13 +239,18 @@ def calc_process_time(starttime, cur_iter, max_iter):
     """Modified from stackoverflow
     Get a rough estimate of ETA, return formatted String"""
     try:
+        cur = int(cur_iter)
+        mx = int(max_iter)
+        if cur <= 0 or mx <= 0 or starttime is None:
+            raise ValueError("Invalid ETA parameters")
         time_elapsed = datetime.datetime.now() - starttime
-        time_estimated = (time_elapsed.seconds / int(cur_iter)) * int(max_iter)
+        time_estimated = (time_elapsed.seconds / cur) * mx
         finish_time = (starttime + datetime.timedelta(seconds=int(time_estimated)))
         test = finish_time - datetime.datetime.now()
-    except TypeError:
-        app.logger.error("Failed to calculate processing time - Resetting to now, time wont be accurate!")
-        test = time_estimated = time_elapsed = finish_time = datetime.datetime.now()
+    except (TypeError, ValueError, ZeroDivisionError):
+        app.logger.debug("Cannot calculate processing time — waiting for progress data")
+        finish_time = datetime.datetime.now()
+        test = datetime.timedelta(0)
     return f"{str(test).split('.', maxsplit=1)[0]} - @{finish_time.strftime('%H:%M:%S')}"
 
 

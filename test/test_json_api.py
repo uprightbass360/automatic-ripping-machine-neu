@@ -66,13 +66,19 @@ class TestCalcProcessTime:
         from arm.ui.json_api import calc_process_time
 
         start = datetime.datetime.now() - datetime.timedelta(minutes=5)
-        # cur_iter=0 causes ZeroDivisionError, caught as TypeError path
-        try:
-            result = calc_process_time(start, 0, 10)
-            assert isinstance(result, str)
-        except ZeroDivisionError:
-            # Also acceptable - function doesn't guard against this
-            pass
+        # cur_iter=0 should not raise — returns graceful fallback string
+        result = calc_process_time(start, 0, 10)
+        assert isinstance(result, str)
+        assert "@" in result
+
+    def test_non_numeric_iteration_handled(self, app_context):
+        """Non-numeric cur_iter (e.g. from abcde log parsing) should not raise (#1641)."""
+        from arm.ui.json_api import calc_process_time
+
+        start = datetime.datetime.now() - datetime.timedelta(minutes=5)
+        result = calc_process_time(start, "not_a_number", 10)
+        assert isinstance(result, str)
+        assert "@" in result
 
 
 class TestReadNotification:
