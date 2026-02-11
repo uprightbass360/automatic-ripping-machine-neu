@@ -413,3 +413,122 @@ class TestIdentifyLoop:
             identify_loop(None, None, 'Title+Extra+Words', '2020')
         # Should eventually try 'Title' (sliced off '+Extra+Words')
         assert 'Title' in titles_tried
+
+
+class TestMalformedBlurayXml:
+    """Test identify_bluray() handles malformed XML gracefully (#1650)."""
+
+    def _make_job(self):
+        from arm.models.job import Job
+        with unittest.mock.patch.object(Job, 'parse_udev'), \
+             unittest.mock.patch.object(Job, 'get_pid'):
+            job = Job('/dev/sr0')
+        job.disctype = 'bluray'
+        job.label = 'SERIAL_MOM'
+        job.title = None
+        job.title_auto = None
+        job.year = None
+        job.year_auto = None
+        return job
+
+    def test_malformed_xml_falls_back_to_label(self, app_context, tmp_path):
+        """Malformed XML should trigger label fallback, not crash."""
+        from arm.ripper.identify import identify_bluray
+
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+
+        xml_dir = tmp_path / 'BDMV' / 'META' / 'DL'
+        xml_dir.mkdir(parents=True)
+        xml_file = xml_dir / 'bdmt_eng.xml'
+        xml_file.write_text('<<<not valid xml>>>')
+
+        result = identify_bluray(job)
+        assert result is True
+        assert 'Serial Mom' in job.title
+
+    def test_malformed_xml_empty_label(self, app_context, tmp_path):
+        """Malformed XML with empty label returns False."""
+        from arm.ripper.identify import identify_bluray
+
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        job.label = ""
+
+        xml_dir = tmp_path / 'BDMV' / 'META' / 'DL'
+        xml_dir.mkdir(parents=True)
+        xml_file = xml_dir / 'bdmt_eng.xml'
+        xml_file.write_text('<<<not valid xml>>>')
+
+        result = identify_bluray(job)
+        assert result is False
+
+    def test_truncated_xml_falls_back(self, app_context, tmp_path):
+        """Truncated/incomplete XML should trigger label fallback."""
+        from arm.ripper.identify import identify_bluray
+
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+
+        xml_dir = tmp_path / 'BDMV' / 'META' / 'DL'
+        xml_dir.mkdir(parents=True)
+        xml_file = xml_dir / 'bdmt_eng.xml'
+        xml_file.write_bytes(b'<?xml version="1.0"?><disclib><di:discinfo')  # truncated
+
+        result = identify_bluray(job)
+        assert result is True
+        assert 'Serial Mom' in job.title
+
+
+class TestIdentifyUnmount:
+    """Test identify() always unmounts the disc (#1664)."""
+
+    def test_umount_called_on_success(self):
+        """umount is called after successful identification."""
+        from arm.ripper.identify import identify
+
+        job = unittest.mock.MagicMock()
+        job.devpath = '/dev/sr0'
+        job.disctype = 'music'  # skip video identification
+
+        with unittest.mock.patch('arm.ripper.identify.check_mount', return_value=True), \
+             unittest.mock.patch('arm.ripper.identify.subprocess.run') as mock_run:
+            identify(job)
+            mock_run.assert_called_once_with(
+                ["umount", "/dev/sr0"], stderr=unittest.mock.ANY
+            )
+
+    def test_umount_called_on_exception(self):
+        """umount is called even when identification raises an exception."""
+        from arm.ripper.identify import identify
+
+        job = unittest.mock.MagicMock()
+        job.devpath = '/dev/sr0'
+        job.disctype = 'bluray'
+
+        with unittest.mock.patch('arm.ripper.identify.check_mount', return_value=True), \
+             unittest.mock.patch('arm.ripper.identify.cfg') as mock_cfg, \
+             unittest.mock.patch('arm.ripper.identify.subprocess.run') as mock_run:
+            mock_cfg.arm_config = {"GET_VIDEO_TITLE": True}
+            # identify_bluray will fail because job is a MagicMock without a real mountpoint
+            with unittest.mock.patch('arm.ripper.identify.identify_bluray',
+                                     side_effect=RuntimeError("test error")):
+                with pytest.raises(RuntimeError):
+                    identify(job)
+            # umount should still have been called
+            mock_run.assert_called_once_with(
+                ["umount", "/dev/sr0"], stderr=unittest.mock.ANY
+            )
+
+    def test_umount_called_when_not_mounted(self):
+        """umount is called even if disc was not successfully mounted."""
+        from arm.ripper.identify import identify
+
+        job = unittest.mock.MagicMock()
+        job.devpath = '/dev/sr0'
+        job.disctype = 'data'
+
+        with unittest.mock.patch('arm.ripper.identify.check_mount', return_value=False), \
+             unittest.mock.patch('arm.ripper.identify.subprocess.run') as mock_run:
+            identify(job)
+            mock_run.assert_called_once()

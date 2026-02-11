@@ -3,6 +3,7 @@
 
 import os
 import logging
+import subprocess
 import urllib
 import re
 import datetime
@@ -66,33 +67,49 @@ def identify(job):
 
     mounted = check_mount(job)
 
-    # get_disc_type() checks local files, no need to run unless we can mount
-    if mounted:
-        # Check with the job class to get the correct disc type
-        job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
+    try:
+        # get_disc_type() checks local files, no need to run unless we can mount
+        if mounted:
+            # Check with the job class to get the correct disc type
+            job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
 
-    if job.disctype in ["dvd", "bluray"]:
+        if job.disctype in ["dvd", "bluray"]:
 
-        logging.info("Disc identified as video")
+            logging.info("Disc identified as video")
 
-        if cfg.arm_config["GET_VIDEO_TITLE"]:
-            res = False
-            if job.disctype == "dvd":
-                res = identify_dvd(job)
-            if job.disctype == "bluray":
-                res = identify_bluray(job)
-            if res:
-                get_video_details(job)
-            else:
-                job.hasnicetitle = False
-                db.session.commit()
+            if cfg.arm_config["GET_VIDEO_TITLE"]:
+                res = False
+                if job.disctype == "dvd":
+                    res = identify_dvd(job)
+                if job.disctype == "bluray":
+                    res = identify_bluray(job)
+                if res:
+                    get_video_details(job)
+                else:
+                    job.hasnicetitle = False
+                    db.session.commit()
 
-            logging.info(f"Disc title Post ident -  title:{job.title} "
-                         f"year:{job.year} video_type:{job.video_type} "
-                         f"disctype: {job.disctype}")
-            logging.debug(f"identify.job.end ---- \n\r{job.pretty_table()}")
-    # No need to warn if we cant unmount
-    os.system("umount " + job.devpath)
+                logging.info(f"Disc title Post ident -  title:{job.title} "
+                             f"year:{job.year} video_type:{job.video_type} "
+                             f"disctype: {job.disctype}")
+                logging.debug(f"identify.job.end ---- \n\r{job.pretty_table()}")
+    finally:
+        # Always unmount after identification, even on error (#1664)
+        subprocess.run(["umount", job.devpath], stderr=subprocess.DEVNULL)
+
+
+def _bluray_label_fallback(job):
+    """Fall back to disc label when bdmt_eng.xml cannot be read or parsed."""
+    if not job.label or str(job.label) == "":
+        job.title = str(job.label)
+        job.year = ""
+        db.session.commit()
+        return False
+    bluray_title = str(job.label).replace('_', ' ').title()
+    job.title = job.title_auto = bluray_title
+    job.year = ""
+    db.session.commit()
+    return True
 
 
 def identify_bluray(job):
@@ -105,21 +122,10 @@ def identify_bluray(job):
         logging.error("Disc is a bluray, but bdmt_eng.xml could not be found. "
                       "Disc cannot be identified.  Error "
                       f"number is: {error.errno}")
-        # Maybe call OMdb with label when we can't find any ident on disc ?
-        # Attempt to parse label
-        if str(job.label) == "":
-            job.title = str(job.label)
-            job.year = ""
-            db.session.commit()
-            return False
-        else:
-            bluray_title = str(job.label)
-            bluray_title = bluray_title.replace('_', ' ')
-            bluray_title = bluray_title.title()
-            job.title = job.title_auto = bluray_title
-            job.year = ""
-            db.session.commit()
-            return True
+        return _bluray_label_fallback(job)
+    except Exception as error:
+        logging.error(f"Disc is a bluray, but bdmt_eng.xml could not be parsed: {error}")
+        return _bluray_label_fallback(job)
 
     try:
         bluray_title = doc['disclib']['di:discinfo']['di:title']['di:name']
