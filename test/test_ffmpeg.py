@@ -237,3 +237,28 @@ class TestCorrectFfmpegSettings:
         # getattr with default "" returns "" when attr missing
         assert isinstance(pre, str)
         assert isinstance(post, str)
+
+
+class TestGetTrackInfoFallback:
+    """Test that get_track_info sets no_of_titles on ffprobe failure (#1628)."""
+
+    def test_ffprobe_failure_sets_no_of_titles(self, app_context, sample_job):
+        """When ffprobe returns None, no_of_titles should be set to 1, not None."""
+        from arm.ripper.ffmpeg import get_track_info
+
+        with unittest.mock.patch('arm.ripper.ffmpeg.probe_source', return_value=None), \
+             unittest.mock.patch('arm.ripper.ffmpeg.utils.put_track'):
+            get_track_info('/some/directory', sample_job)
+
+        assert sample_job.no_of_titles == 1
+
+    def test_empty_tracks_sets_no_of_titles(self, app_context, sample_job):
+        """When ffprobe returns data but no tracks parsed, no_of_titles should be 1."""
+        from arm.ripper.ffmpeg import get_track_info
+
+        with unittest.mock.patch('arm.ripper.ffmpeg.probe_source', return_value='{}'), \
+             unittest.mock.patch('arm.ripper.ffmpeg.parse_probe_output', return_value=[]), \
+             unittest.mock.patch('arm.ripper.ffmpeg.utils.put_track'):
+            get_track_info('/some/file.mkv', sample_job)
+
+        assert sample_job.no_of_titles == 1

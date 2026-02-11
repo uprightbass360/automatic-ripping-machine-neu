@@ -289,7 +289,7 @@ def ffmpeg_all(src_path, base_path, job):
 
     for track in job.tracks:
         # Don't raise error if we past max titles, skip and continue till FFMPEG finishes
-        if int(track.track_number) > job.no_of_titles:
+        if job.no_of_titles is not None and int(track.track_number) > job.no_of_titles:
             continue
         if track.length < int(cfg.arm_config["MINLENGTH"]):
             # if track is too short then skip it
@@ -392,12 +392,16 @@ def get_track_info(src_path, job):
     if not probe_json:
         logging.info("ffprobe returned no data; registering fallback track")
         utils.put_track(job, 0, 0, 0, 0.0, False, "FFmpeg")
+        job.no_of_titles = 1
+        db.session.commit()
         return
 
     tracks = parse_probe_output(probe_json)
     if not tracks:
         logging.info("No tracks parsed from ffprobe; registering fallback track")
         utils.put_track(job, 0, 0, 0, 0.0, False, "FFmpeg")
+        job.no_of_titles = 1
+        db.session.commit()
         return
 
     # Adds the tracks and info about the tracks to the job
