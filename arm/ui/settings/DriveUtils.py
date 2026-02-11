@@ -269,7 +269,7 @@ def drives_update(startup=False):
             msg = "Create a new drive entity in the database for '%s' on '%s'."
             app.logger.debug(msg, drive.serial_id, drive.mount)
             db_drive = SystemDrives()
-            db_drive.name = drive.serial_id
+            db_drive.name = drive.serial_id or ""
             db.session.add(db_drive)
         db_drive.update(drive)
         db.session.commit()  # needed to get drive_id for new entities

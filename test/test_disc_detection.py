@@ -2,6 +2,7 @@
 
 Covers Job.parse_udev() and Job.get_disc_type() which together determine
 whether a disc is DVD, Blu-ray, music CD, data, or unknown.
+Also covers DriveUtils.drives_update() drive database management.
 """
 import os
 import unittest.mock
@@ -223,3 +224,59 @@ class TestIdentifyAudioCd:
             assert logfile != 'Artist Title.log'
         finally:
             cfg.arm_config['LOGPATH'] = original_logpath
+
+
+class TestDrivesUpdateNameless:
+    """Test drives_update() handles drives with no serial_id (#1584)."""
+
+    def _make_drive(self, mount="/dev/sr0", serial_id=None):
+        """Create a DriveInformationMedium with optional serial_id."""
+        from arm.ui.settings.DriveUtils import DriveInformationMedium
+        return DriveInformationMedium(
+            mount=mount,
+            maker="VirtualBox",
+            model="CD-ROM",
+            serial="",
+            serial_id=serial_id or "",
+            connection="ata",
+            read_cd=True,
+            read_dvd=True,
+            read_bd=False,
+            firmware="1.0",
+            location="/dev/sr0",
+            disc="",
+            loaded=False,
+            media_cd=False,
+            media_dvd=False,
+            media_bd=False,
+        )
+
+    def test_none_serial_id_no_crash(self, app_context):
+        """A drive with no serial_id should not crash drives_update()."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+
+        drive = self._make_drive(mount="/dev/sr0", serial_id=None)
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=[drive]):
+            drives_update(startup=True)
+
+        db_drive = SystemDrives.query.filter_by(mount="/dev/sr0").first()
+        assert db_drive is not None
+        # name should be empty string, not None
+        assert db_drive.name is not None
+        assert db_drive.name == ""
+
+    def test_normal_serial_id_stored(self, app_context):
+        """A drive with a normal serial_id stores it in name."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+
+        drive = self._make_drive(mount="/dev/sr0", serial_id="VBox_CD-ROM_12345")
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=[drive]):
+            drives_update(startup=True)
+
+        db_drive = SystemDrives.query.filter_by(mount="/dev/sr0").first()
+        assert db_drive is not None
+        assert db_drive.name == "VBox_CD-ROM_12345"
