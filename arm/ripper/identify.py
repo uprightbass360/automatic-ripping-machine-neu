@@ -100,8 +100,8 @@ def identify(job):
 
 def _bluray_label_fallback(job):
     """Fall back to disc label when bdmt_eng.xml cannot be read or parsed."""
-    if not job.label or str(job.label) == "":
-        job.title = str(job.label)
+    if not job.label:
+        job.title = ""
         job.year = ""
         db.session.commit()
         return False

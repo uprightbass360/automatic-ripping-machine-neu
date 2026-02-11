@@ -464,6 +464,25 @@ class TestMalformedBlurayXml:
         result = identify_bluray(job)
         assert result is False
 
+    def test_none_label_does_not_produce_string_none(self, app_context, tmp_path):
+        """When label is None and XML is malformed, title must NOT become 'None'."""
+        from arm.ripper.identify import identify_bluray
+
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        job.label = None
+
+        xml_dir = tmp_path / 'BDMV' / 'META' / 'DL'
+        xml_dir.mkdir(parents=True)
+        xml_file = xml_dir / 'bdmt_eng.xml'
+        xml_file.write_text('<<<not valid xml>>>')
+
+        result = identify_bluray(job)
+        assert result is False
+        # Must be empty string, not the literal string "None"
+        assert job.title != "None"
+        assert job.title == ""
+
     def test_truncated_xml_falls_back(self, app_context, tmp_path):
         """Truncated/incomplete XML should trigger label fallback."""
         from arm.ripper.identify import identify_bluray
