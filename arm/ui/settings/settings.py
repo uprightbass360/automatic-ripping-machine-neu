@@ -137,6 +137,82 @@ def settings():
                            form_drive=form_drive)
 
 
+def _read_sysfs(path):
+    """Read and strip a sysfs file, returning None on error."""
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+_VENDOR_MAP = {
+    '0x1002': 'amd',
+    '0x10de': 'nvidia',
+    '0x8086': 'intel',
+}
+
+_DRIVER_VENDORS = {
+    'amdgpu': 'amd', 'radeon': 'amd',
+    'nvidia': 'nvidia', 'nouveau': 'nvidia',
+    'i915': 'intel', 'xe': 'intel',
+}
+
+
+def _detect_drm_vendors(detected):
+    """Method 1: /sys/class/drm/card*/device/vendor — render-capable GPUs."""
+    import glob
+    paths = glob.glob('/sys/class/drm/card[0-9]*/device/vendor')
+    for vendor_path in paths:
+        vendor_id = _read_sysfs(vendor_path)
+        if vendor_id in _VENDOR_MAP:
+            detected[_VENDOR_MAP[vendor_id]] = True
+
+
+def _detect_pci_display(detected):
+    """Method 2: PCI bus scan for display controllers (class 0x03xxxx)."""
+    import glob
+    for class_path in glob.glob('/sys/bus/pci/devices/*/class'):
+        pci_class = _read_sysfs(class_path)
+        if not pci_class or not pci_class.startswith('0x03'):
+            continue
+        vendor_id = _read_sysfs(class_path.replace('/class', '/vendor'))
+        if vendor_id in _VENDOR_MAP:
+            detected[_VENDOR_MAP[vendor_id]] = True
+
+
+def _detect_drm_drivers(detected):
+    """Method 3: /dev/dri/renderD* — check DRM driver name for vendor hint."""
+    import glob
+    for render_path in sorted(glob.glob('/dev/dri/renderD*')):
+        node_name = os.path.basename(render_path)
+        driver_link = f'/sys/class/drm/{node_name}/device/driver'
+        try:
+            driver_name = os.path.basename(os.readlink(driver_link)).lower()
+        except OSError:
+            continue
+        for keyword, vendor in _DRIVER_VENDORS.items():
+            if keyword in driver_name:
+                detected[vendor] = True
+                break
+
+
+def _detect_wsl2_gpu(detected):
+    """Method 4: WSL2 — infer GPU vendor from dxgkrnl + CPU vendor."""
+    import glob
+    for uevent_path in glob.glob('/sys/bus/pci/drivers/dxgkrnl/*/uevent'):
+        content = _read_sysfs(uevent_path)
+        if content and 'PCI_CLASS=302' in content:
+            cpuinfo = _read_sysfs('/proc/cpuinfo')
+            if cpuinfo:
+                cpuinfo = cpuinfo.lower()
+                if 'authenticamd' in cpuinfo:
+                    detected['amd'] = True
+                elif 'genuineintel' in cpuinfo:
+                    detected['intel'] = True
+            return
+
+
 def _detect_gpu_hardware():
     """Detect GPU hardware via sysfs PCI scan and render node probing.
 
@@ -145,91 +221,13 @@ def _detect_gpu_hardware():
     On WSL2, detects virtual GPU presence via /dev/dxg and attempts to
     identify the real GPU vendor through the DRM render node driver.
     """
-    import glob
-
-    vendor_map = {
-        '0x1002': 'amd',
-        '0x10de': 'nvidia',
-        '0x8086': 'intel',
-    }
     detected = {'amd': False, 'nvidia': False, 'intel': False}
 
-    # Method 1: /sys/class/drm/card*/device/vendor — render-capable GPUs
-    drm_vendors = glob.glob('/sys/class/drm/card[0-9]*/device/vendor')
-    if drm_vendors:
-        for vendor_path in drm_vendors:
-            try:
-                with open(vendor_path) as f:
-                    vendor_id = f.read().strip()
-                if vendor_id in vendor_map:
-                    detected[vendor_map[vendor_id]] = True
-            except OSError:
-                pass
+    for probe in (_detect_drm_vendors, _detect_pci_display,
+                  _detect_drm_drivers, _detect_wsl2_gpu):
+        probe(detected)
         if any(detected.values()):
             return detected
-
-    # Method 2: PCI bus scan for display controllers (class 0x03xxxx)
-    for class_path in glob.glob('/sys/bus/pci/devices/*/class'):
-        try:
-            with open(class_path) as f:
-                pci_class = f.read().strip()
-            if not pci_class.startswith('0x03'):
-                continue
-            vendor_path = class_path.replace('/class', '/vendor')
-            with open(vendor_path) as f:
-                vendor_id = f.read().strip()
-            if vendor_id in vendor_map:
-                detected[vendor_map[vendor_id]] = True
-        except OSError:
-            pass
-    if any(detected.values()):
-        return detected
-
-    # Method 3: /dev/dri/renderD* — check DRM driver name for vendor hint
-    for render_path in sorted(glob.glob('/dev/dri/renderD*')):
-        node_name = os.path.basename(render_path)
-        driver_link = f'/sys/class/drm/{node_name}/device/driver'
-        try:
-            driver_name = os.path.basename(os.readlink(driver_link)).lower()
-            if 'amdgpu' in driver_name or 'radeon' in driver_name:
-                detected['amd'] = True
-            elif 'nvidia' in driver_name or 'nouveau' in driver_name:
-                detected['nvidia'] = True
-            elif 'i915' in driver_name or 'xe' in driver_name:
-                detected['intel'] = True
-        except OSError:
-            pass
-    if any(detected.values()):
-        return detected
-
-    # Method 4: WSL2 — dxgkrnl driver binds to Microsoft virtual GPU
-    # devices (PCI vendor 0x1414, class 0x0302).  The real GPU vendor is
-    # hidden, but we can infer it: dedicated NVIDIA GPUs are exposed via
-    # the nvidia/CUDA WSL2 driver (not dxgkrnl), so dxgkrnl display
-    # devices on an AMD CPU strongly indicate an AMD GPU, and on an
-    # Intel CPU indicate Intel integrated graphics.
-    dxgkrnl_uevents = glob.glob('/sys/bus/pci/drivers/dxgkrnl/*/uevent')
-    if dxgkrnl_uevents:
-        has_virtual_gpu = False
-        for uevent_path in dxgkrnl_uevents:
-            try:
-                with open(uevent_path) as f:
-                    uevent = f.read()
-                if 'PCI_CLASS=302' in uevent:
-                    has_virtual_gpu = True
-                    break
-            except OSError:
-                pass
-        if has_virtual_gpu:
-            try:
-                with open('/proc/cpuinfo') as f:
-                    cpuinfo = f.read().lower()
-                if 'authenticamd' in cpuinfo:
-                    detected['amd'] = True
-                elif 'genuineintel' in cpuinfo:
-                    detected['intel'] = True
-            except OSError:
-                pass
 
     return detected
 

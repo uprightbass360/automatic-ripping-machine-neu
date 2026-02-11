@@ -1,6 +1,5 @@
 """Tests for json_api pure-logic functions (arm/ui/json_api.py)."""
 import datetime
-import unittest.mock
 
 import pytest
 

@@ -1,5 +1,4 @@
 """Tests for database layer extraction (Phase 1)."""
-from flask import Flask
 
 
 class TestDatabaseLayer:
@@ -16,8 +15,6 @@ class TestDatabaseLayer:
 
     def test_init_db_binds_to_app(self, app_context):
         """init_db() should have bound db to the Flask app."""
-        from arm.database import db
-
         app, _ = app_context
         # Verify we can query within the app context
         from arm.models.job import Job

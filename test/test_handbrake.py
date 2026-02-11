@@ -1,7 +1,5 @@
 """Tests for HandBrake pure-logic functions (arm/ripper/handbrake.py)."""
-import os
 import re
-import shlex
 import subprocess
 import unittest.mock
 
@@ -229,8 +227,9 @@ class TestTitleFinder:
 
         t_pattern = re.compile(r'.*\+ title *')
         # First title (t_no starts at 0, no put_track call)
-        main_feature, t_no = title_finder(0, 0.0, unittest.mock.MagicMock(),
-                                           "  + title 1:", False, 0, 0, t_pattern)
+        main_feature, t_no = title_finder(
+            0, 0.0, unittest.mock.MagicMock(),
+            "  + title 1:", False, 0, 0, t_pattern)
         assert t_no == "1"
         assert main_feature is False
 
@@ -240,8 +239,9 @@ class TestTitleFinder:
         t_pattern = re.compile(r'.*\+ title *')
         # Simulate finding second title after first was main
         with unittest.mock.patch('arm.ripper.handbrake.utils'):
-            main_feature, t_no = title_finder(0, 0.0, unittest.mock.MagicMock(),
-                                               "  + title 2:", True, 100, 1, t_pattern)
+            main_feature, t_no = title_finder(
+                0, 0.0, unittest.mock.MagicMock(),
+                "  + title 2:", True, 100, 1, t_pattern)
         assert t_no == "2"
         assert main_feature is False  # reset on new title
 
@@ -249,8 +249,9 @@ class TestTitleFinder:
         from arm.ripper.handbrake import title_finder
 
         t_pattern = re.compile(r'.*\+ title *')
-        main_feature, t_no = title_finder(0, 0.0, unittest.mock.MagicMock(),
-                                           "  + duration: 01:30:00", True, 100, 5, t_pattern)
+        main_feature, t_no = title_finder(
+            0, 0.0, unittest.mock.MagicMock(),
+            "  + duration: 01:30:00", True, 100, 5, t_pattern)
         assert t_no == 5
         assert main_feature is True
 

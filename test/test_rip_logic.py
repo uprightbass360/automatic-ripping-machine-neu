@@ -2,8 +2,6 @@
 import os
 import unittest.mock
 
-import pytest
-
 
 class TestRipWithMkv:
     """Test rip_with_mkv() decision logic from arm_ripper.py."""
@@ -135,7 +133,6 @@ class TestRipData:
 
             # move_files_main should have been called with a timestamped .iso filename
             assert mock_move.called, "move_files_main was never called"
-            dest_file = mock_move.call_args[0][0]  # incomplete_filename
             final_file = mock_move.call_args[0][1]  # full_final_file
             # The ISO filename should NOT be just "MYDATA.iso" — it should have a suffix
             assert os.path.basename(final_file) != "MYDATA.iso"

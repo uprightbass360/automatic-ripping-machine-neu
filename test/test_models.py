@@ -1,8 +1,6 @@
 """Tests for model serialization, string representation, and creation."""
 import unittest.mock
 
-import pytest
-
 
 class TestConfigGetD:
     """Test Config.get_d() dict export with hidden attributes filtered."""

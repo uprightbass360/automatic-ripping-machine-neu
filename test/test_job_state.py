@@ -1,8 +1,5 @@
 """Tests for Job state properties and computed attributes."""
 import datetime as dt
-import unittest.mock
-
-import pytest
 
 
 class TestJobFinished:
@@ -106,7 +103,6 @@ class TestJobGetD:
     """Test job.get_d() dictionary export."""
 
     def test_returns_dict(self, sample_job):
-        from arm.models.job import Job
         result = sample_job.get_d()
         assert isinstance(result, dict)
 

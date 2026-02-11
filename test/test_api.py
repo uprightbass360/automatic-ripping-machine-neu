@@ -1,5 +1,4 @@
 """Tests for the REST API layer (arm/api/v1/)."""
-import json
 import unittest.mock
 
 import pytest

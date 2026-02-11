@@ -7,8 +7,6 @@ Also covers DriveUtils.drives_update() drive database management.
 import os
 import unittest.mock
 
-import pytest
-
 
 class TestParseUdev:
     """Test Job.parse_udev() property extraction from udev attributes."""

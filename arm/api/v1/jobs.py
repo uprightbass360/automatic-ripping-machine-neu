@@ -3,7 +3,7 @@ from flask import jsonify, request
 from flask_login import login_required
 
 from arm.api import api_bp
-from arm.models.job import Job, JobState
+from arm.models.job import JobState
 from arm.ui import json_api
 import arm.ui.utils as ui_utils
 

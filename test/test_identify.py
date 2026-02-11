@@ -5,7 +5,6 @@ metadata_selector(), identify_loop(), try_with_year(), try_without_year().
 Also covers arm/ui/metadata.py: call_omdb_api() fallback for short titles.
 """
 import json
-import os
 import subprocess
 import unittest.mock
 
@@ -249,7 +248,7 @@ class TestMetadataSelector:
             # Return None to avoid update_job being called
             with unittest.mock.patch('arm.ripper.identify.ui_utils.call_omdb_api',
                                      return_value=None) as mock_omdb:
-                result = metadata_selector(job, 'Serial Mom', '1994')
+                metadata_selector(job, 'Serial Mom', '1994')
                 mock_omdb.assert_called_once()
         finally:
             if original is not None:
@@ -266,7 +265,7 @@ class TestMetadataSelector:
         try:
             with unittest.mock.patch('arm.ripper.identify.ui_utils.tmdb_search',
                                      return_value=None) as mock_tmdb:
-                result = metadata_selector(job, 'Serial Mom', '1994')
+                metadata_selector(job, 'Serial Mom', '1994')
                 mock_tmdb.assert_called_once()
         finally:
             if original is not None:
@@ -366,7 +365,7 @@ class TestIdentifyLoop:
         from arm.ripper.identify import identify_loop
 
         existing = {'Search': [{'Title': 'Test'}]}
-        with unittest.mock.patch('arm.ripper.identify.metadata_selector') as mock_ms, \
+        with unittest.mock.patch('arm.ripper.identify.metadata_selector'), \
              unittest.mock.patch('arm.ripper.identify.try_with_year', return_value=existing), \
              unittest.mock.patch('arm.ripper.identify.try_without_year', return_value=existing):
             identify_loop(None, existing, 'Test', '2020')

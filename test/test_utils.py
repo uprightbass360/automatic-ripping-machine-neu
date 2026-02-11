@@ -260,7 +260,6 @@ class TestPutTrack:
     def test_creates_track(self, app_context, sample_job):
         from arm.ripper.utils import put_track
         from arm.models.track import Track
-        from arm.database import db
 
         put_track(sample_job, 1, 3600, "16:9", 24.0, True, "HandBrake", "title_01.mkv")
 

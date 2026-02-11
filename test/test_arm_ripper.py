@@ -1,8 +1,6 @@
 """Tests for arm_ripper.py dispatch logic and post-processing functions."""
 import unittest.mock
 
-import pytest
-
 
 class TestStartTranscode:
     """Test start_transcode() dispatch to correct transcoder."""

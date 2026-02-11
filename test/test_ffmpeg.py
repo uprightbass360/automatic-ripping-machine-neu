@@ -2,8 +2,6 @@
 import json
 import unittest.mock
 
-import pytest
-
 
 class TestParseFps:
     """Test _parse_fps() frame rate string parsing."""
@@ -226,7 +224,6 @@ class TestCorrectFfmpegSettings:
 
     def test_missing_config_attr_uses_global(self):
         from arm.ripper.ffmpeg import correct_ffmpeg_settings
-        import arm.config.config as cfg
 
         job = unittest.mock.MagicMock()
         # config exists but no FFMPEG attrs
