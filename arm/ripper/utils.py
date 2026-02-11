@@ -471,8 +471,20 @@ def rip_music(job, logfile):
         database_updater(args, job)
 
         try:
-            # TODO check output and confirm all tracks ripped; find "Finished\.$"
             subprocess.check_output(cmd, shell=True).decode("utf-8")
+            # abcde exits 0 even on drive I/O errors — check the log for failures
+            logpath = os.path.join(job.config.LOGPATH, logfile)
+            try:
+                with open(logpath, "r", errors="replace") as f:
+                    log_content = f.read()
+            except OSError:
+                log_content = ""
+            if "[ERROR]" in log_content or "CDROM drive unavailable" in log_content:
+                err = "abcde reported errors during rip (possible drive/media failure)"
+                logging.error(err)
+                args = {"status": JobState.FAILURE.value, "errors": err}
+                database_updater(args, job)
+                return False
             logging.info("abcde call successful")
             args = {"status": JobState.IDLE.value}
             database_updater(args, job)

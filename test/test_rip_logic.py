@@ -163,3 +163,67 @@ class TestRipData:
             if mock_move.called:
                 final_file = mock_move.call_args[0][1]
                 assert final_file.endswith("UNIQUE_DISC.iso")
+
+
+class TestRipMusic:
+    """Test rip_music() audio CD ripping logic."""
+
+    def test_abcde_error_in_log_detected(self, app_context, sample_job, tmp_path):
+        """abcde exit 0 with [ERROR] in log should be treated as failure (#1526)."""
+        from arm.ripper.utils import rip_music
+
+        sample_job.disctype = "music"
+        sample_job.config.LOGPATH = str(tmp_path)
+
+        # Write a log file with abcde error markers
+        logfile = "test_music.log"
+        (tmp_path / logfile).write_text(
+            "Grabbing track 01...\n"
+            "[ERROR] cdparanoia could not read disc\n"
+            "CDROM drive unavailable\n"
+        )
+
+        with unittest.mock.patch('arm.ripper.utils.subprocess.check_output', return_value=b""), \
+             unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
+            mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent"}
+            result = rip_music(sample_job, logfile)
+
+        assert result is False
+        assert sample_job.status == "fail"
+
+    def test_abcde_clean_log_succeeds(self, app_context, sample_job, tmp_path):
+        """abcde exit 0 with clean log should be treated as success."""
+        from arm.ripper.utils import rip_music
+
+        sample_job.disctype = "music"
+        sample_job.config.LOGPATH = str(tmp_path)
+
+        logfile = "test_music.log"
+        (tmp_path / logfile).write_text(
+            "Grabbing track 01...\n"
+            "Grabbing track 02...\n"
+            "Finished.\n"
+        )
+
+        with unittest.mock.patch('arm.ripper.utils.subprocess.check_output', return_value=b""), \
+             unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
+            mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent"}
+            result = rip_music(sample_job, logfile)
+
+        assert result is True
+
+    def test_abcde_nonzero_exit_detected(self, app_context, sample_job, tmp_path):
+        """abcde with non-zero exit code should be caught."""
+        import subprocess
+        from arm.ripper.utils import rip_music
+
+        sample_job.disctype = "music"
+        sample_job.config.LOGPATH = str(tmp_path)
+
+        with unittest.mock.patch('arm.ripper.utils.subprocess.check_output',
+                                 side_effect=subprocess.CalledProcessError(1, "abcde", b"error")), \
+             unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
+            mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent"}
+            result = rip_music(sample_job, "test.log")
+
+        assert result is False
