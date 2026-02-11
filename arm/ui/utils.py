@@ -655,6 +655,8 @@ def build_arm_cfg(form_data, comments):
     # This really should be hard coded.
     app.logger.debug("save_settings: START")
     for key, value in form_data.items():
+        # Strip whitespace from all values (prevents key/path validation failures)
+        value = value.strip() if isinstance(value, str) else value
         # Skip the Cross Site Request Forgery (CSRF) token
         if key == "csrf_token":
             continue
@@ -931,25 +933,28 @@ def git_check_version():
     """
 
     install_path = cfg.arm_config['INSTALLPATH']
+    local_version = "Unknown"
+    remote_version = "Unknown"
 
     # Read the local version from the VERSION file
     version_file_path = os.path.join(install_path, 'VERSION')
     try:
         with open(version_file_path) as version_file:
             local_version = version_file.read().strip()
-    except FileNotFoundError as e:
-        app.logger.debug(f"Error - ARM Local Version file not found: {e}")
-    except IOError as e:
+    except (FileNotFoundError, IOError) as e:
         app.logger.debug(f"Error - ARM Local Version file error: {e}")
 
     # Read the remote version from Git (without modifying local files)
-    try:
-        remote_version = subprocess.check_output(
-            'git show origin/HEAD:VERSION', shell=True, cwd=install_path
-        ).decode('ascii').strip()
-    except subprocess.CalledProcessError as e:
-        app.logger.debug(f"Error - ARM Remote Version error: {e}")
-        remote_version = "Unknown"
+    # Try origin/HEAD first, fall back to origin/main then origin/master
+    for ref in ('origin/HEAD', 'origin/main', 'origin/master'):
+        try:
+            remote_version = subprocess.check_output(
+                ['git', 'show', f'{ref}:VERSION'], cwd=install_path,
+                stderr=subprocess.DEVNULL
+            ).decode('ascii').strip()
+            break
+        except subprocess.CalledProcessError:
+            continue
 
     app.logger.debug(f"Local version: {local_version}")
     app.logger.debug(f"Remote version: {remote_version}")

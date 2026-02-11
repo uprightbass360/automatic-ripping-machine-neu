@@ -85,3 +85,28 @@ class TestArmYamlCheckGroups:
         from arm.config.config_utils import arm_yaml_check_groups
         result = arm_yaml_check_groups(_full_comments(), 'NOTIFY_RIP')
         assert '# Notifications' in result
+
+
+class TestBuildArmCfgStrip:
+    """Test that build_arm_cfg strips whitespace from values (#1684)."""
+
+    def test_key_value_stripped(self):
+        from arm.ui.utils import build_arm_cfg
+        comments = _full_comments()
+        comments['ARM_CFG_GROUPS']['BEGIN'] = '# ARM config'
+        form_data = {
+            'MAKEMKV_PERMA_KEY': '  T-abc123xyz  ',
+        }
+        result = build_arm_cfg(form_data, comments)
+        assert 'T-abc123xyz' in result
+        assert '  T-abc123xyz' not in result
+
+    def test_normal_value_unchanged(self):
+        from arm.ui.utils import build_arm_cfg
+        comments = _full_comments()
+        comments['ARM_CFG_GROUPS']['BEGIN'] = '# ARM config'
+        form_data = {
+            'RAW_PATH': '/home/arm/media/raw',
+        }
+        result = build_arm_cfg(form_data, comments)
+        assert '/home/arm/media/raw' in result
