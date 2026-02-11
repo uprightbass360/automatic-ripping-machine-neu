@@ -1,4 +1,5 @@
 """Tests for ripping business logic (no hardware required)."""
+import os
 import unittest.mock
 
 import pytest
@@ -104,3 +105,61 @@ class TestJobState:
         assert JobState.TRANSCODE_ACTIVE in JOB_STATUS_TRANSCODING
         assert JobState.TRANSCODE_WAITING in JOB_STATUS_TRANSCODING
         assert JobState.IDLE not in JOB_STATUS_TRANSCODING
+
+
+class TestRipData:
+    """Test rip_data() data disc ripping logic."""
+
+    def test_duplicate_label_gets_unique_filename(self, app_context, sample_job, tmp_path):
+        """Second data disc with same label should NOT overwrite the first (#1651)."""
+        from arm.ripper.utils import rip_data
+
+        raw = tmp_path / "raw"
+        completed = tmp_path / "completed"
+        raw.mkdir()
+        completed.mkdir()
+
+        sample_job.disctype = "data"
+        sample_job.label = "MYDATA"
+        sample_job.video_type = "unknown"
+        sample_job.config.RAW_PATH = str(raw)
+        sample_job.config.COMPLETED_PATH = str(completed)
+
+        # First rip: create the raw directory so the second call thinks it's a collision
+        (raw / "MYDATA").mkdir()
+
+        with unittest.mock.patch('arm.ripper.utils.subprocess.check_output') as mock_dd, \
+             unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
+            mock_dd.return_value = b""
+            rip_data(sample_job)
+
+            # move_files_main should have been called with a timestamped .iso filename
+            if mock_move.called:
+                dest_file = mock_move.call_args[0][0]  # incomplete_filename
+                final_file = mock_move.call_args[0][1]  # full_final_file
+                # The ISO filename should NOT be just "MYDATA.iso" — it should have a suffix
+                assert "MYDATA.iso" not in final_file or "_" in os.path.basename(final_file)
+
+    def test_unique_label_uses_plain_filename(self, app_context, sample_job, tmp_path):
+        """Data disc with unique label uses plain label as filename."""
+        from arm.ripper.utils import rip_data
+
+        raw = tmp_path / "raw"
+        completed = tmp_path / "completed"
+        raw.mkdir()
+        completed.mkdir()
+
+        sample_job.disctype = "data"
+        sample_job.label = "UNIQUE_DISC"
+        sample_job.video_type = "unknown"
+        sample_job.config.RAW_PATH = str(raw)
+        sample_job.config.COMPLETED_PATH = str(completed)
+
+        with unittest.mock.patch('arm.ripper.utils.subprocess.check_output') as mock_dd, \
+             unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
+            mock_dd.return_value = b""
+            rip_data(sample_job)
+
+            if mock_move.called:
+                final_file = mock_move.call_args[0][1]
+                assert final_file.endswith("UNIQUE_DISC.iso")

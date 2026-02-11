@@ -519,7 +519,7 @@ def rip_data(job):
     logging.debug(f"Sending command: {cmd}")
     try:
         subprocess.check_output(cmd, shell=True).decode("utf-8")
-        full_final_file = os.path.join(final_path, f"{str(job.label)}.iso")
+        full_final_file = os.path.join(final_path, f"{final_file_name}.iso")
         logging.info(f"Moving data-disc from '{incomplete_filename}' to '{full_final_file}'")
         move_files_main(incomplete_filename, full_final_file, final_path)
         logging.info("Data rip call successful")
