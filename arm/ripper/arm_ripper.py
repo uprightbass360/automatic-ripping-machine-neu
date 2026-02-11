@@ -13,7 +13,8 @@ if find_spec("arm") is None:
     sys.path.append(str(Path(__file__).parents[2]))
 
 from arm.ripper import utils, makemkv, handbrake, ffmpeg  # noqa E402
-from arm.ui import app, db, constants  # noqa E402
+from arm.database import db  # noqa E402
+import arm.constants as constants  # noqa E402
 from arm.models.job import JobState  # noqa E402
 
 

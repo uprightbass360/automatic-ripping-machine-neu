@@ -17,7 +17,8 @@ from arm.models.job import Job, JobState, JOB_STATUS_FINISHED
 from arm.models.notifications import Notifications
 from arm.models.track import Track
 from arm.models.ui_settings import UISettings
-from arm.ui import app, db
+from arm.ui import app
+from arm.database import db
 from arm.ui.forms import ChangeParamsForm
 from arm.ui.utils import job_id_validator, database_updater, authenticated_state
 from arm.ui.settings import DriveUtils as drive_utils # noqa E402

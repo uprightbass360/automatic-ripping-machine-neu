@@ -14,7 +14,8 @@ import re
 import pyudev
 
 from arm.models import SystemDrives
-from arm.ui import app, db
+from arm.ui import app
+from arm.database import db
 
 
 class MaskSerialMeta(type):

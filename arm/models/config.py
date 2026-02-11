@@ -1,6 +1,6 @@
 from prettytable import PrettyTable
 
-from arm.ui import db
+from arm.database import db
 
 
 hidden_attribs = ("OMDB_API_KEY", "EMBY_USERID", "EMBY_PASSWORD",

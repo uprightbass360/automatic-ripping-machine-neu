@@ -23,7 +23,7 @@ from arm.models import SystemDrives, Track
 from arm.models.job import JobState
 from arm.ripper import utils
 from arm.ripper.utils import notify
-from arm.ui import db
+from arm.database import db
 
 MAKEMKV_INFO_WAIT_TIME = 60  # [s]
 """Wait for concurrent MakeMKV info processes.

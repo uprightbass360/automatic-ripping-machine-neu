@@ -19,7 +19,8 @@ from flask import render_template, request, Blueprint, flash, redirect, url_for
 from werkzeug.routing import ValidationError
 
 import arm.ui.utils as ui_utils
-from arm.ui import app, db, constants, json_api
+from arm.ui import app, constants, json_api
+from arm.database import db
 from arm.models.job import Job, JobState
 from arm.models.notifications import Notifications
 import arm.config.config as cfg

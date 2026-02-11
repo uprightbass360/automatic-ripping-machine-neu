@@ -11,7 +11,7 @@ from prettytable import PrettyTable
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from arm.ripper import music_brainz
-from arm.ui import db
+from arm.database import db
 import arm.config.config as cfg
 
 # THESE IMPORTS ARE REQUIRED FOR THE db.Relationships to work

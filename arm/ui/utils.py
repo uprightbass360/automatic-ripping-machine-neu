@@ -27,7 +27,8 @@ from arm.models.job import Job
 from arm.models.system_info import SystemInfo
 from arm.models.ui_settings import UISettings
 from arm.models.user import User
-from arm.ui import app, db
+from arm.ui import app
+from arm.database import db
 from arm.ui.metadata import tmdb_search, get_tmdb_poster, tmdb_find, call_omdb_api
 from arm.ui.settings import DriveUtils
 

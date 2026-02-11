@@ -4,7 +4,7 @@ import re
 import subprocess
 import logging
 
-from arm.ui import db
+from arm.database import db
 
 
 class SystemInfo(db.Model):

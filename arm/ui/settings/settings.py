@@ -29,7 +29,8 @@ from flask import render_template, request, flash, \
     redirect, Blueprint, session, url_for
 
 import arm.ui.utils as ui_utils
-from arm.ui import app, db
+from arm.ui import app
+from arm.database import db
 from arm.models.job import Job
 from arm.models.system_drives import SystemDrives
 from arm.models.system_info import SystemInfo

@@ -28,7 +28,8 @@ import arm.config.config as cfg  # noqa E402
 from arm.models.config import Config  # noqa: E402
 from arm.models.job import Job, JobState  # noqa: E402
 from arm.models.system_drives import SystemDrives  # noqa: E402
-from arm.ui import app, db, constants  # noqa E402
+from arm.database import db  # noqa E402
+import arm.constants as constants  # noqa E402
 from arm.ui.settings import DriveUtils as drive_utils # noqa E402
 import arm.config.config as cfg  # noqa E402
 from arm.ripper.ARMInfo import ARMInfo  # noqa E402

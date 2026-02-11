@@ -10,7 +10,7 @@ import re
 import arm.config.config as cfg
 
 from arm.ripper import utils
-from arm.ui import app, db  # noqa E402
+from arm.database import db  # noqa E402
 from arm.models.job import JobState
 
 PROCESS_COMPLETE = "FFMPEG processing complete"

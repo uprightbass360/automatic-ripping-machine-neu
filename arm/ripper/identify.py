@@ -17,7 +17,7 @@ from arm.models import Job
 
 from arm.ripper import utils
 from arm.ripper.ProcessHandler import arm_subprocess
-from arm.ui import db
+from arm.database import db
 
 # flake8: noqa: W605
 from arm.ui import utils as ui_utils

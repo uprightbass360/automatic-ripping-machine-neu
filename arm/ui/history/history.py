@@ -9,7 +9,8 @@ from flask_login import LoginManager, login_required  # noqa: F401
 from flask import render_template, request, Blueprint, session
 
 import arm.ui.utils as ui_utils
-from arm.ui import app, db
+from arm.ui import app
+from arm.database import db
 from arm.models.job import Job
 import arm.config.config as cfg
 

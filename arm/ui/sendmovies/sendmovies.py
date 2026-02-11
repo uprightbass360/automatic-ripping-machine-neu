@@ -7,7 +7,7 @@ Covers
 from flask_login import LoginManager, login_required  # noqa: F401
 from flask import render_template, request, Blueprint, session
 
-from arm.ui import db
+from arm.database import db
 from arm.models.job import Job
 
 route_sendmovies = Blueprint('route_sendmovies', __name__,

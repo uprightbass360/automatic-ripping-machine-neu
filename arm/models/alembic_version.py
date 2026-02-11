@@ -1,4 +1,4 @@
-from arm.ui import db
+from arm.database import db
 
 
 class AlembicVersion(db.Model):

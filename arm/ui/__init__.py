@@ -5,14 +5,13 @@ from getpass import getpass  # noqa: F401
 from logging.config import dictConfig
 from flask import Flask, logging, current_app  # noqa: F401
 from flask.logging import default_handler  # noqa: F401
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_wtf import CSRFProtect
 
 from flask_login import LoginManager
 import bcrypt  # noqa: F401
 import arm.config.config as cfg
+from arm.database import db, init_db  # noqa: F401
 
 sqlitefile = 'sqlite:///' + cfg.arm_config['DBFILE']
 
@@ -61,8 +60,7 @@ app.logger.debug(f"Disable Login: {cfg.arm_config['DISABLE_LOGIN']}")
 os.environ["WERKZEUG_DEBUG_PIN"] = "12345"  # make this random!
 app.logger.debug("Debugging pin: " + os.environ["WERKZEUG_DEBUG_PIN"])
 
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
+init_db(app)
 
 # Register route blueprints
 # loaded post database declaration to avoid circular loops

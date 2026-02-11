@@ -21,7 +21,8 @@ from flask_login import LoginManager, login_required, \
 from sqlalchemy.exc import SQLAlchemyError
 
 import arm.ui.utils as ui_utils
-from arm.ui import app, db, constants
+from arm.ui import app, constants
+from arm.database import db
 from arm.models.job import Job
 from arm.models.system_info import SystemInfo
 from arm.models.user import User

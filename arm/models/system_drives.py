@@ -8,7 +8,7 @@ import os
 import re
 import subprocess
 
-from arm.ui import db
+from arm.database import db
 
 
 class CDS(enum.Enum):
