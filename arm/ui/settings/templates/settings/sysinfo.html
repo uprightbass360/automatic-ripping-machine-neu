@@ -126,48 +126,42 @@
                     <ul class="list-group list-group-flush">
                         <!-- INTEL -->
                         <li class="list-group-item text-center">
-                            Intel QuickSync: {% if stats['hw_support']['intel'] %}
+                            Intel QuickSync:
+                            {% if stats['hw_support']['intel']['encoder'] %}
                             <img src="{{ url_for('static', filename='img/success.png') }}"
-                                 alt="update image" width="20px" height="20px">
-                        {% else %}
+                                 alt="Encoder available" width="20px" height="20px">
+                            {% elif stats['hw_support']['intel']['detected'] %}
+                            <span class="badge bg-warning text-dark" title="GPU detected but encoder not available">Detected</span>
+                            {% else %}
                             <img src="{{ url_for('static', filename='img/fail.png') }}"
-                                 alt="update image" width="20px" height="20px">
-                            <a href="https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/"
-                               target=”_blank”>
-                                <img title="Get Help from the wiki!"
-                                     src="{{ url_for('static', filename='img/info.png') }}" width="20px"
-                                     height="20px" alt="Get Help from the wiki!"></a>
-                        {% endif %}
+                                 alt="Not detected" width="20px" height="20px">
+                            {% endif %}
                         </li>
                         <!-- NVIDIA -->
                         <li class="list-group-item text-center">
-                            Nvidia NVENC:{% if stats['hw_support']['nvidia'] %}
+                            Nvidia NVENC:
+                            {% if stats['hw_support']['nvidia']['encoder'] %}
                             <img src="{{ url_for('static', filename='img/success.png') }}"
-                                 alt="update image" width="20px" height="20px">
-                        {% else %}
+                                 alt="Encoder available" width="20px" height="20px">
+                            {% elif stats['hw_support']['nvidia']['detected'] %}
+                            <span class="badge bg-warning text-dark" title="GPU detected but encoder not available">Detected</span>
+                            {% else %}
                             <img src="{{ url_for('static', filename='img/fail.png') }}"
-                                 alt="update image" width="20px" height="20px">
-                            <a href="https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/"
-                               target=”_blank”>
-                                <img title="Get Help from the wiki!"
-                                     src="{{ url_for('static', filename='img/info.png') }}" width="20px"
-                                     height="20px" alt="Get Help from the wiki!"></a>
-                        {% endif %}
+                                 alt="Not detected" width="20px" height="20px">
+                            {% endif %}
                         </li>
                         <!-- AMD -->
                         <li class="list-group-item text-center">
-                            AMD VCN:{% if stats['hw_support']['amd'] %}
+                            AMD VCN:
+                            {% if stats['hw_support']['amd']['encoder'] %}
                             <img src="{{ url_for('static', filename='img/success.png') }}"
-                                 alt="update image" width="20px" height="20px">
-                        {% else %}
+                                 alt="Encoder available" width="20px" height="20px">
+                            {% elif stats['hw_support']['amd']['detected'] %}
+                            <span class="badge bg-warning text-dark" title="GPU detected but encoder not available">Detected</span>
+                            {% else %}
                             <img src="{{ url_for('static', filename='img/fail.png') }}"
-                                 alt="update image" width="20px" height="20px">
-                            <a href="https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/"
-                               target=”_blank”>
-                                <img title="Get Help from the wiki!"
-                                     src="{{ url_for('static', filename='img/info.png') }}" width="20px"
-                                     height="20px" alt="Get Help from the wiki!"></a>
-                        {% endif %}
+                                 alt="Not detected" width="20px" height="20px">
+                            {% endif %}
                         </li>
                     </ul>
                 </div>

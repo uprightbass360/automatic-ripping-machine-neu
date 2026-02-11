@@ -137,32 +137,138 @@ def settings():
                            form_drive=form_drive)
 
 
+def _detect_gpu_hardware():
+    """Detect GPU hardware via sysfs PCI scan and render node probing.
+
+    Returns dict mapping vendor key ('amd', 'nvidia', 'intel') to True
+    if at least one display-class PCI device from that vendor is found.
+    On WSL2, detects virtual GPU presence via /dev/dxg and attempts to
+    identify the real GPU vendor through the DRM render node driver.
+    """
+    import glob
+
+    vendor_map = {
+        '0x1002': 'amd',
+        '0x10de': 'nvidia',
+        '0x8086': 'intel',
+    }
+    detected = {'amd': False, 'nvidia': False, 'intel': False}
+
+    # Method 1: /sys/class/drm/card*/device/vendor — render-capable GPUs
+    drm_vendors = glob.glob('/sys/class/drm/card[0-9]*/device/vendor')
+    if drm_vendors:
+        for vendor_path in drm_vendors:
+            try:
+                with open(vendor_path) as f:
+                    vendor_id = f.read().strip()
+                if vendor_id in vendor_map:
+                    detected[vendor_map[vendor_id]] = True
+            except OSError:
+                pass
+        if any(detected.values()):
+            return detected
+
+    # Method 2: PCI bus scan for display controllers (class 0x03xxxx)
+    for class_path in glob.glob('/sys/bus/pci/devices/*/class'):
+        try:
+            with open(class_path) as f:
+                pci_class = f.read().strip()
+            if not pci_class.startswith('0x03'):
+                continue
+            vendor_path = class_path.replace('/class', '/vendor')
+            with open(vendor_path) as f:
+                vendor_id = f.read().strip()
+            if vendor_id in vendor_map:
+                detected[vendor_map[vendor_id]] = True
+        except OSError:
+            pass
+    if any(detected.values()):
+        return detected
+
+    # Method 3: /dev/dri/renderD* — check DRM driver name for vendor hint
+    for render_path in sorted(glob.glob('/dev/dri/renderD*')):
+        node_name = os.path.basename(render_path)
+        driver_link = f'/sys/class/drm/{node_name}/device/driver'
+        try:
+            driver_name = os.path.basename(os.readlink(driver_link)).lower()
+            if 'amdgpu' in driver_name or 'radeon' in driver_name:
+                detected['amd'] = True
+            elif 'nvidia' in driver_name or 'nouveau' in driver_name:
+                detected['nvidia'] = True
+            elif 'i915' in driver_name or 'xe' in driver_name:
+                detected['intel'] = True
+        except OSError:
+            pass
+    if any(detected.values()):
+        return detected
+
+    # Method 4: WSL2 — dxgkrnl driver binds to Microsoft virtual GPU
+    # devices (PCI vendor 0x1414, class 0x0302).  The real GPU vendor is
+    # hidden, but we can infer it: dedicated NVIDIA GPUs are exposed via
+    # the nvidia/CUDA WSL2 driver (not dxgkrnl), so dxgkrnl display
+    # devices on an AMD CPU strongly indicate an AMD GPU, and on an
+    # Intel CPU indicate Intel integrated graphics.
+    dxgkrnl_uevents = glob.glob('/sys/bus/pci/drivers/dxgkrnl/*/uevent')
+    if dxgkrnl_uevents:
+        has_virtual_gpu = False
+        for uevent_path in dxgkrnl_uevents:
+            try:
+                with open(uevent_path) as f:
+                    uevent = f.read()
+                if 'PCI_CLASS=302' in uevent:
+                    has_virtual_gpu = True
+                    break
+            except OSError:
+                pass
+        if has_virtual_gpu:
+            try:
+                with open('/proc/cpuinfo') as f:
+                    cpuinfo = f.read().lower()
+                if 'authenticamd' in cpuinfo:
+                    detected['amd'] = True
+                elif 'genuineintel' in cpuinfo:
+                    detected['intel'] = True
+            except OSError:
+                pass
+
+    return detected
+
+
 def check_hw_transcode_support():
     cmd = f"nice {cfg.arm_config['HANDBRAKE_CLI']}"
 
     app.logger.debug(f"Sending command: {cmd}")
     hw_support_status = {
-        "nvidia": False,
-        "intel": False,
-        "amd": False
+        "nvidia": {"detected": False, "encoder": False},
+        "intel": {"detected": False, "encoder": False},
+        "amd": {"detected": False, "encoder": False},
     }
+
+    # Hardware detection via sysfs (works without HandBrake GPU access)
+    gpu_hw = _detect_gpu_hardware()
+    for vendor in ('nvidia', 'intel', 'amd'):
+        hw_support_status[vendor]["detected"] = gpu_hw[vendor]
+        if gpu_hw[vendor]:
+            app.logger.info(f"GPU hardware detected: {vendor}")
+
+    # HandBrake encoder availability check
     try:
         hand_brake_output = subprocess.run(f"{cmd}", capture_output=True, shell=True, check=True)
+        stderr = str(hand_brake_output.stderr)
 
         # NVENC
-        if re.search(r'nvenc: version ([0-9\\.]+) is available', str(hand_brake_output.stderr)):
+        if re.search(r'nvenc: version ([0-9\\.]+) is available', stderr):
             app.logger.info("NVENC supported!")
-            hw_support_status["nvidia"] = True
+            hw_support_status["nvidia"]["encoder"] = True
         # Intel QuickSync
-        if re.search(r'qsv:\sis(.*?)available\son', str(hand_brake_output.stderr)):
+        if re.search(r'qsv:\sis(.*?)available\son', stderr):
             app.logger.info("Intel QuickSync supported!")
-            hw_support_status["intel"] = True
+            hw_support_status["intel"]["encoder"] = True
         # AMD VCN
-        if re.search(r'vcn:\sis(.*?)available\son', str(hand_brake_output.stderr)):
+        if re.search(r'vcn:\sis(.*?)available\son', stderr):
             app.logger.info("AMD VCN supported!")
-            hw_support_status["amd"] = True
+            hw_support_status["amd"]["encoder"] = True
         app.logger.info("Handbrake call successful")
-        # Dump the whole CompletedProcess object
         app.logger.debug(hand_brake_output)
     except subprocess.CalledProcessError as hb_error:
         err = f"Call to handbrake failed with code: {hb_error.returncode}({hb_error.output})"
