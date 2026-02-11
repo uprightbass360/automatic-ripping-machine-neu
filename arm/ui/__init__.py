@@ -81,6 +81,11 @@ app.register_blueprint(route_jobs)
 app.register_blueprint(route_sendmovies)
 app.register_blueprint(route_notifications)
 
+# Register REST API blueprint (CSRF-exempt — API clients use token auth)
+from arm.api import api_bp  # noqa: E402
+csrf.exempt(api_bp)
+app.register_blueprint(api_bp, url_prefix='/api')
+
 # Remove GET/page loads from logging
 import logging  # noqa: E402,F811
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
