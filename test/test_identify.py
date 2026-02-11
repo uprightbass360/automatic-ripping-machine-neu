@@ -6,6 +6,7 @@ Also covers arm/ui/metadata.py: call_omdb_api() fallback for short titles.
 """
 import json
 import os
+import subprocess
 import unittest.mock
 
 import pytest
@@ -515,7 +516,7 @@ class TestIdentifyUnmount:
              unittest.mock.patch('arm.ripper.identify.subprocess.run') as mock_run:
             identify(job)
             mock_run.assert_called_once_with(
-                ["umount", "/dev/sr0"], stderr=unittest.mock.ANY
+                ["umount", "/dev/sr0"], stderr=subprocess.PIPE, text=True
             )
 
     def test_umount_called_on_exception(self):
@@ -537,7 +538,7 @@ class TestIdentifyUnmount:
                     identify(job)
             # umount should still have been called
             mock_run.assert_called_once_with(
-                ["umount", "/dev/sr0"], stderr=unittest.mock.ANY
+                ["umount", "/dev/sr0"], stderr=subprocess.PIPE, text=True
             )
 
     def test_umount_called_when_not_mounted(self):
@@ -570,99 +571,79 @@ class TestOmdbShortTitleFallback:
 
         return side_effect
 
+    @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_search_failure_falls_back_to_exact_title(self):
         """When ?s= returns 'Too many results', ?t= is tried."""
         from arm.ui.metadata import call_omdb_api
-        import arm.config.config as cfg
 
-        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
-        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
-        try:
-            search_error = {"Response": "False", "Error": "Too many results."}
-            exact_match = {
-                "Response": "True",
-                "Title": "9",
-                "Year": "2009",
-                "Type": "movie",
-                "imdbID": "tt0472033",
-                "Poster": "https://example.com/9.jpg",
-            }
-            mock_open = self._mock_urlopen([search_error, exact_match])
-            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
-                result = call_omdb_api(title="9", year="2009")
+        search_error = {"Response": "False", "Error": "Too many results."}
+        exact_match = {
+            "Response": "True",
+            "Title": "9",
+            "Year": "2009",
+            "Type": "movie",
+            "imdbID": "tt0472033",
+            "Poster": "https://example.com/9.jpg",
+        }
+        mock_open = self._mock_urlopen([search_error, exact_match])
+        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+            result = call_omdb_api(title="9", year="2009")
 
-            assert result is not None
-            assert result['Search'][0]['Title'] == '9'
-            assert result['Search'][0]['imdbID'] == 'tt0472033'
-        finally:
-            cfg.arm_config['OMDB_API_KEY'] = original_key
+        assert result is not None
+        assert result['Search'][0]['Title'] == '9'
+        assert result['Search'][0]['imdbID'] == 'tt0472033'
 
+    @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_both_search_and_exact_fail_returns_none(self):
         """When both ?s= and ?t= fail, returns None."""
         from arm.ui.metadata import call_omdb_api
-        import arm.config.config as cfg
 
-        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
-        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
-        try:
-            error_resp = {"Response": "False", "Error": "Movie not found!"}
-            mock_open = self._mock_urlopen([error_resp, error_resp])
-            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
-                result = call_omdb_api(title="xyznonexistent", year="2020")
+        error_resp = {"Response": "False", "Error": "Movie not found!"}
+        mock_open = self._mock_urlopen([error_resp, error_resp])
+        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+            result = call_omdb_api(title="xyznonexistent", year="2020")
 
-            assert result is None
-        finally:
-            cfg.arm_config['OMDB_API_KEY'] = original_key
+        assert result is None
 
+    @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_search_succeeds_no_fallback_needed(self):
         """When ?s= succeeds, no fallback is triggered."""
         from arm.ui.metadata import call_omdb_api
-        import arm.config.config as cfg
 
-        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
-        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
-        try:
-            search_success = {
-                "Response": "True",
-                "Search": [{"Title": "The Matrix", "Year": "1999", "imdbID": "tt0133093",
-                            "Type": "movie", "Poster": "https://example.com/matrix.jpg"}]
-            }
-            mock_open = self._mock_urlopen([search_success])
-            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
-                result = call_omdb_api(title="The+Matrix", year="1999")
+        search_success = {
+            "Response": "True",
+            "Search": [{"Title": "The Matrix", "Year": "1999", "imdbID": "tt0133093",
+                        "Type": "movie", "Poster": "https://example.com/matrix.jpg"}]
+        }
+        mock_open = self._mock_urlopen([search_success])
+        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+            result = call_omdb_api(title="The Matrix", year="1999")
 
-            assert result is not None
-            assert result['Search'][0]['Title'] == 'The Matrix'
-        finally:
-            cfg.arm_config['OMDB_API_KEY'] = original_key
+        assert result is not None
+        assert result['Search'][0]['Title'] == 'The Matrix'
 
+    @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_fallback_network_error_returns_none(self):
         """When ?s= fails and ?t= raises a network error, returns None gracefully (#1430)."""
         from arm.ui.metadata import call_omdb_api
-        import arm.config.config as cfg
 
-        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
-        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
-        try:
-            call_count = [0]
+        call_count = [0]
 
-            def mock_urlopen(url, **kwargs):
-                call_count[0] += 1
-                if call_count[0] == 1:
-                    # First call (?s=) returns error response
-                    mock_resp = unittest.mock.MagicMock()
-                    mock_resp.read.return_value = json.dumps(
-                        {"Response": "False", "Error": "Too many results."}
-                    ).encode()
-                    return mock_resp
-                # Second call (?t=) raises network error
-                raise urllib.error.URLError("DNS lookup failed")
+        def mock_urlopen(url, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                # First call (?s=) returns error response
+                mock_resp = unittest.mock.MagicMock()
+                mock_resp.read.return_value = json.dumps(
+                    {"Response": "False", "Error": "Too many results."}
+                ).encode()
+                return mock_resp
+            # Second call (?t=) raises network error
+            raise urllib.error.URLError("DNS lookup failed")
 
-            import urllib.error
-            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen',
-                                     side_effect=mock_urlopen):
-                result = call_omdb_api(title="9", year="2009")
+        import urllib.error
+        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen',
+                                 side_effect=mock_urlopen):
+            result = call_omdb_api(title="9", year="2009")
 
-            assert result is None
-        finally:
-            cfg.arm_config['OMDB_API_KEY'] = original_key
+        assert result is None

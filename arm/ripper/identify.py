@@ -95,7 +95,10 @@ def identify(job):
                 logging.debug(f"identify.job.end ---- \n\r{job.pretty_table()}")
     finally:
         # Always unmount after identification, even on error (#1664)
-        subprocess.run(["umount", job.devpath], stderr=subprocess.DEVNULL)
+        result = subprocess.run(["umount", job.devpath],
+                                stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0 and result.stderr:
+            logging.debug(f"umount {job.devpath}: {result.stderr.strip()}")
 
 
 def _bluray_label_fallback(job):

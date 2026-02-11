@@ -237,7 +237,7 @@ class TestDrivesUpdateNameless:
             maker="VirtualBox",
             model="CD-ROM",
             serial="",
-            serial_id=serial_id or "",
+            serial_id=serial_id,
             connection="ata",
             read_cd=True,
             read_dvd=True,
