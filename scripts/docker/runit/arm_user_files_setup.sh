@@ -77,10 +77,13 @@ if [ -h /home/arm/Music ]; then
 fi
 
 ##### Setup ARM-specific config files if not found
-# Check ownership of the ARM config folder
+# Create config dir if missing, then verify ownership
+if [[ ! -d /etc/arm/config ]]; then
+  echo "Creating dir: /etc/arm/config"
+  mkdir -p /etc/arm/config
+  chown arm:arm /etc/arm/config
+fi
 check_folder_ownership "/etc/arm/config"
-
-mkdir -p /etc/arm/config
 CONFS="arm.yaml apprise.yaml"
 for conf in $CONFS; do
   thisConf="/etc/arm/config/${conf}"
