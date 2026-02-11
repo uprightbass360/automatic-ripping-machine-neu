@@ -728,20 +728,28 @@ def _reconcile_filenames(job, rawpath):
 
     tracks = list(job.tracks.filter_by(source=SOURCE).order_by(Track.track_number))
     updated = False
+    claimed = set()
 
     for track in tracks:
         # If current filename matches an actual file, no update needed
         if track.filename in actual_files:
+            claimed.add(track.filename)
             continue
 
         # Match by track number suffix — MakeMKV uses _t00, _t01, etc.
-        track_num = int(track.track_number)
+        try:
+            track_num = int(track.track_number)
+        except (ValueError, TypeError):
+            continue
         for f in actual_files:
+            if f in claimed:
+                continue
             base = os.path.splitext(f)[0]
             if re.search(rf'_t0*{track_num}\b', base):
                 logging.info(f"Reconciled track #{track_num} filename: "
                              f"'{track.filename}' -> '{f}'")
                 track.filename = f
+                claimed.add(f)
                 updated = True
                 break
 
