@@ -1,0 +1,225 @@
+"""Tests for disc type detection — README Feature: Disc Type Determination.
+
+Covers Job.parse_udev() and Job.get_disc_type() which together determine
+whether a disc is DVD, Blu-ray, music CD, data, or unknown.
+"""
+import os
+import unittest.mock
+
+import pytest
+
+
+class TestParseUdev:
+    """Test Job.parse_udev() property extraction from udev attributes."""
+
+    def _make_device(self, props):
+        """Build a mock pyudev device that yields the given key/value pairs."""
+        device = unittest.mock.MagicMock()
+        device.items.return_value = list(props.items())
+        return device
+
+    def _create_job_with_udev(self, props):
+        """Create a Job where parse_udev reads from the given props dict."""
+        import pyudev
+        from arm.models.job import Job
+
+        device = self._make_device(props)
+        with unittest.mock.patch.object(pyudev, 'Context'), \
+             unittest.mock.patch.object(pyudev.Devices, 'from_device_file', return_value=device), \
+             unittest.mock.patch.object(Job, 'get_pid'):
+            job = Job('/dev/sr0')
+        return job
+
+    def test_bluray_detected(self):
+        """ID_CDROM_MEDIA_BD sets disctype to 'bluray'."""
+        job = self._create_job_with_udev({
+            'ID_FS_LABEL': 'SERIAL_MOM',
+            'ID_CDROM_MEDIA_BD': '1',
+        })
+        assert job.disctype == 'bluray'
+        assert job.label == 'SERIAL_MOM'
+
+    def test_dvd_detected(self):
+        """ID_CDROM_MEDIA_DVD sets disctype to 'dvd'."""
+        job = self._create_job_with_udev({
+            'ID_FS_LABEL': 'MY_MOVIE',
+            'ID_CDROM_MEDIA_DVD': '1',
+        })
+        assert job.disctype == 'dvd'
+
+    def test_music_cd_detected(self):
+        """ID_CDROM_MEDIA_TRACK_COUNT_AUDIO sets disctype to 'music'."""
+        job = self._create_job_with_udev({
+            'ID_CDROM_MEDIA_TRACK_COUNT_AUDIO': '12',
+        })
+        assert job.disctype == 'music'
+
+    def test_data_disc_via_label(self):
+        """ID_FS_LABEL of 'iso9660' sets disctype to 'data'."""
+        job = self._create_job_with_udev({
+            'ID_FS_LABEL': 'iso9660',
+        })
+        assert job.disctype == 'data'
+
+    def test_unknown_disc(self):
+        """Disc without recognized udev keys stays 'unknown'."""
+        job = self._create_job_with_udev({
+            'ID_VENDOR': 'SomeVendor',
+        })
+        assert job.disctype == 'unknown'
+
+    def test_label_set_from_fs_label(self):
+        """ID_FS_LABEL sets job.label."""
+        job = self._create_job_with_udev({
+            'ID_FS_LABEL': 'BACK_TO_THE_FUTURE',
+            'ID_CDROM_MEDIA_DVD': '1',
+        })
+        assert job.label == 'BACK_TO_THE_FUTURE'
+
+    def test_bd_takes_precedence_order(self):
+        """When multiple disc type keys are present, last one seen wins."""
+        # parse_udev iterates in order; both BD and DVD present
+        job = self._create_job_with_udev({
+            'ID_CDROM_MEDIA_DVD': '1',
+            'ID_CDROM_MEDIA_BD': '1',
+        })
+        # BD comes after DVD in iteration → 'bluray'
+        assert job.disctype == 'bluray'
+
+
+class TestGetDiscType:
+    """Test Job.get_disc_type() filesystem-based disc type detection."""
+
+    def _make_job(self):
+        """Create a job with mocked udev (disctype starts 'unknown')."""
+        from arm.models.job import Job
+        with unittest.mock.patch.object(Job, 'parse_udev'), \
+             unittest.mock.patch.object(Job, 'get_pid'):
+            job = Job('/dev/sr0')
+        job.disctype = 'unknown'
+        job.label = 'TEST'
+        return job
+
+    def test_video_ts_detected_as_dvd(self, tmp_path):
+        """Directory VIDEO_TS at mountpoint → dvd."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        os.makedirs(tmp_path / 'VIDEO_TS')
+        job.get_disc_type(False)
+        assert job.disctype == 'dvd'
+
+    def test_video_ts_lowercase(self, tmp_path):
+        """Directory video_ts (lowercase) → dvd."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        os.makedirs(tmp_path / 'video_ts')
+        job.get_disc_type(False)
+        assert job.disctype == 'dvd'
+
+    def test_bdmv_detected_as_bluray(self, tmp_path):
+        """Directory BDMV at mountpoint → bluray."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        os.makedirs(tmp_path / 'BDMV')
+        job.get_disc_type(False)
+        assert job.disctype == 'bluray'
+
+    def test_audio_ts_detected_as_data(self, tmp_path):
+        """Non-empty AUDIO_TS directory → data (DVD-Audio)."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        audio_dir = tmp_path / 'AUDIO_TS'
+        audio_dir.mkdir()
+        (audio_dir / 'dummy.aob').write_bytes(b'\x00')
+        job.get_disc_type(False)
+        assert job.disctype == 'data'
+
+    def test_empty_audio_ts_not_data(self, tmp_path):
+        """Empty AUDIO_TS directory does NOT trigger data detection."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        (tmp_path / 'AUDIO_TS').mkdir()
+        job.get_disc_type(False)
+        # Falls through to else → 'data' (no valid dvd/bd structure)
+        assert job.disctype == 'data'
+
+    def test_no_structure_defaults_data(self, tmp_path):
+        """No recognized directory structure → falls to 'data'."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        job.get_disc_type(False)
+        assert job.disctype == 'data'
+
+    def test_hvdvd_ts_directory(self, tmp_path):
+        """HVDVD_TS directory detected (HD-DVD)."""
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        os.makedirs(tmp_path / 'HVDVD_TS')
+        job.get_disc_type(False)
+        # The code doesn't change disctype for HVDVD_TS (just comments "do something here")
+        # So disctype should remain 'unknown'
+        assert job.disctype == 'unknown'
+
+    def test_music_disc_delegates_to_musicbrainz(self):
+        """Music disc type delegates to music_brainz.main()."""
+        job = self._make_job()
+        job.disctype = 'music'
+        with unittest.mock.patch('arm.ripper.music_brainz.main', return_value='Artist Title') as mock_mb:
+            job.get_disc_type(False)
+            mock_mb.assert_called_once_with(job)
+            assert job.label == 'Artist Title'
+
+
+class TestIdentifyAudioCd:
+    """Test Job.identify_audio_cd() log file naming for music CDs."""
+
+    def _make_job(self):
+        from arm.models.job import Job
+        with unittest.mock.patch.object(Job, 'parse_udev'), \
+             unittest.mock.patch.object(Job, 'get_pid'):
+            job = Job('/dev/sr0')
+        job.disctype = 'music'
+        job.label = ''
+        job.title = ''
+        job.arm_version = 'test'
+        return job
+
+    def test_identified_title_returns_logfile(self):
+        """When MusicBrainz identifies the disc, logfile uses the title."""
+        job = self._make_job()
+        mock_discid = unittest.mock.MagicMock()
+        with unittest.mock.patch('arm.ripper.music_brainz.get_disc_id', return_value=mock_discid), \
+             unittest.mock.patch('arm.ripper.music_brainz.get_title', return_value='Pink Floyd Dark Side'):
+            logfile = job.identify_audio_cd()
+        assert logfile == 'Pink Floyd Dark Side.log'
+
+    def test_unidentified_returns_music_cd_log(self):
+        """When disc is not identified, returns 'music_cd.log'."""
+        job = self._make_job()
+        mock_discid = unittest.mock.MagicMock()
+        with unittest.mock.patch('arm.ripper.music_brainz.get_disc_id', return_value=mock_discid), \
+             unittest.mock.patch('arm.ripper.music_brainz.get_title', return_value='not identified'):
+            logfile = job.identify_audio_cd()
+        assert logfile == 'music_cd.log'
+        assert job.label == 'not identified'
+        assert job.title == 'not identified'
+
+    def test_existing_logfile_gets_timestamp(self, tmp_path):
+        """If logfile already exists, a timestamp suffix is appended."""
+        import arm.config.config as cfg
+        job = self._make_job()
+        mock_discid = unittest.mock.MagicMock()
+        # Create existing log file
+        original_logpath = cfg.arm_config['LOGPATH']
+        cfg.arm_config['LOGPATH'] = str(tmp_path)
+        (tmp_path / 'Artist Title.log').write_text('existing')
+        try:
+            with unittest.mock.patch('arm.ripper.music_brainz.get_disc_id', return_value=mock_discid), \
+                 unittest.mock.patch('arm.ripper.music_brainz.get_title', return_value='Artist Title'):
+                logfile = job.identify_audio_cd()
+            # Should have timestamp suffix
+            assert logfile.startswith('Artist Title_')
+            assert logfile.endswith('.log')
+            assert logfile != 'Artist Title.log'
+        finally:
+            cfg.arm_config['LOGPATH'] = original_logpath
