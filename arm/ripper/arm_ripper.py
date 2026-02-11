@@ -28,22 +28,20 @@ def rip_visual_media(have_dupes, job, logfile, protection):
     :param protection: Does the disc have 99 track protection
     :return: None
     """
-    # Fix the sub-folder type - (movie|tv|unknown)
-    type_sub_folder = utils.convert_job_type(job.video_type)
-    # Fix the job title - Title (Year) | Title
-    job_title = utils.fix_job_title(job)
+    # Compute paths using model methods
+    transcode_out_path = job.build_transcode_path()
+    final_directory = job.build_final_path()
 
-    # We need to check/construct the final path, and the transcode path
-    transcode_out_path = os.path.join(job.config.TRANSCODE_PATH, type_sub_folder, job_title)
-    final_directory = os.path.join(job.config.COMPLETED_PATH, type_sub_folder, job_title)
-
-    # Check folders for already ripped jobs -> creates folder
+    # Check folders for already ripped jobs -> creates folder (handles collisions)
     transcode_out_path = utils.check_for_dupe_folder(have_dupes, transcode_out_path, job)
     # If dupes rips is disabled this might kill the run
     final_directory = utils.check_for_dupe_folder(have_dupes, final_directory, job)
 
-    # Update the job.path with the final directory
-    utils.database_updater({'path': final_directory}, job)
+    # Persist all paths to DB immediately
+    utils.database_updater({
+        'path': final_directory,
+        'transcode_path': transcode_out_path,
+    }, job)
     # Save poster image from disc if enabled
     utils.save_disc_poster(final_directory, job)
 
@@ -70,6 +68,8 @@ def rip_visual_media(have_dupes, job, logfile, protection):
             job.status = JobState.FAILURE.value
             db.session.commit()
             raise ValueError("MakeMKV output path is None. Job failed.")
+        # Persist raw_path to DB — this is the actual directory on disk
+        utils.database_updater({'raw_path': makemkv_out_path}, job)
         if job.config.NOTIFY_RIP:
             utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete. Starting transcode. ")
         logging.info("************* Ripping with MakeMKV completed *************")
@@ -84,14 +84,14 @@ def rip_visual_media(have_dupes, job, logfile, protection):
     if job.config.SKIP_TRANSCODE and use_make_mkv:
         utils.delete_raw_files([transcode_out_path])
         transcode_out_path = transcode_in_path
+        utils.database_updater({'transcode_path': transcode_out_path}, job)
 
     # Update final path if user has set a custom/manual title
     logging.debug(f"Job title status: [{job.title_manual}]")
     if job.title_manual:
         # Remove the old final dir
         utils.delete_raw_files([final_directory])
-        job_title = utils.fix_job_title(job)
-        final_directory = os.path.join(job.config.COMPLETED_PATH, type_sub_folder, job_title)
+        final_directory = job.build_final_path()
         # Update the job.path with the final directory
         utils.database_updater({'path': final_directory}, job)
 

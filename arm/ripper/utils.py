@@ -54,7 +54,7 @@ def notify(job, title: str, body: str):
     notification = Notifications(title, body)
     database_adder(notification)
 
-    bash_notify(cfg.arm_config, title, body)
+    bash_notify(cfg.arm_config, title, body, job)
 
     # Sent to remote sites
     # Create an Apprise instance
@@ -81,11 +81,26 @@ def notify(job, title: str, body: str):
             logging.error(f"Failed sending apprise notifications. {error}")
 
 
-def bash_notify(cfg, title, body):
-    # bash notifications use subprocess instead of apprise.
+def bash_notify(cfg, title, body, job=None):
+    """Run BASH_SCRIPT with notification data.
+    Positional args ($1=title, $2=body) preserved for backward compatibility.
+    Job metadata passed via ARM_* environment variables."""
     if cfg['BASH_SCRIPT'] != "":
         try:
-            subprocess.run(["/usr/bin/bash", cfg['BASH_SCRIPT'], title, body])
+            env = os.environ.copy()
+            if job is not None:
+                env['ARM_JOB_ID'] = str(job.job_id or '')
+                env['ARM_TITLE'] = str(job.title or '')
+                env['ARM_TITLE_AUTO'] = str(job.title_auto or '')
+                env['ARM_YEAR'] = str(job.year or '')
+                env['ARM_VIDEO_TYPE'] = str(job.video_type or '')
+                env['ARM_DISCTYPE'] = str(job.disctype or '')
+                env['ARM_LABEL'] = str(job.label or '')
+                env['ARM_STATUS'] = str(job.status or '')
+                env['ARM_PATH'] = str(job.path or '')
+                env['ARM_RAW_PATH'] = str(job.raw_path or '')
+                env['ARM_TRANSCODE_PATH'] = str(job.transcode_path or '')
+            subprocess.run(["/usr/bin/bash", cfg['BASH_SCRIPT'], title, body], env=env)
             logging.debug("Sent bash notification successful")
         except Exception as error:  # noqa: E722
             logging.error(f"Failed sending notification via bash. Continuing  processing...{error}")
@@ -157,7 +172,9 @@ def sleep_check_process(process_str, max_processes, sleep=(20, 120, 10)):
 
 def convert_job_type(video_type):
     """
-    Converts the job_type to the correct sub-folder
+    Converts the job_type to the correct sub-folder.
+    Deprecated: use job.type_subfolder instead.
+    Kept for the call site in rip_data() that passes video_type directly.
     :param video_type: job.video_type
     :return: string of the correct folder
     """
@@ -172,21 +189,12 @@ def convert_job_type(video_type):
 
 def fix_job_title(job):
     """
-    Validate the job title remove/add job year as needed\n
+    Validate the job title remove/add job year as needed.
+    Deprecated: use job.formatted_title instead.\n
     :param job:
     :return: corrected job.title
     """
-    if job.year and job.year != "0000" and job.year != "":
-        if job.title_manual:
-            job_title = f"{job.title_manual} ({job.year})"
-        else:
-            job_title = f"{job.title} ({job.year})"
-    else:
-        if job.title_manual:
-            job_title = f"{job.title_manual}"
-        else:
-            job_title = f"{job.title}"
-    return job_title
+    return job.formatted_title
 
 
 #  ############## Start of post processing functions
@@ -515,6 +523,7 @@ def rip_data(job):
         logging.info(f"Moving data-disc from '{incomplete_filename}' to '{full_final_file}'")
         move_files_main(incomplete_filename, full_final_file, final_path)
         logging.info("Data rip call successful")
+        database_updater({'path': full_final_file}, job)
         success = True
     except subprocess.CalledProcessError as dd_error:
         err = f"Data rip failed with code: {dd_error.returncode}({dd_error.output})"
@@ -669,6 +678,7 @@ def database_updater(args, job, wait_time=90):
     for i in range(wait_time):  # give up after the users wait period in seconds
         try:
             db.session.commit()
+            break
         except Exception as error:
             if "locked" in str(error):
                 time.sleep(1)

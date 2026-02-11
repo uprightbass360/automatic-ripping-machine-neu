@@ -53,6 +53,7 @@ def database_updater(args, job, wait_time=90):
     for i in range(wait_time):  # give up after the users wait period in seconds
         try:
             db.session.commit()
+            break
         except Exception as error:
             if "locked" in str(error):
                 sleep(1)
@@ -91,14 +92,14 @@ def check_db_version(install_path, db_file):
 
         if not os.path.isfile(db_file):
             app.logger.debug("Can't create database file.  This could be a permissions issue.  Exiting...")
-        else:
-            # Only run the below if the db exists
-            # Check to see if db is at current revision
-            head_revision = script.get_current_head()
-            app.logger.debug("Alembic Head is: " + head_revision)
+            return
+        # Only run the below if the db exists
+        # Check to see if db is at current revision
+        head_revision = script.get_current_head()
+        app.logger.debug("Alembic Head is: " + head_revision)
 
-            conn = sqlite3.connect(db_file)
-            c = conn.cursor()
+        conn = sqlite3.connect(db_file)
+        c = conn.cursor()
 
         c.execute('SELECT version_num FROM alembic_version')
         db_version = c.fetchone()[0]

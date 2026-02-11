@@ -123,6 +123,8 @@ class Job(db.Model):
     disctype = db.Column(db.String(20))  # dvd/bluray/data/music/unknown
     label = db.Column(db.String(256))
     path = db.Column(db.String(256))
+    raw_path = db.Column(db.String(256))
+    transcode_path = db.Column(db.String(256))
     ejected = db.Column(db.Boolean)
     updated = db.Column(db.Boolean)
     pid = db.Column(db.Integer)
@@ -341,3 +343,35 @@ class Job(db.Model):
             return True
         logging.info(f"Job is ripping {self.devpath}.")
         return False
+
+    @property
+    def type_subfolder(self):
+        """Map video_type to filesystem subfolder: movies/tv/unidentified."""
+        if self.video_type == "movie":
+            return "movies"
+        elif self.video_type == "series":
+            return "tv"
+        return "unidentified"
+
+    @property
+    def formatted_title(self):
+        """Title formatted for filesystem paths: 'Title (Year)' or 'Title'.
+        Prefers manual title if set."""
+        title = self.title_manual if self.title_manual else self.title
+        if self.year and self.year != "0000" and self.year != "":
+            return f"{title} ({self.year})"
+        return f"{title}"
+
+    def build_raw_path(self):
+        """Compute the raw rip directory path.
+        Uses title_auto (original auto-detected title) to match the actual
+        directory on disk, even after manual title correction."""
+        return os.path.join(str(self.config.RAW_PATH), str(self.title_auto or self.title))
+
+    def build_transcode_path(self):
+        """Compute the transcode output directory path."""
+        return os.path.join(self.config.TRANSCODE_PATH, self.type_subfolder, self.formatted_title)
+
+    def build_final_path(self):
+        """Compute the final completed media directory path."""
+        return os.path.join(self.config.COMPLETED_PATH, self.type_subfolder, self.formatted_title)
