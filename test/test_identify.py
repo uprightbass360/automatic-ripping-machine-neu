@@ -2,6 +2,7 @@
 
 Covers identify.py functions: find_mount(), identify_bluray(), update_job(),
 metadata_selector(), identify_loop(), try_with_year(), try_without_year().
+Also covers arm/ui/metadata.py: call_omdb_api() fallback for short titles.
 """
 import json
 import os
@@ -532,3 +533,86 @@ class TestIdentifyUnmount:
              unittest.mock.patch('arm.ripper.identify.subprocess.run') as mock_run:
             identify(job)
             mock_run.assert_called_once()
+
+
+class TestOmdbShortTitleFallback:
+    """Test call_omdb_api() fallback to ?t= for short/numeric titles (#1430)."""
+
+    def _mock_urlopen(self, responses):
+        """Create a mock urlopen that returns different responses per call."""
+        call_count = [0]
+
+        def side_effect(url):
+            idx = min(call_count[0], len(responses) - 1)
+            call_count[0] += 1
+            mock_resp = unittest.mock.MagicMock()
+            mock_resp.read.return_value = json.dumps(responses[idx]).encode()
+            return mock_resp
+
+        return side_effect
+
+    def test_search_failure_falls_back_to_exact_title(self):
+        """When ?s= returns 'Too many results', ?t= is tried."""
+        from arm.ui.metadata import call_omdb_api
+        import arm.config.config as cfg
+
+        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
+        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
+        try:
+            search_error = {"Response": "False", "Error": "Too many results."}
+            exact_match = {
+                "Response": "True",
+                "Title": "9",
+                "Year": "2009",
+                "Type": "movie",
+                "imdbID": "tt0472033",
+                "Poster": "https://example.com/9.jpg",
+            }
+            mock_open = self._mock_urlopen([search_error, exact_match])
+            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+                result = call_omdb_api(title="9", year="2009")
+
+            assert result is not None
+            assert result['Search'][0]['Title'] == '9'
+            assert result['Search'][0]['imdbID'] == 'tt0472033'
+        finally:
+            cfg.arm_config['OMDB_API_KEY'] = original_key
+
+    def test_both_search_and_exact_fail_returns_none(self):
+        """When both ?s= and ?t= fail, returns None."""
+        from arm.ui.metadata import call_omdb_api
+        import arm.config.config as cfg
+
+        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
+        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
+        try:
+            error_resp = {"Response": "False", "Error": "Movie not found!"}
+            mock_open = self._mock_urlopen([error_resp, error_resp])
+            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+                result = call_omdb_api(title="xyznonexistent", year="2020")
+
+            assert result is None
+        finally:
+            cfg.arm_config['OMDB_API_KEY'] = original_key
+
+    def test_search_succeeds_no_fallback_needed(self):
+        """When ?s= succeeds, no fallback is triggered."""
+        from arm.ui.metadata import call_omdb_api
+        import arm.config.config as cfg
+
+        original_key = cfg.arm_config.get('OMDB_API_KEY', '')
+        cfg.arm_config['OMDB_API_KEY'] = 'test_key'
+        try:
+            search_success = {
+                "Response": "True",
+                "Search": [{"Title": "The Matrix", "Year": "1999", "imdbID": "tt0133093",
+                            "Type": "movie", "Poster": "https://example.com/matrix.jpg"}]
+            }
+            mock_open = self._mock_urlopen([search_success])
+            with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+                result = call_omdb_api(title="The+Matrix", year="1999")
+
+            assert result is not None
+            assert result['Search'][0]['Title'] == 'The Matrix'
+        finally:
+            cfg.arm_config['OMDB_API_KEY'] = original_key

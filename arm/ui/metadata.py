@@ -45,7 +45,23 @@ def call_omdb_api(title=None, year=None, imdb_id=None, plot="short"):
         title_info['background_url'] = None
         app.logger.debug(f"omdb - {title_info}")
         if 'Error' in title_info or title_info['Response'] == "False":
-            title_info = None
+            # Fallback: ?s= (search) can fail for short/numeric titles (#1430).
+            # Try ?t= (exact title match) which handles these cases.
+            if title and not imdb_id:
+                app.logger.debug("omdb search failed, trying exact title match (?t=)")
+                t_url = f"https://www.omdbapi.com/?t={title}&plot={plot}&r=json&apikey={omdb_api_key}"
+                if year:
+                    t_url = f"https://www.omdbapi.com/?t={title}&y={year}&plot={plot}&r=json&apikey={omdb_api_key}"
+                fallback_json = urllib.request.urlopen(t_url).read()
+                fallback_info = json.loads(fallback_json.decode())
+                if 'Error' not in fallback_info and fallback_info.get('Response') == "True":
+                    # Wrap single result in Search array format for consistency
+                    fallback_info['background_url'] = None
+                    title_info = {"Search": [fallback_info], "Response": "True", "background_url": None}
+                else:
+                    title_info = None
+            else:
+                title_info = None
     except urllib.error.HTTPError as error:
         app.logger.error(f"omdb call failed with error - {error}")
     else:
