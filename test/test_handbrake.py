@@ -1,6 +1,7 @@
 """Tests for HandBrake pure-logic functions (arm/ripper/handbrake.py)."""
 import os
 import re
+import shlex
 import subprocess
 import unittest.mock
 
@@ -311,3 +312,76 @@ class TestRunHandbrakeCommand:
             content = f.read()
         assert "existing content" in content
         assert "new line" in content
+
+
+class TestGetTrackInfoNoOfTitles:
+    """Test get_track_info() assigns no_of_titles as int, not string (#1628)."""
+
+    def _make_scan_output(self, title_count):
+        """Produce minimal HandBrake --scan output with N titles.
+
+        HandBrake scan lines: timestamps on log lines, no timestamps on detail lines.
+        """
+        return [
+            f"[12:00:00] scan: DVD has {title_count} title(s)",
+            "  + title 1:",
+            "  + duration: 01:30:00",
+        ]
+
+    def test_no_of_titles_is_int(self, app_context, sample_job):
+        """no_of_titles should be stored as int, not string (#1628)."""
+        from arm.ripper.handbrake import get_track_info
+
+        scan_output = self._make_scan_output(12)
+        with unittest.mock.patch('arm.ripper.handbrake.handbrake_char_encoding',
+                                 return_value=scan_output), \
+             unittest.mock.patch('arm.ripper.handbrake.utils'):
+            get_track_info("/dev/sr0", sample_job)
+
+        assert sample_job.no_of_titles == 12
+        assert isinstance(sample_job.no_of_titles, int)
+
+    def test_no_of_titles_none_when_scan_fails(self, app_context, sample_job):
+        """no_of_titles stays None when handbrake_char_encoding returns -1."""
+        from arm.ripper.handbrake import get_track_info
+
+        sample_job.no_of_titles = None
+        # -1 means both charset decodings failed
+        with unittest.mock.patch('arm.ripper.handbrake.handbrake_char_encoding',
+                                 return_value=-1), \
+             unittest.mock.patch('arm.ripper.handbrake.utils'):
+            get_track_info("/dev/sr0", sample_job)
+
+        assert sample_job.no_of_titles is None
+
+
+class TestHandbrakeAllNoneGuard:
+    """Test handbrake_all() handles no_of_titles=None without crashing (#1628)."""
+
+    def test_none_no_of_titles_does_not_crash(self, app_context, sample_job, tmp_path):
+        """When no_of_titles is None, tracks should still be processed (#1628)."""
+        from arm.ripper.handbrake import handbrake_all
+        import arm.config.config as cfg
+
+        sample_job.no_of_titles = None
+        logfile = str(tmp_path / "test.log")
+
+        mock_track = unittest.mock.MagicMock()
+        mock_track.track_number = "1"
+        mock_track.length = 3600
+        mock_track.filename = "title_1.mkv"
+        mock_track.ripped = False
+
+        with unittest.mock.patch('arm.ripper.handbrake.handbrake_sleep_check'), \
+             unittest.mock.patch('arm.ripper.handbrake.correct_hb_settings',
+                                 return_value=("", "")), \
+             unittest.mock.patch('arm.ripper.handbrake.get_track_info'), \
+             unittest.mock.patch('arm.ripper.handbrake.run_handbrake_command'), \
+             unittest.mock.patch.object(type(sample_job), 'tracks',
+                                        new_callable=unittest.mock.PropertyMock,
+                                        return_value=[mock_track]), \
+             unittest.mock.patch.dict(cfg.arm_config,
+                                      {"MINLENGTH": "0", "MAXLENGTH": "99999",
+                                       "DEST_EXT": "mkv"}):
+            # Should NOT raise TypeError from int > None comparison
+            handbrake_all("/dev/sr0", str(tmp_path), logfile, sample_job)

@@ -156,7 +156,7 @@ def handbrake_all(srcpath, basepath, logfile, job):
 
     for track in job.tracks:
         # Don't raise error if we past max titles, skip and continue till HandBrake finishes
-        if int(track.track_number) > job.no_of_titles:
+        if job.no_of_titles is not None and int(track.track_number) > job.no_of_titles:
             continue
         if track.length < int(cfg.arm_config["MINLENGTH"]):
             # too short
@@ -265,15 +265,16 @@ def get_track_info(srcpath, job):
     logging.debug(f"Sending command: {cmd}")
     hand_break_output = handbrake_char_encoding(cmd)
 
-    if hand_break_output is not None:
-        t_pattern = re.compile(r'.*\+ title *')
-        pattern = re.compile(r'.*duration:.*')
-        seconds = 0
-        t_no = 0
-        fps = float(0)
-        aspect = 0
-        result = None
-        main_feature = False
+    t_pattern = re.compile(r'.*\+ title *')
+    pattern = re.compile(r'.*duration:.*')
+    seconds = 0
+    t_no = 0
+    fps = float(0)
+    aspect = 0
+    result = None
+    main_feature = False
+
+    if hand_break_output is not None and hand_break_output != -1:
         for line in hand_break_output:
 
             # get number of titles
@@ -285,7 +286,7 @@ def get_track_info(srcpath, job):
                     titles = result.group(2).strip()
                     logging.debug(f"Line found is: {line}")
                     logging.info(f"Found {titles} titles")
-                    job.no_of_titles = titles
+                    job.no_of_titles = int(titles)
                     db.session.commit()
 
             main_feature, t_no = title_finder(aspect, fps, job, line, main_feature, seconds, t_no, t_pattern)
