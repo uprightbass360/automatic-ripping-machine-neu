@@ -1,5 +1,6 @@
 """Tests for utility functions in arm.ripper.utils and arm.ui.utils."""
 import os
+import subprocess
 import unittest.mock
 
 import pytest
@@ -411,3 +412,74 @@ class TestDeleteRawFiles:
             delete_raw_files([str(tmp_path / "nonexistent")])
         finally:
             cfg.arm_config['DELRAWFILES'] = original if original is not None else False
+
+
+class TestGitCheckVersion:
+    """Test git_check_version() resilience to missing origin/HEAD (#1345)."""
+
+    def test_fallback_to_origin_main(self):
+        """When origin/HEAD fails, should fall back to origin/main."""
+        from arm.ui.utils import git_check_version
+        import arm.config.config as cfg
+
+        original = cfg.arm_config.get('INSTALLPATH')
+        cfg.arm_config['INSTALLPATH'] = '/opt/arm'
+
+        call_count = 0
+
+        def mock_check_output(cmd, cwd=None, stderr=None):
+            nonlocal call_count
+            call_count += 1
+            if 'origin/HEAD' in cmd[2]:
+                raise subprocess.CalledProcessError(128, cmd)
+            if 'origin/main' in cmd[2]:
+                return b'2.21.0\n'
+            raise subprocess.CalledProcessError(128, cmd)
+
+        try:
+            with unittest.mock.patch('subprocess.check_output', side_effect=mock_check_output), \
+                 unittest.mock.patch('builtins.open', unittest.mock.mock_open(read_data='2.20.0\n')):
+                local_ver, remote_ver = git_check_version()
+            assert local_ver == '2.20.0'
+            assert remote_ver == '2.21.0'
+            assert call_count == 2  # origin/HEAD failed, origin/main succeeded
+        finally:
+            cfg.arm_config['INSTALLPATH'] = original
+
+    def test_all_refs_fail_returns_unknown(self):
+        """When all git refs fail, remote version should be 'Unknown'."""
+        from arm.ui.utils import git_check_version
+        import arm.config.config as cfg
+
+        original = cfg.arm_config.get('INSTALLPATH')
+        cfg.arm_config['INSTALLPATH'] = '/opt/arm'
+
+        def mock_check_output(cmd, cwd=None, stderr=None):
+            raise subprocess.CalledProcessError(128, cmd)
+
+        try:
+            with unittest.mock.patch('subprocess.check_output', side_effect=mock_check_output), \
+                 unittest.mock.patch('builtins.open', unittest.mock.mock_open(read_data='2.20.0\n')):
+                local_ver, remote_ver = git_check_version()
+            assert remote_ver == 'Unknown'
+        finally:
+            cfg.arm_config['INSTALLPATH'] = original
+
+    def test_missing_version_file_returns_unknown(self):
+        """When VERSION file is missing, local version should be 'Unknown'."""
+        from arm.ui.utils import git_check_version
+        import arm.config.config as cfg
+
+        original = cfg.arm_config.get('INSTALLPATH')
+        cfg.arm_config['INSTALLPATH'] = '/opt/arm'
+
+        def mock_check_output(cmd, cwd=None, stderr=None):
+            return b'2.21.0\n'
+
+        try:
+            with unittest.mock.patch('subprocess.check_output', side_effect=mock_check_output), \
+                 unittest.mock.patch('builtins.open', side_effect=FileNotFoundError):
+                local_ver, remote_ver = git_check_version()
+            assert local_ver == 'Unknown'
+        finally:
+            cfg.arm_config['INSTALLPATH'] = original
