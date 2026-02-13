@@ -524,16 +524,17 @@ class TestReconcileFilenames:
 
 
 class TestMakeMkvRunParserFragility:
-    """Test that makemkv.run() doesn't raise on unparsed lines when exit code is 0 (#1688)."""
+    """Test that makemkv.run() skips unrecognized output lines gracefully (#1688)."""
 
-    def test_unparsed_lines_with_exit_zero_no_raise(self):
-        """Unrecognized output lines should be warned, not fatal, when makemkvcon exits 0."""
+    def test_unrecognized_lines_skipped(self):
+        """Parser skips unrecognized output lines and yields only valid data."""
         from arm.ripper.makemkv import run, OutputType
 
-        # Simulate makemkvcon output with a valid TCOUNT line and an unparsable debug line
         fake_stdout = [
             'TCOUNT:1\n',
-            'Direct disc access mode enabled\n',  # unparsable debug line
+            'Direct disc access mode enabled\n',       # no colon prefix
+            'DEBUG:some internal makemkv message\n',    # unknown prefix
+            'MSG:1005,0,1,"MakeMKV started","","""\n',  # valid MSG
         ]
         mock_proc = unittest.mock.MagicMock()
         mock_proc.stdout = iter(fake_stdout)
@@ -544,12 +545,12 @@ class TestMakeMkvRunParserFragility:
 
         with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
              unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
-            results = list(run(['info', 'disc:0'], OutputType.TCOUNT))
+            results = list(run(['info', 'disc:0'], OutputType.TCOUNT | OutputType.MSG))
 
-        assert len(results) == 1  # TCOUNT parsed successfully
+        assert len(results) == 2  # TCOUNT + MSG parsed, debug lines skipped
 
-    def test_unparsed_lines_with_nonzero_exit_raises(self):
-        """When makemkvcon exits non-zero, MakeMkvRuntimeError should still be raised."""
+    def test_nonzero_exit_raises(self):
+        """When makemkvcon exits non-zero, MakeMkvRuntimeError is raised."""
         from arm.ripper.makemkv import run, OutputType, MakeMkvRuntimeError
 
         fake_stdout = ['Some error output\n']
@@ -564,3 +565,24 @@ class TestMakeMkvRunParserFragility:
              unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
             with pytest.raises(MakeMkvRuntimeError):
                 list(run(['info', 'disc:0'], OutputType.MSG))
+
+    def test_only_unrecognized_lines_still_succeeds(self):
+        """A run with only unrecognized lines but exit code 0 succeeds with no results."""
+        from arm.ripper.makemkv import run, OutputType
+
+        fake_stdout = [
+            'Direct disc access mode enabled\n',
+            'Using direct disc access mode\n',
+        ]
+        mock_proc = unittest.mock.MagicMock()
+        mock_proc.stdout = iter(fake_stdout)
+        mock_proc.returncode = 0
+        mock_proc.pid = 12345
+        mock_proc.__enter__ = lambda s: s
+        mock_proc.__exit__ = unittest.mock.MagicMock(return_value=False)
+
+        with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
+             unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
+            results = list(run(['info', 'disc:0'], OutputType.TCOUNT))
+
+        assert len(results) == 0

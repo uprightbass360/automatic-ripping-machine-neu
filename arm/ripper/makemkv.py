@@ -1235,17 +1235,13 @@ def run(options, select):
                 continue
             try:
                 msg_type, data = parse_line(line)
-            except MakeMkvParserError as err:
-                logging.warning(err)
-                buffer.append(line)
-                continue
+            except MakeMkvParserError:
+                continue  # Skip unrecognized lines (already logged at debug)
             logging.debug(data)
             if msg_type in select:
                 yield data
     if proc.returncode:
         raise MakeMkvRuntimeError(proc.returncode, cmd, output=os.linesep.join(buffer))
-    if buffer:
-        logging.warning(f"Cannot parse {len(buffer)} lines: {os.linesep.join(buffer)}")
     logging.info("MakeMKV exits gracefully.")
 
 
