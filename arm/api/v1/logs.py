@@ -1,6 +1,5 @@
 """API v1 — Log endpoints."""
 from flask import jsonify
-from flask_login import login_required
 
 from arm.api import api_bp
 from arm.ui import json_api
@@ -8,7 +7,6 @@ import arm.config.config as cfg
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/log', methods=['GET'])
-@login_required
 def get_job_log(job_id):
     """Get the full log for a job."""
     return jsonify(json_api.generate_log(cfg.arm_config['LOGPATH'], str(job_id)))

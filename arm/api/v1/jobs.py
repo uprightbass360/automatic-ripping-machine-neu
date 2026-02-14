@@ -2,9 +2,9 @@
 import re
 
 from flask import jsonify, request
-from flask_login import login_required
 
 from arm.api import api_bp
+import arm.config.config as cfg
 from arm.database import db
 from arm.models.job import Job, JobState
 from arm.models.notifications import Notifications
@@ -13,7 +13,7 @@ import arm.ui.utils as ui_utils
 
 
 @api_bp.route('/v1/jobs', methods=['GET'])
-@login_required
+
 def list_jobs():
     """List jobs, optionally filtered by status or search query.
 
@@ -35,42 +35,130 @@ def list_jobs():
 
 
 @api_bp.route('/v1/jobs/<int:job_id>', methods=['DELETE'])
-@login_required
+
 def delete_job(job_id):
     """Delete a job by ID."""
     return jsonify(json_api.delete_job(str(job_id), 'delete'))
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/abandon', methods=['POST'])
-@login_required
+
 def abandon_job(job_id):
     """Abandon a running job."""
     return jsonify(json_api.abandon_job(str(job_id)))
 
 
+@api_bp.route('/v1/jobs/<int:job_id>/cancel', methods=['POST'])
+def cancel_waiting_job(job_id):
+    """Cancel a job that is in 'waiting' status.
+
+    Unlike abandon (which kills a running process), this simply marks the
+    waiting job as failed so the ripper loop exits cleanly.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found"}), 404
+
+    if job.status != JobState.MANUAL_WAIT_STARTED.value:
+        return jsonify({"success": False, "error": "Job is not in waiting state"}), 409
+
+    notification = Notifications(
+        f"Job: {job.job_id} was cancelled",
+        f"'{job.title}' was cancelled by user during manual-wait"
+    )
+    db.session.add(notification)
+    ui_utils.database_updater({"status": JobState.FAILURE.value}, job)
+
+    return jsonify({"success": True, "job_id": job.job_id})
+
+
 @api_bp.route('/v1/jobs/<int:job_id>/config', methods=['PATCH'])
-@login_required
+
 def change_job_config(job_id):
-    """Update job configuration parameters."""
-    return jsonify(json_api.change_job_params(job_id))
+    """Update job rip parameters.
+
+    Accepts JSON body with optional fields:
+        RIPMETHOD: 'mkv' | 'backup'
+        DISCTYPE: 'dvd' | 'bluray' | 'music' | 'data'
+        MAINFEATURE: bool
+        MINLENGTH: int (seconds)
+        MAXLENGTH: int (seconds)
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    if not body:
+        return jsonify({"success": False, "error": "No fields to update"}), 400
+
+    config = job.config
+    job_args = {}
+    changes = []
+
+    valid_ripmethods = ('mkv', 'backup')
+    valid_disctypes = ('dvd', 'bluray', 'music', 'data')
+
+    if 'RIPMETHOD' in body:
+        val = str(body['RIPMETHOD']).lower()
+        if val not in valid_ripmethods:
+            return jsonify({"success": False, "error": f"RIPMETHOD must be one of {valid_ripmethods}"}), 400
+        config.RIPMETHOD = val
+        cfg.arm_config["RIPMETHOD"] = val
+        changes.append(f"Rip Method={val}")
+
+    if 'DISCTYPE' in body:
+        val = str(body['DISCTYPE']).lower()
+        if val not in valid_disctypes:
+            return jsonify({"success": False, "error": f"DISCTYPE must be one of {valid_disctypes}"}), 400
+        job_args['disctype'] = val
+        changes.append(f"Disctype={val}")
+
+    if 'MAINFEATURE' in body:
+        val = 1 if body['MAINFEATURE'] else 0
+        config.MAINFEATURE = val
+        cfg.arm_config["MAINFEATURE"] = val
+        changes.append(f"Main Feature={bool(val)}")
+
+    if 'MINLENGTH' in body:
+        val = str(int(body['MINLENGTH']))
+        config.MINLENGTH = val
+        cfg.arm_config["MINLENGTH"] = val
+        changes.append(f"Min Length={val}")
+
+    if 'MAXLENGTH' in body:
+        val = str(int(body['MAXLENGTH']))
+        config.MAXLENGTH = val
+        cfg.arm_config["MAXLENGTH"] = val
+        changes.append(f"Max Length={val}")
+
+    if not changes:
+        return jsonify({"success": False, "error": "No valid fields provided"}), 400
+
+    message = f"Parameters changed: {', '.join(changes)}"
+    notification = Notifications(f"Job: {job.job_id} Config updated!", message)
+    db.session.add(notification)
+    ui_utils.database_updater(job_args, job)
+
+    return jsonify({"success": True, "job_id": job.job_id})
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/fix-permissions', methods=['POST'])
-@login_required
+
 def fix_job_permissions(job_id):
     """Fix file permissions for a job."""
     return jsonify(ui_utils.fix_permissions(str(job_id)))
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/send', methods=['POST'])
-@login_required
+
 def send_job(job_id):
     """Send a job to a remote database."""
     return jsonify(ui_utils.send_to_remote_db(str(job_id)))
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/title', methods=['PUT'])
-@login_required
+
 def update_job_title(job_id):
     """Update a job's title metadata.
 

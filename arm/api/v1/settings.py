@@ -2,7 +2,6 @@
 import importlib
 
 from flask import jsonify, request
-from flask_login import login_required
 
 import arm.config.config as cfg
 from arm.api import api_bp
@@ -12,14 +11,12 @@ from arm.ui.utils import generate_comments, build_arm_cfg
 
 
 @api_bp.route('/v1/settings/notify-timeout', methods=['GET'])
-@login_required
 def get_notify_timeout():
     """Get the notification timeout setting."""
     return jsonify(json_api.get_notify_timeout('notify_timeout'))
 
 
 @api_bp.route('/v1/settings/config', methods=['GET'])
-@login_required
 def get_config():
     """Return live arm.yaml config with sensitive fields masked."""
     config = dict(cfg.arm_config)
@@ -32,7 +29,6 @@ def get_config():
 
 
 @api_bp.route('/v1/settings/config', methods=['PUT'])
-@login_required
 def update_config():
     """Update arm.yaml config from JSON payload.
 

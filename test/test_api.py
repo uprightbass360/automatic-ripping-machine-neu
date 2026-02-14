@@ -62,11 +62,45 @@ class TestApiJobAbandon:
 class TestApiJobConfig:
     """Test PATCH /api/v1/jobs/<id>/config endpoint."""
 
-    def test_change_config_with_mock(self, client):
-        with unittest.mock.patch('arm.api.v1.jobs.json_api') as mock_api:
-            mock_api.change_job_params.return_value = {"success": True}
-            response = client.patch('/api/v1/jobs/1/config')
-            assert response.status_code == 200
+    def test_change_config_nonexistent(self, client):
+        response = client.patch(
+            '/api/v1/jobs/99999/config',
+            json={"RIPMETHOD": "mkv"},
+            content_type='application/json',
+        )
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data["success"] is False
+
+    def test_change_config_empty_body(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/config',
+            json={},
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+
+    def test_change_config_invalid_ripmethod(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/config',
+            json={"RIPMETHOD": "invalid"},
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["success"] is False
+        assert "RIPMETHOD" in data["error"]
+
+    def test_change_config_success(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/config',
+            json={"RIPMETHOD": "backup", "MAINFEATURE": True, "MINLENGTH": 600},
+            content_type='application/json',
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["job_id"] == sample_job.job_id
 
 
 class TestApiJobFixPermissions:
