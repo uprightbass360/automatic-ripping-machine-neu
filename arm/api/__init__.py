@@ -3,4 +3,4 @@ from flask import Blueprint
 
 api_bp = Blueprint('api', __name__)
 
-from arm.api.v1 import jobs, logs, settings, notifications, system  # noqa: E402,F401
+from arm.api.v1 import jobs, logs, settings, notifications, system, drives  # noqa: E402,F401

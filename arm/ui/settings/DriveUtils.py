@@ -247,22 +247,21 @@ def drives_update(startup=False):
         logging.error(f"We Cant find any system drives!. {system_drives}")
     for drive in system_drives:  # sorted by mount point
         logging.debug(f"Drive info: {drive}")
-        # Retrieve the drive matching `drive.serial_id` from the database or
-        # create a new entry if it doesn't exist. Since `drive.serial_id` *may*
-        # not be unique, we update only the first drive that misses the mdisc
-        # value and was not updated prior to this branch. The result is sorted
-        # by mount points to update only the drive with the alphabetically
-        # first mount point.  If no `drive.serial_id` is found (e.g. on first
-        # run), take the pre-existing mount point and update the serial_id
-        # there.
-        query = (
-            SystemDrives
-            .query
+        # Match detected drive to a DB record. Priority:
+        #   1. serial_id — hardware serial, most reliable (skipped when empty)
+        #   2. location  — physical port path (ID_PATH), stable across reboots
+        #   3. mount     — /dev/sr* name, least stable (can swap between boots)
+        if drive.serial_id and (
+            db_drive := SystemDrives.query
             .filter_by(serial_id=drive.serial_id, stale=True)
             .order_by(SystemDrives.mount)
-        )
-        if db_drive := query.first():
+            .first()
+        ):
             app.logger.debug("Update drive '%s' by serial.", drive.serial_id)
+        elif drive.location and (
+            db_drive := SystemDrives.query.filter_by(location=drive.location, stale=True).first()
+        ):
+            app.logger.debug("Update drive '%s' by location '%s'.", drive.serial_id, drive.location)
         elif db_drive := SystemDrives.query.filter_by(mount=drive.mount).first():
             app.logger.debug("Update drive '%s' by mount path.", drive.mount)
         else:

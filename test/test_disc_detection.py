@@ -227,13 +227,14 @@ class TestIdentifyAudioCd:
 class TestDrivesUpdateNameless:
     """Test drives_update() handles drives with no serial_id (#1584)."""
 
-    def _make_drive(self, mount="/dev/sr0", serial_id=None):
+    def _make_drive(self, mount="/dev/sr0", serial_id=None, location="",
+                    maker="VirtualBox", model="CD-ROM"):
         """Create a DriveInformationMedium with optional serial_id."""
         from arm.ui.settings.DriveUtils import DriveInformationMedium
         return DriveInformationMedium(
             mount=mount,
-            maker="VirtualBox",
-            model="CD-ROM",
+            maker=maker,
+            model=model,
             serial="",
             serial_id=serial_id,
             connection="ata",
@@ -241,7 +242,7 @@ class TestDrivesUpdateNameless:
             read_dvd=True,
             read_bd=False,
             firmware="1.0",
-            location="/dev/sr0",
+            location=location,
             disc="",
             loaded=False,
             media_cd=False,
@@ -278,3 +279,237 @@ class TestDrivesUpdateNameless:
         db_drive = SystemDrives.query.filter_by(mount="/dev/sr0").first()
         assert db_drive is not None
         assert db_drive.name == "VBox_CD-ROM_12345"
+
+
+class TestDrivesUpdateMatching:
+    """Test drives_update() matching logic: serial_id → location → mount."""
+
+    def _make_drive(self, mount="/dev/sr0", serial_id="", location="",
+                    maker="ASUS", model="BW-16D1HT"):
+        from arm.ui.settings.DriveUtils import DriveInformationMedium
+        return DriveInformationMedium(
+            mount=mount, maker=maker, model=model, serial="",
+            serial_id=serial_id, connection="ata",
+            read_cd=True, read_dvd=True, read_bd=True,
+            firmware="3.10", location=location,
+            disc="", loaded=False,
+            media_cd=False, media_dvd=False, media_bd=False,
+        )
+
+    def _seed_drive(self, db, name, serial_id="", mount="", location=""):
+        """Insert a pre-existing drive row into the DB."""
+        from arm.models.system_drives import SystemDrives
+        d = SystemDrives()
+        d.name = name
+        d.serial_id = serial_id
+        d.mount = mount
+        d.location = location
+        d.stale = True
+        db.session.add(d)
+        db.session.commit()
+        return d.drive_id
+
+    # ---- Two identical drives, empty serial, different locations ----
+
+    def test_two_empty_serial_different_locations_kept_separate(self, app_context):
+        """Two drives with empty serial_id but different ID_PATH (location)
+        should each keep their own DB record and custom name."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        id_a = self._seed_drive(db, name="Office Blu-ray", serial_id="",
+                                mount="/dev/sr0",
+                                location="pci-0000:00:1f.2-ata-1")
+        id_b = self._seed_drive(db, name="Bedroom Blu-ray", serial_id="",
+                                mount="/dev/sr1",
+                                location="pci-0000:00:1f.2-ata-2")
+
+        scan = [
+            self._make_drive(mount="/dev/sr0", serial_id="",
+                             location="pci-0000:00:1f.2-ata-1"),
+            self._make_drive(mount="/dev/sr1", serial_id="",
+                             location="pci-0000:00:1f.2-ata-2"),
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        a = SystemDrives.query.get(id_a)
+        b = SystemDrives.query.get(id_b)
+        assert a.name == "Office Blu-ray"
+        assert b.name == "Bedroom Blu-ray"
+        assert a.mount == "/dev/sr0"
+        assert b.mount == "/dev/sr1"
+        assert not a.stale
+        assert not b.stale
+
+    def test_two_empty_serial_swap_mount_points(self, app_context):
+        """Two drives with empty serial_id swap /dev/sr0 ↔ /dev/sr1 after
+        reboot. Location fallback should track the physical drive."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        id_a = self._seed_drive(db, name="Office Blu-ray", serial_id="",
+                                mount="/dev/sr0",
+                                location="pci-0000:00:1f.2-ata-1")
+        id_b = self._seed_drive(db, name="Bedroom Blu-ray", serial_id="",
+                                mount="/dev/sr1",
+                                location="pci-0000:00:1f.2-ata-2")
+
+        # Mounts swapped — sr0 is now on ata-2, sr1 on ata-1
+        scan = [
+            self._make_drive(mount="/dev/sr0", serial_id="",
+                             location="pci-0000:00:1f.2-ata-2"),
+            self._make_drive(mount="/dev/sr1", serial_id="",
+                             location="pci-0000:00:1f.2-ata-1"),
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        a = SystemDrives.query.get(id_a)
+        b = SystemDrives.query.get(id_b)
+        # Names follow the physical drive (location), not the mount path
+        assert a.name == "Office Blu-ray"
+        assert a.location == "pci-0000:00:1f.2-ata-1"
+        assert a.mount == "/dev/sr1"  # mount updated to new path
+        assert b.name == "Bedroom Blu-ray"
+        assert b.location == "pci-0000:00:1f.2-ata-2"
+        assert b.mount == "/dev/sr0"
+
+    def test_serial_match_beats_location(self, app_context):
+        """When serial_id is populated, it takes priority over location."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        id_a = self._seed_drive(db, name="My Drive", serial_id="ASUS_BW_ABC123",
+                                mount="/dev/sr0",
+                                location="pci-0000:00:1f.2-ata-1")
+
+        # Same serial, but location changed (physically moved to different port)
+        scan = [
+            self._make_drive(mount="/dev/sr0", serial_id="ASUS_BW_ABC123",
+                             location="pci-0000:03:00.0-ata-1"),
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        a = SystemDrives.query.get(id_a)
+        assert a.name == "My Drive"
+        assert a.serial_id == "ASUS_BW_ABC123"
+        # Location updated to new port
+        assert a.location == "pci-0000:03:00.0-ata-1"
+
+    def test_empty_serial_empty_location_falls_to_mount(self, app_context):
+        """With no serial_id and no location, mount path is the last resort."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        id_a = self._seed_drive(db, name="VM Drive", serial_id="",
+                                mount="/dev/sr0", location="")
+
+        scan = [
+            self._make_drive(mount="/dev/sr0", serial_id="", location=""),
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        a = SystemDrives.query.get(id_a)
+        assert a.name == "VM Drive"
+        assert a.mount == "/dev/sr0"
+        assert not a.stale
+
+    def test_three_identical_drives_all_empty_serial(self, app_context):
+        """Three identical drives, all with empty serial_id but unique
+        locations, should each preserve their custom name."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        ids = []
+        for i, (name, loc) in enumerate([
+            ("Drive A", "pci-0000:00:1f.2-ata-1"),
+            ("Drive B", "pci-0000:00:1f.2-ata-2"),
+            ("Drive C", "pci-0000:00:1f.2-ata-3"),
+        ]):
+            ids.append(self._seed_drive(
+                db, name=name, serial_id="",
+                mount=f"/dev/sr{i}", location=loc,
+            ))
+
+        scan = [
+            self._make_drive(mount=f"/dev/sr{i}", serial_id="",
+                             location=loc)
+            for i, (_, loc) in enumerate([
+                ("Drive A", "pci-0000:00:1f.2-ata-1"),
+                ("Drive B", "pci-0000:00:1f.2-ata-2"),
+                ("Drive C", "pci-0000:00:1f.2-ata-3"),
+            ])
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        for drive_id, expected_name in zip(ids, ["Drive A", "Drive B", "Drive C"]):
+            d = SystemDrives.query.get(drive_id)
+            assert d.name == expected_name, f"drive_id={drive_id} expected '{expected_name}' got '{d.name}'"
+            assert not d.stale
+
+    def test_new_drive_gets_created(self, app_context):
+        """A drive with unknown serial_id and location creates a new record."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        scan = [
+            self._make_drive(mount="/dev/sr0", serial_id="NEW_DRIVE_XYZ",
+                             location="pci-0000:05:00.0-usb-0:1"),
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        d = SystemDrives.query.filter_by(serial_id="NEW_DRIVE_XYZ").first()
+        assert d is not None
+        assert d.mount == "/dev/sr0"
+        assert d.location == "pci-0000:05:00.0-usb-0:1"
+
+    def test_custom_name_survives_mount_swap_with_serial(self, app_context):
+        """Drive with valid serial_id preserves custom name even when mount
+        path changes."""
+        from arm.ui.settings.DriveUtils import drives_update
+        from arm.models.system_drives import SystemDrives
+        _, db = app_context
+
+        id_a = self._seed_drive(db, name="Living Room Blu-ray",
+                                serial_id="LG_WH16NS40_SN111",
+                                mount="/dev/sr0",
+                                location="pci-0000:00:1f.2-ata-1")
+        id_b = self._seed_drive(db, name="Garage DVD",
+                                serial_id="LG_WH16NS40_SN222",
+                                mount="/dev/sr1",
+                                location="pci-0000:00:1f.2-ata-2")
+
+        # sr0 ↔ sr1 swapped
+        scan = [
+            self._make_drive(mount="/dev/sr0", serial_id="LG_WH16NS40_SN222",
+                             location="pci-0000:00:1f.2-ata-2"),
+            self._make_drive(mount="/dev/sr1", serial_id="LG_WH16NS40_SN111",
+                             location="pci-0000:00:1f.2-ata-1"),
+        ]
+        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+                                 return_value=scan):
+            drives_update(startup=True)
+
+        a = SystemDrives.query.get(id_a)
+        b = SystemDrives.query.get(id_b)
+        assert a.name == "Living Room Blu-ray"
+        assert a.mount == "/dev/sr1"
+        assert b.name == "Garage DVD"
+        assert b.mount == "/dev/sr0"
