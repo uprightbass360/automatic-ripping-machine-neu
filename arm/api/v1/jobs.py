@@ -48,6 +48,23 @@ def abandon_job(job_id):
     return jsonify(json_api.abandon_job(str(job_id)))
 
 
+@api_bp.route('/v1/jobs/<int:job_id>/start', methods=['POST'])
+def start_waiting_job(job_id):
+    """Start a job that is in 'waiting' status.
+
+    Sets manual_start=True so the ripper loop picks it up.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found"}), 404
+
+    if job.status != JobState.MANUAL_WAIT_STARTED.value:
+        return jsonify({"success": False, "error": "Job is not in waiting state"}), 409
+
+    ui_utils.database_updater({"manual_start": True}, job)
+    return jsonify({"success": True, "job_id": job.job_id})
+
+
 @api_bp.route('/v1/jobs/<int:job_id>/cancel', methods=['POST'])
 def cancel_waiting_job(job_id):
     """Cancel a job that is in 'waiting' status.
