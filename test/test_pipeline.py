@@ -522,6 +522,201 @@ class TestReconcileFilenames:
 
         _reconcile_filenames(sample_job, None)
 
+    # --- New tests for 3-pass reconciliation (#1475) ---
+
+    def test_black_sails_tv_prefix_match(self, app_context, sample_job, tmp_path):
+        """TV disc with unique segment IDs renumbered by MakeMKV (#1475).
+
+        Disc title indices: C1=4, B1=5, B2=6, D2=7, D5=8
+        MakeMKV sequential:  C1=0, B1=1, B2=2, D2=3, D5=4
+        Pass 2 (prefix) resolves each by unique segment ID.
+        """
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # DB tracks with original disc title indices
+        put_track(sample_job, 4, 2700, '16:9', '24.0', False, 'MakeMKV', 'C1_t04.mkv')
+        put_track(sample_job, 5, 2700, '16:9', '24.0', False, 'MakeMKV', 'B1_t05.mkv')
+        put_track(sample_job, 6, 2700, '16:9', '24.0', False, 'MakeMKV', 'B2_t06.mkv')
+        put_track(sample_job, 7, 2700, '16:9', '24.0', False, 'MakeMKV', 'D2_t07.mkv')
+        put_track(sample_job, 8, 2700, '16:9', '24.0', False, 'MakeMKV', 'D5_t08.mkv')
+        db.session.commit()
+
+        # Actual files renumbered sequentially
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        for f in ['C1_t00.mkv', 'B1_t01.mkv', 'B2_t02.mkv', 'D2_t03.mkv', 'D5_t04.mkv']:
+            (raw / f).write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        tracks = {t.track_number: t.filename
+                  for t in sample_job.tracks.order_by('track_number')}
+        assert tracks['4'] == 'C1_t00.mkv'
+        assert tracks['5'] == 'B1_t01.mkv'
+        assert tracks['6'] == 'B2_t02.mkv'
+        assert tracks['7'] == 'D2_t03.mkv'
+        assert tracks['8'] == 'D5_t04.mkv'
+
+    def test_movie_all_mode_positional_match(self, app_context, sample_job, tmp_path):
+        """Movie ripped in all-mode; all tracks share the same prefix (#1475).
+
+        All files share the prefix 'Movie' so prefix match can't uniquely resolve.
+        Pass 3 (positional) pairs them by sorted order.
+        """
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # DB has disc title indices 5, 8, 12 — none match actual filenames
+        put_track(sample_job, 5, 7200, '16:9', '24.0', True, 'MakeMKV', 'Movie_t05.mkv')
+        put_track(sample_job, 8, 1200, '16:9', '24.0', False, 'MakeMKV', 'Movie_t08.mkv')
+        put_track(sample_job, 12, 900, '16:9', '24.0', False, 'MakeMKV', 'Movie_t12.mkv')
+        db.session.commit()
+
+        # MakeMKV renumbered to 0, 1, 2
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        for f in ['Movie_t00.mkv', 'Movie_t01.mkv', 'Movie_t02.mkv']:
+            (raw / f).write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        tracks = {t.track_number: t.filename
+                  for t in sample_job.tracks.order_by('track_number')}
+        assert tracks['5'] == 'Movie_t00.mkv'
+        assert tracks['8'] == 'Movie_t01.mkv'
+        assert tracks['12'] == 'Movie_t02.mkv'
+
+    def test_mainfeature_single_track_prefix(self, app_context, sample_job, tmp_path):
+        """Single MAINFEATURE track, disc index ≠ 0 — prefix match resolves it."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        put_track(sample_job, 3, 7200, '16:9', '24.0', True, 'MakeMKV', 'Feature_t03.mkv')
+        db.session.commit()
+
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'Feature_t00.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        track = sample_job.tracks.first()
+        assert track.filename == 'Feature_t00.mkv'
+
+    def test_non_contiguous_indices_positional(self, app_context, sample_job, tmp_path):
+        """Non-contiguous disc indices with shared prefix — positional match (#1475)."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # Disc indices 0, 3, 7 — gaps between them
+        put_track(sample_job, 0, 5400, '16:9', '24.0', True, 'MakeMKV', 'Title_t00.mkv')
+        put_track(sample_job, 3, 2700, '16:9', '24.0', False, 'MakeMKV', 'Title_t03.mkv')
+        put_track(sample_job, 7, 1800, '16:9', '24.0', False, 'MakeMKV', 'Title_t07.mkv')
+        db.session.commit()
+
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        # Track 0 matches exactly; tracks 3 and 7 get renumbered
+        (raw / 'Title_t00.mkv').write_bytes(b'\x00')
+        (raw / 'Title_t01.mkv').write_bytes(b'\x00')
+        (raw / 'Title_t02.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        tracks = {t.track_number: t.filename
+                  for t in sample_job.tracks.order_by('track_number')}
+        assert tracks['0'] == 'Title_t00.mkv'   # exact match (pass 1)
+        assert tracks['3'] == 'Title_t01.mkv'    # positional (pass 3)
+        assert tracks['7'] == 'Title_t02.mkv'    # positional (pass 3)
+
+    def test_mixed_exact_and_prefix_match(self, app_context, sample_job, tmp_path):
+        """Some tracks match exactly, others need prefix reconciliation."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # Track 0: exact match, Track 3: needs prefix match
+        put_track(sample_job, 0, 2700, '16:9', '24.0', False, 'MakeMKV', 'A1_t00.mkv')
+        put_track(sample_job, 3, 2700, '16:9', '24.0', False, 'MakeMKV', 'B1_t03.mkv')
+        db.session.commit()
+
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'A1_t00.mkv').write_bytes(b'\x00')   # exact match for track 0
+        (raw / 'B1_t01.mkv').write_bytes(b'\x00')   # prefix match for track 3
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        tracks = {t.track_number: t.filename
+                  for t in sample_job.tracks.order_by('track_number')}
+        assert tracks['0'] == 'A1_t00.mkv'
+        assert tracks['3'] == 'B1_t01.mkv'
+
+    def test_partial_rip_no_wrong_match(self, app_context, sample_job, tmp_path):
+        """File count ≠ track count — positional match refuses to guess (#1475)."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # 3 tracks in DB
+        put_track(sample_job, 2, 2700, '16:9', '24.0', False, 'MakeMKV', 'Ep_t02.mkv')
+        put_track(sample_job, 5, 2700, '16:9', '24.0', False, 'MakeMKV', 'Ep_t05.mkv')
+        put_track(sample_job, 8, 2700, '16:9', '24.0', False, 'MakeMKV', 'Ep_t08.mkv')
+        db.session.commit()
+
+        # Only 2 files on disk (partial rip / MakeMKV skipped one)
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'Ep_t00.mkv').write_bytes(b'\x00')
+        (raw / 'Ep_t01.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        # No matches should be made — filenames unchanged
+        tracks = {t.track_number: t.filename
+                  for t in sample_job.tracks.order_by('track_number')}
+        assert tracks['2'] == 'Ep_t02.mkv'
+        assert tracks['5'] == 'Ep_t05.mkv'
+        assert tracks['8'] == 'Ep_t08.mkv'
+
+    def test_scan_filename_no_suffix(self, app_context, sample_job, tmp_path):
+        """Bare disc title without _tNN in DB — positional match resolves (#1475)."""
+        from arm.ripper.makemkv import _reconcile_filenames
+        from arm.ripper.utils import put_track
+        from arm.database import db
+
+        # Scan reported bare titles (no _tNN suffix)
+        put_track(sample_job, 0, 5400, '16:9', '24.0', True, 'MakeMKV', 'My Movie')
+        put_track(sample_job, 1, 1200, '16:9', '24.0', False, 'MakeMKV', 'My Movie')
+        db.session.commit()
+
+        raw = tmp_path / 'raw'
+        raw.mkdir()
+        (raw / 'My Movie_t00.mkv').write_bytes(b'\x00')
+        (raw / 'My Movie_t01.mkv').write_bytes(b'\x00')
+
+        _reconcile_filenames(sample_job, str(raw))
+
+        tracks = list(sample_job.tracks.order_by('track_number'))
+        assert tracks[0].filename == 'My Movie_t00.mkv'
+        assert tracks[1].filename == 'My Movie_t01.mkv'
+
+    def test_strip_track_suffix_helper(self):
+        """Unit test for _strip_track_suffix() helper."""
+        from arm.ripper.makemkv import _strip_track_suffix
+
+        assert _strip_track_suffix('C1_t04.mkv') == 'C1'
+        assert _strip_track_suffix('Movie_t00.mkv') == 'Movie'
+        assert _strip_track_suffix('Last Vermeer, The-B1_t00.mkv') == 'Last Vermeer, The-B1'
+        assert _strip_track_suffix('title.mkv') == 'title'
+        assert _strip_track_suffix('My Movie') == 'My Movie'
+        assert _strip_track_suffix('EP_0102_t01.mkv') == 'EP_0102'
+
 
 class TestMakeMkvRunParserFragility:
     """Test that makemkv.run() skips unrecognized output lines gracefully (#1688)."""

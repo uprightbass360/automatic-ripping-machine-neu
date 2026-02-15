@@ -707,6 +707,20 @@ def makemkv_mkv(job, rawpath):
         process_single_tracks(job, rawpath, 'auto')
 
 
+def _strip_track_suffix(filename):
+    """Strip ``_tNN`` suffix and file extension, returning the segment prefix.
+
+    Examples::
+
+        C1_t04.mkv              → C1
+        Movie_t00.mkv           → Movie
+        Last Vermeer, The-B1_t00.mkv → Last Vermeer, The-B1
+        title.mkv               → title   (no _tNN to strip)
+    """
+    base = os.path.splitext(filename)[0]
+    return re.sub(r'_t\d+$', '', base)
+
+
 def _reconcile_filenames(job, rawpath):
     """Update track filenames to match actual files on disk after MakeMKV rip.
 
@@ -728,30 +742,58 @@ def _reconcile_filenames(job, rawpath):
 
     tracks = list(job.tracks.filter_by(source=SOURCE).order_by(Track.track_number))
     updated = False
-    claimed = set()
+    claimed = set()          # filenames already matched
+    matched_ids = set()      # track_ids already matched
 
+    # --- Pass 1: Exact match ---
     for track in tracks:
-        # If current filename matches an actual file, no update needed
         if track.filename in actual_files:
             claimed.add(track.filename)
-            continue
+            matched_ids.add(track.track_id)
 
-        # Match by track number suffix — MakeMKV uses _t00, _t01, etc.
-        try:
-            track_num = int(track.track_number)
-        except (ValueError, TypeError):
+    # --- Pass 2: Prefix match (handles renumbered TV discs) ---
+    # Build prefix → file mapping for unclaimed files
+    unclaimed = [f for f in actual_files if f not in claimed]
+    prefix_to_files = {}
+    for f in unclaimed:
+        prefix = _strip_track_suffix(f)
+        prefix_to_files.setdefault(prefix, []).append(f)
+
+    for track in tracks:
+        if track.track_id in matched_ids:
             continue
-        for f in actual_files:
-            if f in claimed:
-                continue
-            base = os.path.splitext(f)[0]
-            if re.search(rf'_t0*{track_num}\b', base):
-                logging.info(f"Reconciled track #{track_num} filename: "
-                             f"'{track.filename}' -> '{f}'")
-                track.filename = f
-                claimed.add(f)
-                updated = True
-                break
+        db_prefix = _strip_track_suffix(track.filename) if track.filename else None
+        if not db_prefix:
+            continue
+        candidates = prefix_to_files.get(db_prefix, [])
+        if len(candidates) == 1:
+            f = candidates[0]
+            logging.info(
+                f"Reconciled track #{track.track_number} by prefix '{db_prefix}': "
+                f"'{track.filename}' -> '{f}'"
+            )
+            track.filename = f
+            claimed.add(f)
+            matched_ids.add(track.track_id)
+            updated = True
+            # Remove from prefix map so it can't match again
+            prefix_to_files[db_prefix] = []
+
+    # --- Pass 3: Positional match (handles movies / shared-prefix tracks) ---
+    remaining_tracks = [t for t in tracks if t.track_id not in matched_ids]
+    remaining_files = [f for f in actual_files if f not in claimed]
+
+    if remaining_tracks and len(remaining_tracks) == len(remaining_files):
+        remaining_tracks.sort(key=lambda t: int(t.track_number)
+                              if t.track_number and t.track_number.isdigit() else 0)
+        remaining_files.sort()
+        for track, f in zip(remaining_tracks, remaining_files):
+            logging.info(
+                f"Reconciled track #{track.track_number} by position: "
+                f"'{track.filename}' -> '{f}'"
+            )
+            track.filename = f
+            updated = True
 
     if updated:
         db.session.commit()
