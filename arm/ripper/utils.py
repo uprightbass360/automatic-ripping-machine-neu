@@ -26,6 +26,7 @@ from arm.models.job import Job, JobState
 from arm.models.notifications import Notifications
 from arm.models.track import Track
 from arm.models.user import User
+from arm.models.app_state import AppState
 from arm.models.system_drives import SystemDrives
 from arm.ripper import apprise_bulk
 
@@ -921,27 +922,56 @@ def job_dupe_check(job):
         return False
 
 
+def is_ripping_paused():
+    """Check whether global ripping is paused via AppState."""
+    try:
+        return AppState.get().ripping_paused
+    except Exception:
+        return False
+
+
 def check_for_wait(job):
     """
     Wait if we have waiting for user input updates\n\n
     :param job: Current Job
     :return: None
     """
-    #  If we have waiting for user input enabled
-    if job.config.MANUAL_WAIT:
-        logging.info(f"Waiting {job.config.MANUAL_WAIT_TIME} seconds for manual override.")
+    globally_paused = is_ripping_paused()
+    should_wait = job.config.MANUAL_WAIT or globally_paused
+
+    if should_wait:
+        if globally_paused:
+            logging.info("Global ripping paused. Waiting for manual start.")
+        else:
+            logging.info(f"Waiting {job.config.MANUAL_WAIT_TIME} seconds for manual override.")
         database_updater({"status": JobState.MANUAL_WAIT_STARTED.value}, job)
         sleep_time = 0
-        while sleep_time < job.config.MANUAL_WAIT_TIME:
+        while True:
             time.sleep(5)
             sleep_time += 5
             db.session.refresh(job)
+
+            # User clicked "Start Ripping"
+            if job.manual_start:
+                logging.info("Manual start triggered by user.")
+                break
+
+            # User changed title
             if job.title_manual:
                 logging.info("Manual override found.  Overriding auto identification values.")
                 job.updated = True
                 job.hasnicetitle = True
                 database_updater({"hasnicetitle": True, "updated": True}, job)
                 break
+
+            # Re-check global pause each iteration
+            paused_now = is_ripping_paused()
+
+            # Timeout only applies when not globally paused
+            if not paused_now and sleep_time >= job.config.MANUAL_WAIT_TIME:
+                logging.info("Manual wait time expired. Proceeding.")
+                break
+
         database_updater({"status": JobState.IDLE.value}, job)
 
 
