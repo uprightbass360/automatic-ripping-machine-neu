@@ -14,7 +14,7 @@ services:
 
   # ARM ripper — creates the database on first startup
   arm-rippers:
-    image: automaticrippingmachine/automatic-ripping-machine:latest
+    image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-rippers
     restart: always
     privileged: true
@@ -42,7 +42,7 @@ services:
 
   # Replacement dashboard (SvelteKit + FastAPI)
   arm-ui:
-    build: ../automatic-ripping-machine-ui
+    image: automaticrippingmachine/arm-ui:${UI_VERSION:-latest}
     container_name: arm-ui
     restart: unless-stopped
     ports:

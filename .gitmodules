@@ -1,0 +1,6 @@
+[submodule "components/transcoder"]
+	path = components/transcoder
+	url = https://github.com/uprightbass360/automatic-ripping-machine-transcoder.git
+[submodule "components/ui"]
+	path = components/ui
+	url = https://github.com/uprightbass360/automatic-ripping-machine-ui.git

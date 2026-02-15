@@ -16,7 +16,7 @@ services:
 
   # Dump HandBrake built-in presets to JSON for the UI settings page
   arm-hb-presets:
-    image: automaticrippingmachine/automatic-ripping-machine:latest
+    image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-hb-presets
     volumes:
       - hb-presets:/data/hb-presets
@@ -39,7 +39,7 @@ services:
 
   # ARM ripper — creates the database on first startup
   arm-rippers:
-    image: automaticrippingmachine/automatic-ripping-machine:latest
+    image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-rippers
     restart: always
     privileged: true
@@ -67,7 +67,7 @@ services:
 
   # Replacement dashboard (SvelteKit + FastAPI)
   arm-ui:
-    build: ../automatic-ripping-machine-ui
+    image: automaticrippingmachine/arm-ui:${UI_VERSION:-latest}
     container_name: arm-ui
     restart: unless-stopped
     ports:
@@ -83,7 +83,7 @@ services:
     volumes:
       - arm-db:/data/db:ro
       - ${ARM_LOGS_PATH}:/data/logs:ro
-      - ${ARM_CONFIG_PATH}:/data/arm-config:ro
+      - ${ARM_CONFIG_PATH}:/data/arm-config:rw
       - hb-presets:/data/hb-presets:ro
     depends_on:
       arm-rippers:
@@ -93,7 +93,7 @@ services:
 
   # GPU-accelerated transcoding service
   arm-transcoder:
-    build: ../automatic-ripping-machine-transcoder
+    image: automaticrippingmachine/arm-transcoder:${TRANSCODER_VERSION:-latest}
     container_name: arm-transcoder
     restart: unless-stopped
     ports:

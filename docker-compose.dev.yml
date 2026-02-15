@@ -16,6 +16,8 @@ services:
       - ./dev-data/hb-presets:/data/hb-presets
 
   arm-ui:
+    # Build from submodule instead of published image
+    build: ./components/ui
     # Bind-mount source so code changes don't need a container rebuild.
     # Backend: mounted read-only, uvicorn --reload picks up changes.
     # Frontend: run `npm run build` locally, output is served directly.
@@ -27,15 +29,15 @@ services:
       - --reload
       - --reload-dir=/app/backend
     volumes:
-      - ../automatic-ripping-machine-ui/backend:/app/backend:ro
-      - ../automatic-ripping-machine-ui/frontend/build:/app/frontend/build:ro
+      - ./components/ui/backend:/app/backend:ro
+      - ./components/ui/frontend/build:/app/frontend/build:ro
       - ./dev-data/logs:/data/logs:ro
       - ./dev-data/config:/data/arm-config:ro
       - ./dev-data/hb-presets:/data/hb-presets:ro
 
   arm-transcoder:
     build:
-      context: ../automatic-ripping-machine-transcoder
+      context: ./components/transcoder
       dockerfile: Dockerfile.dev
     environment:
       - LOG_LEVEL=DEBUG

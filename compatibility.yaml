@@ -1,0 +1,12 @@
+# Tested version combinations for the ARM ecosystem.
+# First entry is the recommended (latest) combination.
+releases:
+  - arm: "1.0.0"
+    ui: "0.1.0"
+    transcoder: "0.1.0"
+    date: "2026-02-15"
+    notes: "Initial versioned release of all three components"
+
+api_versions:
+  arm_api: "v1"
+  transcoder_api: "v1"
