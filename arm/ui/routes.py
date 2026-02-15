@@ -85,7 +85,6 @@ def home():
     return render_template("index.html",
                            authenticated=authenticated,
                            jobs=jobs,
-                           children=cfg.arm_config['ARM_CHILDREN'],
                            server=server, serverutil=serverutil,
                            arm_path=arm_path, media_path=media_path, stats=stats)
 

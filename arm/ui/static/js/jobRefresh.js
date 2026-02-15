@@ -8,11 +8,9 @@
 let hrrref = "";
 let activeJob = null;
 let actionType = null;
-var activeServers = [];
 var activeJobs = [];
 
 $(document).ready(function () {
-    pushChildServers();
     refreshJobs();
     activeTab("home");
 
@@ -281,42 +279,18 @@ function checkNotifications(data) {
  * Function set as an interval to update all jobs from api
  */
 function refreshJobs() {
-    let serverCount = activeServers.length;
-    $.each(activeServers, function (serverIndex, serverUrl) {
-        $.ajax({
-            url: serverUrl + "/json?mode=joblist",
-            type: "get",
-            timeout: 2000,
-            error: function () {
-                --serverCount;
-            },
-            success: function (data) {
-                serverCount = refreshJobsSuccess(data, serverIndex, serverUrl, serverCount);
-            },
-            complete: function (data) {
-                refreshJobsComplete();
-                if(typeof data !== 'undefined' && data.responseJSON) {
-                    checkNotifications(data.responseJSON);
-                }
+    $.ajax({
+        url: location.origin + "/json?mode=joblist",
+        type: "get",
+        timeout: 2000,
+        success: function (data) {
+            refreshJobsSuccess(data, 0, location.origin, 1);
+        },
+        complete: function (data) {
+            refreshJobsComplete();
+            if(typeof data !== 'undefined' && data.responseJSON) {
+                checkNotifications(data.responseJSON);
             }
-        });
+        }
     });
-}
-
-/**
- * Function to push all child servers from arm.yaml config into links on the homepage
- */
-function pushChildServers() {
-    activeServers.push(location.origin);
-    const childs = $("#children");
-    const children = childs.text().trim();
-    if (children) {
-        const childLinks = [];
-        const childrenArr = children.split(",");
-        $.each(childrenArr, function (_index, value) {
-            activeServers.push(value);
-            childLinks.push(`<a target="_blank" href="${value}">${value}</a>`);
-        });
-        childs.html(`Children: <br />${childLinks.join("<br />")}`);
-    }
 }
