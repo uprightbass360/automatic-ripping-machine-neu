@@ -55,7 +55,8 @@ jobs = [
         "title": "The Matrix (1999) - t03", "source_path": "/data/raw/The Matrix (1999)/The_Matrix_t03.mkv",
         "output_path": None, "status": "FAILED", "progress": 45.2,
         "arm_job_id": "1",
-        "error": "HandBrake exited with code 3: Encoding failed at 45% - audio track 2 unsupported codec (TrueHD Atmos)",
+        "error": "HandBrake exited with code 3: Encoding failed at 45%"
+                 " - audio track 2 unsupported codec (TrueHD Atmos)",
         "retry_count": 2,
         "created_at": (now - timedelta(hours=6)).isoformat(),
         "started_at": (now - timedelta(hours=5, minutes=30)).isoformat(),

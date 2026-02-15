@@ -155,7 +155,8 @@ music_tracks = [
     # 13: OK Computer
     (13, "01", 284, None, None, 0, "01-Airbag.flac", "01-Airbag.flac", "success"),
     (13, "02", 369, None, None, 0, "02-Paranoid_Android.flac", "02-Paranoid_Android.flac", "success"),
-    (13, "03", 293, None, None, 0, "03-Subterranean_Homesick_Alien.flac", "03-Subterranean_Homesick_Alien.flac", "success"),
+    (13, "03", 293, None, None, 0, "03-Subterranean_Homesick_Alien.flac",
+     "03-Subterranean_Homesick_Alien.flac", "success"),
     (13, "04", 290, None, None, 0, "04-Exit_Music.flac", "04-Exit_Music.flac", "success"),
     (13, "05", 247, None, None, 0, "05-Let_Down.flac", "05-Let_Down.flac", "success"),
     (13, "06", 264, None, None, 0, "06-Karma_Police.flac", "06-Karma_Police.flac", "success"),

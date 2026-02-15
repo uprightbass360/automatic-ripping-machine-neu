@@ -1,7 +1,6 @@
 """API v1 — System endpoints."""
 import os
 import platform
-import re
 import subprocess
 
 import psutil

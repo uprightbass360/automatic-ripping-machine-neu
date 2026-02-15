@@ -13,7 +13,6 @@ import arm.ui.utils as ui_utils
 
 
 @api_bp.route('/v1/jobs', methods=['GET'])
-
 def list_jobs():
     """List jobs, optionally filtered by status or search query.
 
@@ -35,14 +34,12 @@ def list_jobs():
 
 
 @api_bp.route('/v1/jobs/<int:job_id>', methods=['DELETE'])
-
 def delete_job(job_id):
     """Delete a job by ID."""
     return jsonify(json_api.delete_job(str(job_id), 'delete'))
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/abandon', methods=['POST'])
-
 def abandon_job(job_id):
     """Abandon a running job."""
     return jsonify(json_api.abandon_job(str(job_id)))
@@ -90,7 +87,6 @@ def cancel_waiting_job(job_id):
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/config', methods=['PATCH'])
-
 def change_job_config(job_id):
     """Update job rip parameters.
 
@@ -161,21 +157,18 @@ def change_job_config(job_id):
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/fix-permissions', methods=['POST'])
-
 def fix_job_permissions(job_id):
     """Fix file permissions for a job."""
     return jsonify(ui_utils.fix_permissions(str(job_id)))
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/send', methods=['POST'])
-
 def send_job(job_id):
     """Send a job to a remote database."""
     return jsonify(ui_utils.send_to_remote_db(str(job_id)))
 
 
 @api_bp.route('/v1/jobs/<int:job_id>/title', methods=['PUT'])
-
 def update_job_title(job_id):
     """Update a job's title metadata.
 
