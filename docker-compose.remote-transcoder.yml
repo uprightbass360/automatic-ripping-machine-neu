@@ -1,0 +1,63 @@
+# Split deployment: ARM + UI on this machine, Transcoder on a remote host.
+# The transcoder runs its own docker-compose from the arm-transcoder repo.
+# Copy .env.remote-transcoder.example to .env and adjust values before starting.
+
+services:
+  # Fix ownership on the shared DB volume before ARM starts
+  arm-db-init:
+    image: alpine
+    container_name: arm-db-init
+    volumes:
+      - arm-db:/data/db
+    command: chown -R ${ARM_UID:-1000}:${ARM_GID:-1000} /data/db
+    restart: "no"
+
+  # ARM ripper — creates the database on first startup
+  arm-rippers:
+    image: automaticrippingmachine/automatic-ripping-machine:latest
+    container_name: arm-rippers
+    restart: always
+    privileged: true
+    ports:
+      - "${ARM_PORT:-8080}:8080"
+    environment:
+      - ARM_UID=${ARM_UID}
+      - ARM_GID=${ARM_GID}
+      - TZ=${TZ}
+    volumes:
+      - ${ARM_MUSIC_PATH}:/home/arm/music
+      - ${ARM_LOGS_PATH}:/home/arm/logs
+      - ${ARM_MEDIA_PATH}:/home/arm/media
+      - ${ARM_CONFIG_PATH}:/etc/arm/config
+      - arm-db:/home/arm/db
+    # devices:
+    #   - ${ARM_DEVICE_0:-/dev/sr0}:/dev/sr0
+    #   - ${ARM_DEVICE_1:-/dev/sr1}:/dev/sr1
+    #   - ${ARM_DEVICE_2:-/dev/sr2}:/dev/sr2
+    #   - ${ARM_DEVICE_3:-/dev/sr3}:/dev/sr3
+    cpuset: ${ARM_CPUSET:-2,3,4,5,6,7}
+    depends_on:
+      arm-db-init:
+        condition: service_completed_successfully
+
+  # Replacement dashboard (SvelteKit + FastAPI)
+  arm-ui:
+    build: ../automatic-ripping-machine-ui
+    container_name: arm-ui
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-8888}:8888"
+    environment:
+      - ARM_UI_ARM_DB_PATH=/data/db/arm.db
+      - ARM_UI_ARM_LOG_PATH=/data/logs
+      - ARM_UI_ARM_URL=http://arm-rippers:8080
+      - ARM_UI_TRANSCODER_URL=http://${TRANSCODER_HOST}:${TRANSCODER_PORT:-5000}
+      - ARM_UI_TRANSCODER_API_KEY=${TRANSCODER_API_KEY:-}
+    volumes:
+      - arm-db:/data/db:ro
+      - ${ARM_LOGS_PATH}:/data/logs:ro
+    depends_on:
+      - arm-rippers
+
+volumes:
+  arm-db:

@@ -1,0 +1,151 @@
+# All-in-one: ARM + UI + Transcoder on a single machine
+# Copy .env.example to .env and adjust values before starting.
+#
+# CPU-only:  docker compose up -d --build
+# With GPU:  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+
+services:
+  # Fix ownership on the shared DB volume before ARM starts
+  arm-db-init:
+    image: alpine
+    container_name: arm-db-init
+    volumes:
+      - arm-db:/data/db
+    command: chown -R ${ARM_UID:-1000}:${ARM_GID:-1000} /data/db
+    restart: "no"
+
+  # Dump HandBrake built-in presets to JSON for the UI settings page
+  arm-hb-presets:
+    image: automaticrippingmachine/automatic-ripping-machine:latest
+    container_name: arm-hb-presets
+    volumes:
+      - hb-presets:/data/hb-presets
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HandBrakeCLI --preset-list 2>&1 | python3 -c "
+        import json, sys, re
+        names = []
+        for line in sys.stdin:
+            m = re.match(r'^    (\S.+)$', line.rstrip())
+            if m:
+                name = m.group(1)
+                if not any(c in name for c in ['/', ':', '(']):
+                    names.append(name)
+        json.dump(sorted(set(names)), open('/data/hb-presets/presets.json', 'w'), indent=2)
+        print(f'Wrote {len(names)} HandBrake presets')
+        "
+    restart: "no"
+
+  # ARM ripper — creates the database on first startup
+  arm-rippers:
+    image: automaticrippingmachine/automatic-ripping-machine:latest
+    container_name: arm-rippers
+    restart: always
+    privileged: true
+    ports:
+      - "${ARM_PORT:-8080}:8080"
+    environment:
+      - ARM_UID=${ARM_UID}
+      - ARM_GID=${ARM_GID}
+      - TZ=${TZ}
+    volumes:
+      - ${ARM_MUSIC_PATH}:/home/arm/music
+      - ${ARM_LOGS_PATH}:/home/arm/logs
+      - ${ARM_MEDIA_PATH}:/home/arm/media
+      - ${ARM_CONFIG_PATH}:/etc/arm/config
+      - arm-db:/home/arm/db
+    # devices:
+    #   - ${ARM_DEVICE_0:-/dev/sr0}:/dev/sr0
+    #   - ${ARM_DEVICE_1:-/dev/sr1}:/dev/sr1
+    #   - ${ARM_DEVICE_2:-/dev/sr2}:/dev/sr2
+    #   - ${ARM_DEVICE_3:-/dev/sr3}:/dev/sr3
+    cpuset: ${ARM_CPUSET:-2,3,4,5,6,7}
+    depends_on:
+      arm-db-init:
+        condition: service_completed_successfully
+
+  # Replacement dashboard (SvelteKit + FastAPI)
+  arm-ui:
+    build: ../automatic-ripping-machine-ui
+    container_name: arm-ui
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-8888}:8888"
+    environment:
+      - ARM_UI_ARM_DB_PATH=/data/db/arm.db
+      - ARM_UI_ARM_LOG_PATH=/data/logs
+      - ARM_UI_ARM_CONFIG_PATH=/data/arm-config/arm.yaml
+      - ARM_UI_ARM_URL=http://arm-rippers:8080
+      - ARM_UI_TRANSCODER_URL=http://arm-transcoder:5000
+      - ARM_UI_ARM_HB_PRESETS_PATH=/data/hb-presets/presets.json
+      - ARM_UI_TRANSCODER_API_KEY=${TRANSCODER_API_KEY:-}
+    volumes:
+      - arm-db:/data/db:ro
+      - ${ARM_LOGS_PATH}:/data/logs:ro
+      - ${ARM_CONFIG_PATH}:/data/arm-config:ro
+      - hb-presets:/data/hb-presets:ro
+    depends_on:
+      arm-rippers:
+        condition: service_started
+      arm-hb-presets:
+        condition: service_completed_successfully
+
+  # GPU-accelerated transcoding service
+  arm-transcoder:
+    build: ../automatic-ripping-machine-transcoder
+    container_name: arm-transcoder
+    restart: unless-stopped
+    ports:
+      - "${TRANSCODER_PORT:-5000}:5000"
+    environment:
+      - TZ=${TZ}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Paths inside container
+      - RAW_PATH=/data/raw
+      - COMPLETED_PATH=/data/completed
+      - WORK_PATH=/data/work
+      - DB_PATH=/data/db/transcoder.db
+      # Authentication
+      - REQUIRE_API_AUTH=${REQUIRE_API_AUTH:-false}
+      - API_KEYS=${API_KEYS:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      # Transcoding
+      - VIDEO_ENCODER=${VIDEO_ENCODER:-x265}
+      - VIDEO_QUALITY=${VIDEO_QUALITY:-22}
+      - AUDIO_ENCODER=${AUDIO_ENCODER:-copy}
+      - SUBTITLE_MODE=${SUBTITLE_MODE:-all}
+      - HANDBRAKE_PRESET=${HANDBRAKE_PRESET:-}
+      - HANDBRAKE_PRESET_4K=${HANDBRAKE_PRESET_4K:-}
+      - HANDBRAKE_PRESET_FILE=${HANDBRAKE_PRESET_FILE:-}
+      # File handling
+      - DELETE_SOURCE=${DELETE_SOURCE:-true}
+      - OUTPUT_EXTENSION=${OUTPUT_EXTENSION:-mkv}
+      # Organization
+      - MOVIES_SUBDIR=${MOVIES_SUBDIR:-movies}
+      - TV_SUBDIR=${TV_SUBDIR:-tv}
+      - AUDIO_SUBDIR=${AUDIO_SUBDIR:-audio}
+      # Performance
+      - MAX_CONCURRENT=${MAX_CONCURRENT:-1}
+      - STABILIZE_SECONDS=${STABILIZE_SECONDS:-60}
+      - MINIMUM_FREE_SPACE_GB=${MINIMUM_FREE_SPACE_GB:-10}
+      - MAX_RETRY_COUNT=${MAX_RETRY_COUNT:-3}
+      - LOG_PATH=/data/logs
+    volumes:
+      - ${ARM_MEDIA_PATH}/raw:/data/raw:ro
+      - ${ARM_MEDIA_PATH}/completed:/data/completed:rw
+      - ${TRANSCODER_WORK_PATH:-./work}:/data/work:rw
+      - transcoder-db:/data/db:rw
+      - transcoder-logs:/data/logs:rw
+      - ${TRANSCODER_PRESET_PATH:-./presets}:/config/presets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  arm-db:
+  transcoder-db:
+  transcoder-logs:
+  hb-presets:

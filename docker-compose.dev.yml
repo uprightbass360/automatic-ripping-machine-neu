@@ -1,0 +1,46 @@
+# Dev override: local paths, debug logging, Dockerfile.dev for transcoder.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+services:
+  arm-rippers:
+    build: .
+    image: arm:dev
+    volumes:
+      - ./dev-data/music:/home/arm/music
+      - ./dev-data/logs:/home/arm/logs
+      - ./dev-data/media:/home/arm/media
+      - ./dev-data/config:/etc/arm/config
+
+  arm-hb-presets:
+    volumes:
+      - ./dev-data/hb-presets:/data/hb-presets
+
+  arm-ui:
+    # Bind-mount source so code changes don't need a container rebuild.
+    # Backend: mounted read-only, uvicorn --reload picks up changes.
+    # Frontend: run `npm run build` locally, output is served directly.
+    command:
+      - uvicorn
+      - backend.main:app
+      - --host=0.0.0.0
+      - --port=8888
+      - --reload
+      - --reload-dir=/app/backend
+    volumes:
+      - ../automatic-ripping-machine-ui/backend:/app/backend:ro
+      - ../automatic-ripping-machine-ui/frontend/build:/app/frontend/build:ro
+      - ./dev-data/logs:/data/logs:ro
+      - ./dev-data/config:/data/arm-config:ro
+      - ./dev-data/hb-presets:/data/hb-presets:ro
+
+  arm-transcoder:
+    build:
+      context: ../automatic-ripping-machine-transcoder
+      dockerfile: Dockerfile.dev
+    environment:
+      - LOG_LEVEL=DEBUG
+      - STABILIZE_SECONDS=10
+      - DELETE_SOURCE=false
+      - MINIMUM_FREE_SPACE_GB=1
+    volumes:
+      - ./dev-data/transcoder-logs:/data/logs:rw

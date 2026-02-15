@@ -1,0 +1,13 @@
+# NVIDIA GPU overlay for the transcoder.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+
+services:
+  arm-transcoder:
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute]
