@@ -28,6 +28,6 @@ urllib3==2.6.3
 waitress==2.1.2
 Werkzeug==2.3.6
 WTForms==3.2.1
-xmltodict==0.13.0
+xmltodict==1.0.3
 argparse==1.4.0
 colorama==0.4.6
