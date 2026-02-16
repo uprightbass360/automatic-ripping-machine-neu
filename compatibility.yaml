@@ -3,6 +3,11 @@
 releases:
   - arm: "1.1.0"
     ui: "0.2.0"
+    transcoder: "0.2.1"
+    date: "2026-02-16"
+    notes: "Compose file alignment, deployment guide, CI fixes"
+  - arm: "1.1.0"
+    ui: "0.2.0"
     transcoder: "0.2.0"
     date: "2026-02-15"
     notes: "First published Docker images for all three components"

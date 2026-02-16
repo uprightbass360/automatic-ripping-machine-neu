@@ -12,6 +12,29 @@ services:
     command: chown -R ${ARM_UID:-1000}:${ARM_GID:-1000} /data/db
     restart: "no"
 
+  # Dump HandBrake built-in presets to JSON for the UI settings page
+  arm-hb-presets:
+    image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
+    container_name: arm-hb-presets
+    volumes:
+      - hb-presets:/data/hb-presets
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        HandBrakeCLI --preset-list 2>&1 | python3 -c "
+        import json, sys, re
+        names = []
+        for line in sys.stdin:
+            m = re.match(r'^    (\S.+)$', line.rstrip())
+            if m:
+                name = m.group(1)
+                if not any(c in name for c in ['/', ':', '(']):
+                    names.append(name)
+        json.dump(sorted(set(names)), open('/data/hb-presets/presets.json', 'w'), indent=2)
+        print(f'Wrote {len(names)} HandBrake presets')
+        "
+    restart: "no"
+
   # ARM ripper — creates the database on first startup
   arm-rippers:
     image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
@@ -50,14 +73,22 @@ services:
     environment:
       - ARM_UI_ARM_DB_PATH=/data/db/arm.db
       - ARM_UI_ARM_LOG_PATH=/data/logs
+      - ARM_UI_ARM_CONFIG_PATH=/data/arm-config/arm.yaml
       - ARM_UI_ARM_URL=http://arm-rippers:8080
       - ARM_UI_TRANSCODER_URL=http://${TRANSCODER_HOST}:${TRANSCODER_PORT:-5000}
+      - ARM_UI_ARM_HB_PRESETS_PATH=/data/hb-presets/presets.json
       - ARM_UI_TRANSCODER_API_KEY=${TRANSCODER_API_KEY:-}
     volumes:
       - arm-db:/data/db:ro
       - ${ARM_LOGS_PATH}:/data/logs:ro
+      - ${ARM_CONFIG_PATH}:/data/arm-config:rw
+      - hb-presets:/data/hb-presets:ro
     depends_on:
-      - arm-rippers
+      arm-rippers:
+        condition: service_started
+      arm-hb-presets:
+        condition: service_completed_successfully
 
 volumes:
   arm-db:
+  hb-presets:
