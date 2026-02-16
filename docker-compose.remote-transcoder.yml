@@ -14,6 +14,7 @@ services:
 
   # Dump HandBrake built-in presets to JSON for the UI settings page
   arm-hb-presets:
+    build: .
     image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-hb-presets
     volumes:
@@ -37,6 +38,7 @@ services:
 
   # ARM ripper — creates the database on first startup
   arm-rippers:
+    build: .
     image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-rippers
     restart: always
@@ -53,11 +55,11 @@ services:
       - ${ARM_MEDIA_PATH}:/home/arm/media
       - ${ARM_CONFIG_PATH}:/etc/arm/config
       - arm-db:/home/arm/db
-    # devices:
-    #   - ${ARM_DEVICE_0:-/dev/sr0}:/dev/sr0
-    #   - ${ARM_DEVICE_1:-/dev/sr1}:/dev/sr1
-    #   - ${ARM_DEVICE_2:-/dev/sr2}:/dev/sr2
-    #   - ${ARM_DEVICE_3:-/dev/sr3}:/dev/sr3
+    devices:
+      - ${ARM_DEVICE_0:-/dev/sr0}:/dev/sr0
+      - ${ARM_DEVICE_1:-/dev/sr1}:/dev/sr1
+      # - ${ARM_DEVICE_2:-/dev/sr2}:/dev/sr2
+      # - ${ARM_DEVICE_3:-/dev/sr3}:/dev/sr3
     cpuset: ${ARM_CPUSET:-2,3,4,5,6,7}
     depends_on:
       arm-db-init:

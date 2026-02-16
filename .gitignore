@@ -186,3 +186,4 @@ arm.yaml
 dev-data/transcoder-logs/
 dev-data/arm.db
 dev-data/config/arm.yaml
+deploy/*.env
