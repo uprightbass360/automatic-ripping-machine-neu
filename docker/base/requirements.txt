@@ -1,5 +1,5 @@
 alembic==1.18.4
-apprise==1.7.6
+apprise==1.9.7
 bcrypt==5.0.0
 discid==1.2.0
 Flask==3.1.2
