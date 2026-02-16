@@ -1,4 +1,4 @@
-alembic==1.14.1
+alembic==1.18.4
 apprise==1.7.6
 bcrypt==5.0.0
 discid==1.2.0
