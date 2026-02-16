@@ -1,6 +1,11 @@
 # Tested version combinations for the ARM ecosystem.
 # First entry is the recommended (latest) combination.
 releases:
+  - arm: "1.1.0"
+    ui: "0.2.0"
+    transcoder: "0.2.0"
+    date: "2026-02-15"
+    notes: "First published Docker images for all three components"
   - arm: "1.0.0"
     ui: "0.1.0"
     transcoder: "0.1.0"
