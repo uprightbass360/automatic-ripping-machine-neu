@@ -42,7 +42,7 @@ services:
 
   # Replacement dashboard (SvelteKit + FastAPI)
   arm-ui:
-    image: automaticrippingmachine/arm-ui:${UI_VERSION:-latest}
+    image: uprightbass360/arm-ui:${UI_VERSION:-latest}
     container_name: arm-ui
     restart: unless-stopped
     ports:

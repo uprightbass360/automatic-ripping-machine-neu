@@ -67,7 +67,7 @@ services:
 
   # Replacement dashboard (SvelteKit + FastAPI)
   arm-ui:
-    image: automaticrippingmachine/arm-ui:${UI_VERSION:-latest}
+    image: uprightbass360/arm-ui:${UI_VERSION:-latest}
     container_name: arm-ui
     restart: unless-stopped
     ports:
@@ -93,7 +93,7 @@ services:
 
   # GPU-accelerated transcoding service
   arm-transcoder:
-    image: automaticrippingmachine/arm-transcoder:${TRANSCODER_VERSION:-latest}
+    image: uprightbass360/arm-transcoder:${TRANSCODER_VERSION:-latest}
     container_name: arm-transcoder
     restart: unless-stopped
     ports:
