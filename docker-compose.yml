@@ -16,7 +16,7 @@ services:
 
   # Dump HandBrake built-in presets to JSON for the UI settings page
   arm-hb-presets:
-    image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
+    image: uprightbass360/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-hb-presets
     volumes:
       - hb-presets:/data/hb-presets
@@ -39,7 +39,7 @@ services:
 
   # ARM ripper — creates the database on first startup
   arm-rippers:
-    image: automaticrippingmachine/automatic-ripping-machine:${ARM_VERSION:-latest}
+    image: uprightbass360/automatic-ripping-machine:${ARM_VERSION:-latest}
     container_name: arm-rippers
     restart: always
     privileged: true

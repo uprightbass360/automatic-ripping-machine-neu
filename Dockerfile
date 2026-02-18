@@ -8,7 +8,7 @@
 # and only needs rebuilding when those versions change.
 ###########################################################
 
-ARG BASE_IMAGE=automaticrippingmachine/arm-dependencies:latest
+ARG BASE_IMAGE=uprightbass360/arm-dependencies:latest
 FROM ${BASE_IMAGE} AS base
 
 LABEL org.opencontainers.image.source=https://github.com/uprightbass360/automatic-ripping-machine-neu
