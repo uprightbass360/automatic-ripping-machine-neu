@@ -35,17 +35,10 @@ RUN install_clean \
         udev \
         python3 \
         python3-dev \
-        python3-pip \
-        nano \
-        vim \
-        scons swig libzbar-dev libzbar0
+        python3-pip
 
 ###########################################################
-FROM base AS deps-docker
-RUN install_clean gosu
-
-###########################################################
-FROM deps-docker AS deps-ripper
+FROM base AS deps-ripper
 RUN install_clean \
         abcde \
         eyed3 \
@@ -55,13 +48,11 @@ RUN install_clean \
         ffmpeg \
         flac \
         glyrc \
-        default-jre-headless \
         id3 \
         id3v2 \
         lame \
         libavcodec-extra \
         lsdvd \
-        mkcue \
         vorbis-tools \
         opus-tools \
         fdkaac
