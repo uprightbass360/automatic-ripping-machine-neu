@@ -12,6 +12,24 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.2.2...v1.3.0) (2026-02-18)
+
+
+### Features
+
+* merge upstream logging refactor and exception handling ([ac51ebb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ac51ebbd1a38186b802a2fc2735cebb69a1d54d6))
+* pin HandBrake version, add weekly dependency check ([7ffa4ed](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7ffa4ed75691aafd349a528ae9fde68c4ea3afed))
+* publish our own base image, clean up workflows ([5aea491](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5aea4915aec53712fcaa314f167f7df9f1e27aae))
+
+
+### Bug Fixes
+
+* configure release-please to update VERSION file ([8f8634b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8f8634b80e2b369ac60c14790ae9da9c97b90b7c))
+* **installer:** correctly detect contrib for bookworm-updates/security across deb822 + mirror lists ([e86f8d9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e86f8d9c1edddde8f24325e236028bc568941185))
+* remove unused dependencies from base image ([0812356](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0812356ac9c2afb0b7a74280159fc6380151ea67))
+* scope Docker builds to linux/amd64 only ([f047133](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f0471338d2b2c49dd62e4aa6e7ccc1e957f664e2))
+* **settings:** trim whitespace from form values on save ([97214a8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/97214a845e96a3289018d78cf3ed0a0c07161315))
+
 ## [1.2.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.2.1...v1.2.2) (2026-02-16)
 
 
