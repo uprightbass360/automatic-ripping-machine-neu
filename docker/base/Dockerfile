@@ -81,6 +81,7 @@ FROM deps-ripper AS install-makemkv-handbrake
 COPY scripts/install_mkv_hb_deps.sh /install_mkv_hb_deps.sh
 RUN chmod +x /install_mkv_hb_deps.sh && /install_mkv_hb_deps.sh
 
+COPY VERSION_HANDBRAKE /VERSION_HANDBRAKE
 COPY scripts/install_handbrake.sh /install_handbrake.sh
 RUN chmod +x /install_handbrake.sh && /install_handbrake.sh
 

@@ -22,8 +22,14 @@
 # DEALINGS IN THE SOFTWARE.
 
 echo -e "${RED}Finding current HandBrake version${NC}"
-HANDBRAKE_VERSION=$(curl --silent 'https://github.com/HandBrake/HandBrake/releases' | grep 'HandBrake/tree/*' | head -n 1 | sed -e 's/[^0-9\.]*//g')
-echo -e "${RED}Downloading HandBrake $HANDBRAKE_VERSION${NC}"
+if [[ -f /VERSION_HANDBRAKE ]]; then
+    HANDBRAKE_VERSION=$(cat /VERSION_HANDBRAKE | tr -d '[:space:]')
+    echo -e "Using HandBrake version from VERSION_HANDBRAKE: ${RED}$HANDBRAKE_VERSION${NC}"
+else
+    echo -e "${RED}WARNING:${NC} VERSION_HANDBRAKE file not found. Fetching latest version."
+    HANDBRAKE_VERSION=$(curl --silent 'https://github.com/HandBrake/HandBrake/releases' | grep 'HandBrake/tree/*' | head -n 1 | sed -e 's/[^0-9\.]*//g')
+    echo -e "Using HandBrake version from GitHub: ${RED}$HANDBRAKE_VERSION${NC}"
+fi
 
 # if architecture is any flavor of arm, install standard HandBrakeCLI and exit cleanly
 if [[ $(dpkg --print-architecture) =~ arm.* ]]; then
