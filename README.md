@@ -136,8 +136,6 @@ UI_VERSION=0.2.0
 TRANSCODER_VERSION=0.2.0
 ```
 
-Tested version combinations are tracked in [`compatibility.yaml`](compatibility.yaml).
-
 ## Related Projects
 
 This fork is part of a suite of projects for a complete disc-to-library pipeline:
