@@ -87,7 +87,7 @@ services:
       - hb-presets:/data/hb-presets:ro
     depends_on:
       arm-rippers:
-        condition: service_started
+        condition: service_healthy
       arm-hb-presets:
         condition: service_completed_successfully
 
