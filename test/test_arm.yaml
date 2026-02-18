@@ -20,7 +20,6 @@ DATA_RIP_PARAMETERS: ""
 METADATA_PROVIDER: "omdb"
 GET_AUDIO_TITLE: "musicbrainz"
 RIP_POSTER: false
-UNIDENTIFIED_EJECT: false
 AUTO_EJECT: false
 PREVENT_99: true
 # INSTALLPATH must point to the project root so setup/arm.yaml is found
