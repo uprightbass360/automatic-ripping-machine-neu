@@ -233,7 +233,7 @@ def identify_dvd(job):
             if len(tracks) == 99:
                 job.has_track_99 = True
                 if cfg.arm_config["PREVENT_99"]:
-                    raise Exception("Track 99 found and PREVENT_99 is enabled")
+                    raise utils.RipperException("Track 99 found and PREVENT_99 is enabled")
         except (SyntaxError, AttributeError) as e:
             logging.error("Failed to parse lsdvd output", exc_info=e)
 

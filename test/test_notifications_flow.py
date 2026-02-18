@@ -171,17 +171,15 @@ class TestNotifyEntry:
             call_args = mock_notify.call_args[0]
             assert 'data' in call_args[2].lower()
 
-    def test_unknown_disc_exits(self):
-        """Unknown disc type notifies and exits."""
-        from arm.ripper.utils import notify_entry
+    def test_unknown_disc_raises_ripper_exception(self):
+        """Unknown disc type raises RipperException."""
+        from arm.ripper.utils import notify_entry, RipperException
 
         job = self._make_job('unknown')
         with unittest.mock.patch('arm.ripper.utils.database_adder'), \
-             unittest.mock.patch('arm.ripper.utils.notify') as mock_notify, \
-             pytest.raises(SystemExit):
+             unittest.mock.patch('arm.ripper.utils.notify'), \
+             pytest.raises(RipperException):
             notify_entry(job)
-        # Should have called notify before exit
-        mock_notify.assert_called_once()
 
 
 class TestRipMusic:

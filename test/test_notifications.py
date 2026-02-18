@@ -39,7 +39,7 @@ class TestBashNotify:
             bash_notify(cfg, "my title", "my body", sample_job)
 
             args = mock_run.call_args[0][0]
-            assert args == ["/usr/bin/bash", "/tmp/test.sh", "my title", "my body"]
+            assert args == ["/usr/bin/env", "bash", "/tmp/test.sh", "my title", "my body"]
 
     def test_backward_compat_no_job(self):
         """bash_notify still works when called without job (legacy)."""

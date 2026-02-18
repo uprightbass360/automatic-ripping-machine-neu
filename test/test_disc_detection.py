@@ -183,46 +183,25 @@ class TestIdentifyAudioCd:
         job.arm_version = 'test'
         return job
 
-    def test_identified_title_returns_logfile(self):
-        """When MusicBrainz identifies the disc, logfile uses the title."""
+    def test_identified_title_returns_label(self):
+        """When MusicBrainz identifies the disc, returns the title string."""
         job = self._make_job()
         mock_discid = unittest.mock.MagicMock()
         with unittest.mock.patch('arm.ripper.music_brainz.get_disc_id', return_value=mock_discid), \
              unittest.mock.patch('arm.ripper.music_brainz.get_title', return_value='Pink Floyd Dark Side'):
-            logfile = job.identify_audio_cd()
-        assert logfile == 'Pink Floyd Dark Side.log'
+            result = job.identify_audio_cd()
+        assert result == 'Pink Floyd Dark Side'
 
-    def test_unidentified_returns_music_cd_log(self):
-        """When disc is not identified, returns 'music_cd.log'."""
+    def test_unidentified_returns_music_cd(self):
+        """When disc is not identified, returns 'music_cd'."""
         job = self._make_job()
         mock_discid = unittest.mock.MagicMock()
         with unittest.mock.patch('arm.ripper.music_brainz.get_disc_id', return_value=mock_discid), \
              unittest.mock.patch('arm.ripper.music_brainz.get_title', return_value='not identified'):
-            logfile = job.identify_audio_cd()
-        assert logfile == 'music_cd.log'
+            result = job.identify_audio_cd()
+        assert result == 'music_cd'
         assert job.label == 'not identified'
         assert job.title == 'not identified'
-
-    def test_existing_logfile_gets_timestamp(self, tmp_path):
-        """If logfile already exists, a timestamp suffix is appended."""
-        import arm.config.config as cfg
-        job = self._make_job()
-        mock_discid = unittest.mock.MagicMock()
-        # Create existing log file
-        original_logpath = cfg.arm_config['LOGPATH']
-        cfg.arm_config['LOGPATH'] = str(tmp_path)
-        (tmp_path / 'Artist Title.log').write_text('existing')
-        try:
-            with unittest.mock.patch('arm.ripper.music_brainz.get_disc_id', return_value=mock_discid), \
-                 unittest.mock.patch('arm.ripper.music_brainz.get_title', return_value='Artist Title'):
-                logfile = job.identify_audio_cd()
-            # Should have timestamp suffix
-            assert logfile.startswith('Artist Title_')
-            assert logfile.endswith('.log')
-            assert logfile != 'Artist Title.log'
-        finally:
-            cfg.arm_config['LOGPATH'] = original_logpath
-
 
 class TestDrivesUpdateNameless:
     """Test drives_update() handles drives with no serial_id (#1584)."""

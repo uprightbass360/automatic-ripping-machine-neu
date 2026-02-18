@@ -21,18 +21,19 @@ class TestProcessHandler(unittest.TestCase):
         result = arm_subprocess(cmd, in_shell)
 
         self.assertEqual(result, mock_output)
-        mock_check_output.assert_called_once_with(cmd, shell=in_shell, encoding="utf-8")
+        mock_check_output.assert_called_once_with(
+            cmd, shell=in_shell, stderr=subprocess.STDOUT, encoding="utf-8"
+        )
 
     @patch("subprocess.check_output")
     def test_arm_subprocess_error(self, mock_check_output):
         """
-        CHECK "arm_subprocess" handles errors
+        CHECK "arm_subprocess" handles errors (returns None when check=False)
         """
-        # Mock the subprocess.run function to raise a CalledProcessError
         mock_check_output.side_effect = subprocess.CalledProcessError(
             returncode=1,
             cmd=["invalid_command"],
-            output=b"Mock error"
+            output="Mock error"
         )
 
         cmd = ["invalid_command"]
@@ -40,8 +41,10 @@ class TestProcessHandler(unittest.TestCase):
 
         result = arm_subprocess(cmd, in_shell)
 
-        self.assertEqual(result, None)
-        mock_check_output.assert_called_once_with(cmd, shell=in_shell, encoding="utf-8")
+        self.assertIsNone(result)
+        mock_check_output.assert_called_once_with(
+            cmd, shell=in_shell, stderr=subprocess.STDOUT, encoding="utf-8"
+        )
 
 
 if __name__ == '__main__':

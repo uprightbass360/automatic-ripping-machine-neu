@@ -119,9 +119,9 @@ class TestCheckForDupeFolder:
         finally:
             cfg.arm_config['ALLOW_DUPLICATES'] = original
 
-    def test_existing_folder_dupes_disabled_exits(self, tmp_path):
-        """Existing folder + no duplicates allowed → sys.exit."""
-        from arm.ripper.utils import check_for_dupe_folder
+    def test_existing_folder_dupes_disabled_raises(self, tmp_path):
+        """Existing folder + no duplicates allowed → RipperException."""
+        from arm.ripper.utils import check_for_dupe_folder, RipperException
         import arm.config.config as cfg
 
         existing = tmp_path / 'existing'
@@ -135,7 +135,7 @@ class TestCheckForDupeFolder:
             job.title = 'Test'
             with unittest.mock.patch('arm.ripper.utils.notify'), \
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
-                 pytest.raises(SystemExit):
+                 pytest.raises(RipperException):
                 check_for_dupe_folder(True, str(existing), job)
         finally:
             cfg.arm_config['ALLOW_DUPLICATES'] = original_allow

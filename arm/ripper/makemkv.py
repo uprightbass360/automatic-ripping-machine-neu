@@ -594,7 +594,7 @@ def makemkv_info(job, select=None, index=9999, options=None):
     # 1MB cache size to get info on the specified disc(s)
     info_options = ["info", "--cache=1"] + options + [f"disc:{index:d}", "--minlength=0"]
     wait_time = job.config.MANUAL_WAIT_TIME
-    max_processes = job.config.MAX_CONCURRENT_MAKEMKVINFO
+    max_processes = cfg.arm_config["MAX_CONCURRENT_MAKEMKVINFO"]
     job.status = JobState.VIDEO_WAITING.value
     db.session.commit()
     utils.sleep_check_process("makemkvcon", max_processes, sleep=(10, wait_time, 10))
@@ -686,8 +686,8 @@ def makemkv_mkv(job, rawpath):
             message = "You left me alone in the cold and dark, I forgot who I was. Your job has been abandoned."
             notify(job, title, message)
 
-            # Setting rawpath to None to set the job as failed when returning to arm_ripper
-            rawpath = None
+            raise utils.RipperException("Manual mode: Timed out waiting for user input")
+
     # if no maximum length, process the whole disc in one command
     elif int(job.config.MAXLENGTH) > 99998:
         cmd = [
