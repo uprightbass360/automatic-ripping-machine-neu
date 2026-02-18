@@ -16,7 +16,7 @@ The upstream ARM project is a solid foundation but has some areas that benefit f
 - Better notification payloads for external service integration
 - Improved compatibility with the companion transcoder and UI projects
 
-Changes in this fork are documented in commit history. Where possible, fixes will be submitted as PRs to the upstream project.
+Changes in this fork are documented in commit history. Upstream can reference our commits for any fixes they wish to incorporate.
 
 ## Features
 
@@ -118,22 +118,23 @@ This builds from the submodules under `components/` instead of pulling published
 
 Pre-built images are published to Docker Hub and GHCR on every release:
 
-| Component | Docker Hub | Platforms |
-|-----------|-----------|-----------|
-| ARM | `uprightbass360/automatic-ripping-machine` | amd64, arm64, arm/v7 |
-| UI | `uprightbass360/arm-ui` | amd64, arm64 |
-| Transcoder | `uprightbass360/arm-transcoder` | amd64 |
+| Component | Docker Hub | Purpose |
+|-----------|-----------|---------|
+| Base dependencies | `uprightbass360/arm-dependencies` | MakeMKV, HandBrake, system deps |
+| ARM | `uprightbass360/automatic-ripping-machine` | Ripper application |
+| UI | `uprightbass360/arm-ui` | Dashboard (SvelteKit + FastAPI) |
+| Transcoder | `uprightbass360/arm-transcoder` | GPU-accelerated transcoding |
 
-The transcoder also publishes GPU-specific tags: `:X.Y.Z-nvidia`, `:X.Y.Z-amd`, `:X.Y.Z-intel`.
+All images are built for `linux/amd64`. The transcoder also publishes GPU-specific tags: `:X.Y.Z-nvidia`, `:X.Y.Z-amd`, `:X.Y.Z-intel`.
 
 ### Version Pinning
 
 Pin all three versions in your `.env` for reproducible deployments:
 
 ```bash
-ARM_VERSION=1.1.0
-UI_VERSION=0.2.0
-TRANSCODER_VERSION=0.2.0
+ARM_VERSION=1.3.0
+UI_VERSION=0.4.1
+TRANSCODER_VERSION=0.4.1
 ```
 
 ## Related Projects
