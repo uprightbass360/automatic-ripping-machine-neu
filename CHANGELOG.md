@@ -12,6 +12,14 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.4.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.3.1...v1.4.0) (2026-02-19)
+
+
+### Features
+
+* add 4K UHD Blu-ray disc type detection (bluray4k) ([a972582](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a972582dfa8fbdb2192f8531a79552bf8cb238d6))
+* add user-settable uhd_capable flag to drives ([4b67675](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4b6767591bf1fe09da9045c49b23d119d9a40952))
+
 ## [1.3.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.3.0...v1.3.1) (2026-02-19)
 
 
