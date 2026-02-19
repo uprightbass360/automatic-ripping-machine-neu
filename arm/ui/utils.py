@@ -592,10 +592,11 @@ def send_to_remote_db(job_id):
     url = f"{base_url}/api/v1/?mode=p&api_key={api_key}&crc64={job.crc_id}&t={job.title}" \
           f"&y={job.year}&imdb={job.imdb_id}" \
           f"&hnt={job.hasnicetitle}&l={job.label}&vt={job.video_type}"
-    app.logger.debug("Remote DB URL: %s", url.replace(api_key, "<redacted>") if api_key else "<no api key>")
+    redacted_url = url.replace(api_key, "<redacted>") if api_key else "<no api key>"
+    app.logger.debug("Remote DB URL: %s", str(redacted_url))
     response = requests.get(url)
     req = json.loads(response.text)
-    app.logger.debug("Remote DB response success: %s", req.get('success', 'unknown'))
+    app.logger.debug("Remote DB response success: %s", str(req.get('success', 'unknown')))
     job_dict = job.get_d().items()
     return_dict['config'] = job.config.get_d()
     for key, value in iter(job_dict):
@@ -761,11 +762,13 @@ def get_processor_name():
 
 def validate_logfile(logfile, mode, my_file):
     """
-    check if logfile we got from the user is valid
+    Check if logfile we got from the user is valid and return
+    the resolved (canonicalized) path.
+
     :param logfile: logfile name
     :param mode: This is used by the json.api
     :param my_file: full base path using Path()
-    :return: None
+    :return: str — resolved, validated path safe for file operations
     :raise ValidationError: if logfile fails sanity checks or escapes LOGPATH
     :raise FileNotFoundError: if logfile cant be found in arm log folder
     """
@@ -778,6 +781,7 @@ def validate_logfile(logfile, mode, my_file):
         raise ValidationError("logfile doesnt pass sanity checks")
     if not resolved.is_file():
         raise FileNotFoundError("File not found")
+    return str(resolved)
 
 
 def job_id_validator(job_id):

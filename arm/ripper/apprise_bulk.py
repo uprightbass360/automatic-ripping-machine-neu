@@ -93,9 +93,9 @@ def apprise_notify(apprise_cfg, title, body):
                 apobj = apprise.Apprise()
                 apobj.add(string)
                 apobj.notify(body, title=title)
-                logging.debug("Sent apprise to %s was successful", host)
+                logging.debug("Sent apprise to %s was successful", str(host))
         except Exception as error:  # noqa: E722
-            logging.error("Failed sending %s apprise notification.  continuing  processing... %s", host, type(error).__name__)
+            logging.error("Failed sending %s apprise notification.  continuing  processing... %s", str(host), type(error).__name__)
 
     ntfy_notify(cfg, title, body)
 

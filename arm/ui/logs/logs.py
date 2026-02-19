@@ -71,17 +71,17 @@ def logreader():
 
     # We should use the job id and not get the raw logfile from the user
     # Maybe search database and see if we can match the logname with a previous rip ?
-    full_path = os.path.join(log_path, request.args.get('logfile'))
-    ui_utils.validate_logfile(request.args.get('logfile'), mode, Path(full_path))
+    raw_path = os.path.join(log_path, request.args.get('logfile'))
+    safe_path = ui_utils.validate_logfile(request.args.get('logfile'), mode, Path(raw_path))
 
     # Only ARM logs
     if mode == "armcat":
-        generate = ui_utils.generate_arm_cat(full_path)
+        generate = ui_utils.generate_arm_cat(safe_path)
     # Give everything / Tail
     elif mode == "full":
-        generate = ui_utils.generate_full_log(full_path)
+        generate = ui_utils.generate_full_log(safe_path)
     elif mode == "download":
-        return send_file(full_path, as_attachment=True)
+        return send_file(safe_path, as_attachment=True)
     else:
         # No mode - error out
         raise ValidationError

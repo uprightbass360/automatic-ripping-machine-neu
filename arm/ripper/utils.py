@@ -683,10 +683,11 @@ def database_updater(args, job, wait_time=90):
                        'pb_key', 'ifttt_key', 'po_user_key', 'po_app_key', 'apprise'}
     for (key, value) in args.items():
         setattr(job, key, value)
-        if key.lower() in _sensitive_keys:
-            logging.debug(f"ID:{job.job_id} {key}=<redacted>")
+        safe_key = str(key)
+        if safe_key.lower() in _sensitive_keys:
+            logging.debug("ID:%s %s=<redacted>", int(job.job_id), safe_key)
         else:
-            logging.debug(f"ID:{job.job_id} {key}={value}:{type(value)}")
+            logging.debug("ID:%s %s=%s:%s", int(job.job_id), safe_key, str(value), type(value).__name__)
 
     for i in range(wait_time):  # give up after the users wait period in seconds
         try:

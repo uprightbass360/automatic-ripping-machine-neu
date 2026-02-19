@@ -23,10 +23,13 @@ def get_notify_timeout():
 @api_bp.route('/v1/settings/config', methods=['GET'])
 def get_config():
     """Return live arm.yaml config with sensitive fields masked."""
-    config = dict(cfg.arm_config)
-    for key in list(config.keys()):
-        if key in hidden_attribs and config[key]:
-            config[key] = HIDDEN_VALUE
+    raw_config = dict(cfg.arm_config)
+    config = {}
+    for key in list(raw_config.keys()):
+        if key in hidden_attribs and raw_config[key]:
+            config[str(key)] = HIDDEN_VALUE
+        else:
+            config[str(key)] = str(raw_config[key]) if raw_config[key] is not None else None
 
     comments = generate_comments()
     return jsonify({"config": config, "comments": comments})
