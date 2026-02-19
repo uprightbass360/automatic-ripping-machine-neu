@@ -207,7 +207,7 @@ def correct_hb_settings(job):
     if job.disctype == "dvd":
         hb_args = job.config.HB_ARGS_DVD
         hb_preset = job.config.HB_PRESET_DVD
-    elif job.disctype == "bluray":
+    elif job.disctype in ("bluray", "bluray4k"):
         hb_args = job.config.HB_ARGS_BD
         hb_preset = job.config.HB_PRESET_BD
     return hb_args, hb_preset

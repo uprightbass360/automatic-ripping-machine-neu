@@ -122,8 +122,8 @@ def main():
     check_fstab()
 
     # Ripper type assessment for the various media types
-    # Type: dvd/bluray
-    if job.disctype in ["dvd", "bluray"]:
+    # Type: dvd/bluray/bluray4k
+    if job.disctype in ["dvd", "bluray", "bluray4k"]:
         arm_ripper.rip_visual_media(have_dupes, job, log_file, job.has_track_99)
 
     # Type: Music

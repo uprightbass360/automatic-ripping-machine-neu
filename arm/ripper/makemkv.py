@@ -839,7 +839,7 @@ def makemkv(job):
     rawpath = setup_rawpath(job, job.build_raw_path())
     logging.info(f"Processing files to: {rawpath}")
     # Rip BluRay
-    if (job.config.RIPMETHOD in ("backup", "backup_dvd")) and job.disctype == "bluray":
+    if (job.config.RIPMETHOD in ("backup", "backup_dvd")) and job.disctype in ("bluray", "bluray4k"):
         makemkv_backup(job, rawpath)
     # Rip BluRay or DVD
     elif job.config.RIPMETHOD == "mkv" or job.disctype == "dvd":

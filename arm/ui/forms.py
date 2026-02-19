@@ -20,8 +20,8 @@ class ChangeParamsForm(FlaskForm):
           - /changeparams"""
     RIPMETHOD = SelectField('Rip Method: ', choices=[('mkv', 'mkv'), ('backup', 'backup')])
     DISCTYPE = SelectField('Disc Type: ', choices=[('dvd', 'DVD'), ('bluray', 'Blu-ray'),
-                                                   ('music', 'Music'), ('data', 'Data')])
-    # "music", "dvd", "bluray" and "data"
+                                                   ('bluray4k', '4K UHD'), ('music', 'Music'), ('data', 'Data')])
+    # "music", "dvd", "bluray", "bluray4k" and "data"
     MAINFEATURE = BooleanField('Main Feature: ')
     MINLENGTH = IntegerField('Minimum Length: ')
     MAXLENGTH = IntegerField('Maximum Length: ')

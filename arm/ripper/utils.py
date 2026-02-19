@@ -122,7 +122,7 @@ def notify_entry(job):
                                  f"New job has started to rip - {job.label},"
                                  f"{job.disctype} at {datetime.datetime.now()}")
     database_adder(notification)
-    if job.disctype in ["dvd", "bluray"]:
+    if job.disctype in ["dvd", "bluray", "bluray4k"]:
         if cfg.arm_config["UI_BASE_URL"] == "":
             display_address = (f"http://{check_ip()}:{job.config.WEBSERVER_PORT}")
         else:

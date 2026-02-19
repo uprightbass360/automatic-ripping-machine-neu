@@ -92,7 +92,7 @@ def change_job_config(job_id):
 
     Accepts JSON body with optional fields:
         RIPMETHOD: 'mkv' | 'backup'
-        DISCTYPE: 'dvd' | 'bluray' | 'music' | 'data'
+        DISCTYPE: 'dvd' | 'bluray' | 'bluray4k' | 'music' | 'data'
         MAINFEATURE: bool
         MINLENGTH: int (seconds)
         MAXLENGTH: int (seconds)
@@ -110,7 +110,7 @@ def change_job_config(job_id):
     changes = []
 
     valid_ripmethods = ('mkv', 'backup')
-    valid_disctypes = ('dvd', 'bluray', 'music', 'data')
+    valid_disctypes = ('dvd', 'bluray', 'bluray4k', 'music', 'data')
 
     if 'RIPMETHOD' in body:
         val = str(body['RIPMETHOD']).lower()
@@ -197,6 +197,9 @@ def update_job_title(job_id):
         'poster_url': ('poster_url', 'poster_url_manual'),
     }
 
+    # Fields that map directly (no _manual counterpart)
+    direct_fields = ('path',)
+
     args = {}
     for key, (eff, manual) in field_map.items():
         if key in body and body[key] is not None:
@@ -205,6 +208,12 @@ def update_job_title(job_id):
                 value = _clean_for_filename(value)
             args[eff] = value
             args[manual] = value
+            updated[key] = value
+
+    for key in direct_fields:
+        if key in body and body[key] is not None:
+            value = str(body[key]).strip()
+            args[key] = value
             updated[key] = value
 
     if not updated:

@@ -73,7 +73,7 @@ def identify(job):
             # Check with the job class to get the correct disc type
             job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
 
-        if job.disctype in ["dvd", "bluray"]:
+        if job.disctype in ["dvd", "bluray", "bluray4k"]:
 
             logging.info("Disc identified as video")
 
@@ -81,7 +81,7 @@ def identify(job):
                 res = False
                 if job.disctype == "dvd":
                     res = identify_dvd(job)
-                if job.disctype == "bluray":
+                if job.disctype in ("bluray", "bluray4k"):
                     res = identify_bluray(job)
                 if res:
                     get_video_details(job)

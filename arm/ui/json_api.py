@@ -86,7 +86,7 @@ def process_logfile(logfile, job, job_results):
         :return: should be dict for the json api
     """
     app.logger.debug(f"Disc Type: {job.disctype}, Status: {job.status}")
-    if job.disctype in {"dvd", "bluray"}:
+    if job.disctype in {"dvd", "bluray", "bluray4k"}:
         if job.status == JobState.VIDEO_RIPPING.value:
             app.logger.debug("using mkv - " + logfile)
             return process_makemkv_logfile(job, job_results)

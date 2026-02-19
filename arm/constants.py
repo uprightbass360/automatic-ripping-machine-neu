@@ -10,3 +10,5 @@ JSON_TYPE = "application/json"
 # Ripper
 NOTIFY_TITLE = "ARM notification"
 PROCESS_COMPLETE = "processing complete."
+# Disc types that should be treated as Blu-ray for ripping/identification
+BLURAY_TYPES = {"bluray", "bluray4k"}

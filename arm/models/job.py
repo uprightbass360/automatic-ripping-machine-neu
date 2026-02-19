@@ -120,7 +120,7 @@ class Job(db.Model):
     mountpoint = db.Column(db.String(20))
     hasnicetitle = db.Column(db.Boolean)
     errors = db.Column(db.Text)
-    disctype = db.Column(db.String(20))  # dvd/bluray/data/music/unknown
+    disctype = db.Column(db.String(20))  # dvd/bluray/bluray4k/data/music/unknown
     label = db.Column(db.String(256))
     path = db.Column(db.String(256))
     raw_path = db.Column(db.String(256))
@@ -224,7 +224,12 @@ class Job(db.Model):
             self.disctype = "dvd"
         elif os.path.isdir(self.mountpoint + "/BDMV"):
             logging.debug(f"Found: {self.mountpoint}/BDMV")
-            self.disctype = "bluray"
+            # UHD Blu-rays use AACS2 and have a /CERTIFICATE/id.bdmv file
+            if os.path.isfile(self.mountpoint + "/CERTIFICATE/id.bdmv"):
+                logging.debug(f"Found: {self.mountpoint}/CERTIFICATE/id.bdmv — UHD Blu-ray")
+                self.disctype = "bluray4k"
+            else:
+                self.disctype = "bluray"
         elif os.path.isdir(self.mountpoint + "/HVDVD_TS"):
             logging.debug(f"Found: {self.mountpoint}/HVDVD_TS")
             # do something here
