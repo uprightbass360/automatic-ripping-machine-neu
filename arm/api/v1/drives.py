@@ -25,6 +25,9 @@ def update_drive(drive_id):
     if 'description' in body:
         drive.description = str(body['description']).strip()[:200]
         updated['description'] = drive.description
+    if 'uhd_capable' in body:
+        drive.uhd_capable = bool(body['uhd_capable'])
+        updated['uhd_capable'] = drive.uhd_capable
 
     if not updated:
         return jsonify({"success": False, "error": "No valid fields provided"}), 400

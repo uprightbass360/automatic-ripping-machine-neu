@@ -123,6 +123,7 @@ class SystemDrives(db.Model):  # pylint: disable=too-many-instance-attributes
     # user input:
     name = db.Column(db.String(100))
     description = db.Column(db.Unicode(200))
+    uhd_capable = db.Column(db.Boolean)
 
     def __init__(self):
         # mark drive info as outdated
@@ -137,6 +138,7 @@ class SystemDrives(db.Model):  # pylint: disable=too-many-instance-attributes
         self.description = ""
         self.name = ""
         self.drive_mode = "auto"
+        self.uhd_capable = False
 
     def update(self, drive):
         """
