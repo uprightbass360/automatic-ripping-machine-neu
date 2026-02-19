@@ -29,8 +29,8 @@ services:
       - --reload
       - --reload-dir=/app/backend
     volumes:
-      - ./components/ui/backend:/app/backend:ro
-      - ./components/ui/frontend/build:/app/frontend/build:ro
+      - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/backend:/app/backend:ro
+      - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/frontend/build:/app/frontend/build:ro
       - ./dev-data/logs:/data/logs:ro
       - ./dev-data/config:/data/arm-config:ro
       - ./dev-data/hb-presets:/data/hb-presets:ro

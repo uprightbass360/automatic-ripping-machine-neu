@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/uprightbass360/automatic-ripping-machine-neu/graph/badge.svg)](https://codecov.io/gh/uprightbass360/automatic-ripping-machine-neu)
+
 # Automatic Ripping Machine (ARM) - Neu
 
 A fork of the [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine) with bug fixes, improvements, and better integration with companion services.
