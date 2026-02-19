@@ -283,7 +283,7 @@ def update_job(job, search_results):
         return None
     new_year = search_results['Search'][0]['Year']
     title = utils.clean_for_filename(search_results['Search'][0]['Title'])
-    logging.debug(f"Webservice successful.  New title is {title}.  New Year is: {new_year}")
+    logging.debug("Webservice successful.  New title is %s.  New Year is: %s", title, new_year)
     args = {
         'year_auto': str(new_year),
         'year': str(new_year),

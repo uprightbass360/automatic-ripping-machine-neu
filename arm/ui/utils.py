@@ -389,12 +389,12 @@ def generate_arm_cat(full_path):
     :param full_path: full path to job logfile
     :return: None
     """
-    read_log_file = open(full_path)
-    while True:
-        new = read_log_file.readline()
-        if new:
-            if "ARM:" in new:
-                yield new
+    with open(full_path) as read_log_file:
+        while True:
+            new = read_log_file.readline()
+            if new:
+                if "ARM:" in new:
+                    yield new
             else:
                 sleep(1)
 
@@ -592,10 +592,10 @@ def send_to_remote_db(job_id):
     url = f"{base_url}/api/v1/?mode=p&api_key={api_key}&crc64={job.crc_id}&t={job.title}" \
           f"&y={job.year}&imdb={job.imdb_id}" \
           f"&hnt={job.hasnicetitle}&l={job.label}&vt={job.video_type}"
-    app.logger.debug(url.replace(api_key, "<api_key>"))
+    app.logger.debug("Remote DB URL: %s", url.replace(api_key, "<redacted>") if api_key else "<no api key>")
     response = requests.get(url)
     req = json.loads(response.text)
-    app.logger.debug("req= " + str(req))
+    app.logger.debug("Remote DB response success: %s", req.get('success', 'unknown'))
     job_dict = job.get_d().items()
     return_dict['config'] = job.config.get_d()
     for key, value in iter(job_dict):
@@ -766,14 +766,17 @@ def validate_logfile(logfile, mode, my_file):
     :param mode: This is used by the json.api
     :param my_file: full base path using Path()
     :return: None
-    :raise ValidationError: if logfile has "/" or "../" in it or "mode" is None
+    :raise ValidationError: if logfile fails sanity checks or escapes LOGPATH
     :raise FileNotFoundError: if logfile cant be found in arm log folder
     """
     app.logger.debug(f"Logfile: {logfile}")
-    if logfile is None or "../" in logfile or mode is None or logfile.find("/") != -1:
+    if logfile is None or mode is None:
         raise ValidationError("logfile doesnt pass sanity checks")
-    if not my_file.is_file():
-        # logfile doesnt exist throw out error template
+    log_dir = Path(cfg.arm_config['LOGPATH']).resolve()
+    resolved = my_file.resolve()
+    if not str(resolved).startswith(str(log_dir) + os.sep) and resolved != log_dir:
+        raise ValidationError("logfile doesnt pass sanity checks")
+    if not resolved.is_file():
         raise FileNotFoundError("File not found")
 
 

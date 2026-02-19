@@ -1,9 +1,13 @@
 """API v1 — Settings endpoints."""
 import importlib
 
+import logging
+
 from flask import jsonify, request
 
 import arm.config.config as cfg
+
+app = logging.getLogger("ARM")
 from arm.api import api_bp
 from arm.models.config import hidden_attribs, HIDDEN_VALUE
 from arm.ui import json_api
@@ -60,15 +64,17 @@ def update_config():
         with open(cfg.arm_config_path, "w") as f:
             f.write(arm_cfg_text)
     except OSError as e:
-        return jsonify({"success": False, "error": f"Failed to write config: {e}"}), 500
+        app.logger.error(f"Failed to write config: {e}")
+        return jsonify({"success": False, "error": "Failed to write config file"}), 500
 
     # Reload the config module so the running process picks up changes
     try:
         importlib.reload(cfg)
     except Exception as e:
+        app.logger.error(f"Config reload failed: {e}")
         return jsonify({
             "success": True,
-            "warning": f"Config saved but reload failed: {e}",
+            "warning": "Config saved but reload failed",
         })
 
     return jsonify({"success": True})

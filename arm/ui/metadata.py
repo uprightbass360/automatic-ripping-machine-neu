@@ -128,12 +128,12 @@ def get_tmdb_poster(search_query=None, year=None):
 
     # if status_code is in search_results we know there was an error
     if 'status_code' in search_results:
-        app.logger.debug(f"get_tmdb_poster failed with error -  {search_results['status_message']}")
+        app.logger.debug("get_tmdb_poster failed with status_code %s", search_results.get('status_code'))
         return None
 
     # If movies are found return those after processing
     if search_results['total_results'] > 0:
-        app.logger.debug(search_results['total_results'])
+        app.logger.debug("TMDB movie results: %d", search_results['total_results'])
         return tmdb_process_poster(search_results, poster_base)
 
     # Search tmdb for tv series
@@ -142,7 +142,7 @@ def get_tmdb_poster(search_query=None, year=None):
     search_results = json.loads(response.text)
     # app.logger.debug(json.dumps(response.json(), indent=4, sort_keys=True))
     if search_results['total_results'] > 0:
-        app.logger.debug(search_results['total_results'])
+        app.logger.debug("TMDB tv results: %d", search_results['total_results'])
         return tmdb_process_poster(search_results, poster_base)
     app.logger.debug("No results found")
     return None
@@ -158,12 +158,12 @@ def tmdb_process_poster(search_results, poster_base):
     for media in search_results['results']:
         if media['poster_path'] is not None and 'release_date' in media:
             released_date = re.sub(TMDB_YEAR_REGEX, "", media['release_date'])
-            app.logger.debug(f"{media['title']} ({released_date})- {poster_base}{media['poster_path']}")
+            app.logger.debug("TMDB poster match: %s (%s)", media['title'], released_date)
             media['poster_url'] = f"{poster_base}{media['poster_path']}"
             media["Plot"] = media['overview']
             media['background_url'] = f"{poster_base}{media['backdrop_path']}"
             media['Type'] = "movie"
-            app.logger.debug(media['background_url'])
+            app.logger.debug("TMDB backdrop found for %s", media['title'])
             return media
     return None
 
@@ -177,13 +177,13 @@ def tmdb_search(search_query=None, year=None):
     """
     tmdb_api_key = cfg.arm_config['TMDB_API_KEY']
     search_results, poster_base, response = tmdb_fetch_results(search_query, year, tmdb_api_key)
-    app.logger.debug(f"Search results - movie - {search_results}")
+    app.logger.debug("TMDB search results - movie - %d results", search_results.get('total_results', 0))
     if 'status_code' in search_results:
-        app.logger.error(f"tmdb_fetch_results failed with error -  {search_results['status_message']}")
+        app.logger.error("tmdb_fetch_results failed with status_code %s", search_results.get('status_code'))
         return None
     return_results = {}
     if search_results['total_results'] > 0:
-        app.logger.debug(f"tmdb_search - found {search_results['total_results']} movies")
+        app.logger.debug("tmdb_search - found %d movies", search_results['total_results'])
         return tmdb_process_results(poster_base, return_results, search_results, "movie")
     # Search for tv series
     app.logger.debug("tmdb_search - movie not found, trying tv series ")
@@ -191,7 +191,7 @@ def tmdb_search(search_query=None, year=None):
     response = requests.get(url)
     search_results = json.loads(response.text)
     if search_results['total_results'] > 0:
-        app.logger.debug(search_results['total_results'])
+        app.logger.debug("TMDB tv results: %d", search_results['total_results'])
         return tmdb_process_results(poster_base, return_results, search_results, "series")
 
     # We got to here with no results give nothing back
@@ -209,7 +209,7 @@ def tmdb_process_results(poster_base, return_results, search_results, media_type
     :return: dict/json that will be returned to arm
     """
     for result in search_results['results']:
-        app.logger.debug(result)
+        app.logger.debug("Processing TMDB result: %s", result.get('title', result.get('name', 'unknown')))
         result['poster_path'] = result['poster_path'] if result['poster_path'] is not None else None
         result['release_date'] = '0000-00-00' if 'release_date' not in result else result['release_date']
         result['imdbID'] = tmdb_get_imdb(result['id'])
@@ -244,7 +244,7 @@ def tmdb_get_imdb(tmdb_id):
         # Try tv series
         response = requests.get(url_tv)
         tv_json = json.loads(response.text)
-        app.logger.debug(tv_json)
+        app.logger.debug("TMDB TV external IDs response keys: %s", list(tv_json.keys()))
         if 'status_code' not in tv_json:
             return tv_json['imdb_id']
         return None
