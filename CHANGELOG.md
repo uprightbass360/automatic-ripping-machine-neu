@@ -12,6 +12,14 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.4.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.4.0...v1.4.1) (2026-02-19)
+
+
+### Bug Fixes
+
+* break CodeQL taint chains for path injection and sensitive logging ([9bf05c5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9bf05c521250170db88b2b44f9661bea742df02b))
+* resolve all 25 CodeQL security warnings ([9734728](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9734728d6de0112826dd9a646bfc2d6d12272652))
+
 ## [1.4.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.3.1...v1.4.0) (2026-02-19)
 
 
