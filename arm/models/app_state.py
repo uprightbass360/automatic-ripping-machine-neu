@@ -15,12 +15,20 @@ class AppState(db.Model):
 
     @classmethod
     def get(cls):
-        """Return the singleton row, creating it if it doesn't exist."""
+        """Return the singleton row, creating it if it doesn't exist.
+
+        Expires the cached instance first so we always read the latest
+        value from the database — the web UI may have toggled the flag
+        in a separate process/session.
+        """
         state = cls.query.get(1)
         if state is None:
             state = cls(id=1, ripping_paused=False)
             db.session.add(state)
             db.session.commit()
+        else:
+            db.session.expire(state)
+            db.session.refresh(state)
         return state
 
     def __repr__(self):
