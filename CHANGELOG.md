@@ -12,6 +12,22 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.5.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.4.1...v1.5.0) (2026-02-20)
+
+
+### Features
+
+* auto-download community keydb.cfg for MakeMKV Blu-ray decryption ([e35ed23](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e35ed23f3eef2f7f95a3a8cbe947b7680752e43d))
+
+
+### Bug Fixes
+
+* always chown subdirs at startup for Docker volume mounts ([0904838](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/090483837c35711d07ccfc039171c52498f3c10e))
+* early exit on 0 titles, persist MakeMKV key, improve error messages ([248d1a6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/248d1a6ef0cbef35afc9eda8c968002164c2dae1))
+* force fresh DB read in AppState.get() so pause works across processes ([abbfac8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/abbfac842b7d0ba8569b1dbc059eeeb91f39dd54))
+* respect global pause even when title_manual is set ([0693e32](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0693e329f34602a055f2dba5af2c7505114c4783))
+* use direct DB connection for pause check to bypass stale session ([17f16cf](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/17f16cf4b18fbbbf9ffba57d875ac6006803cd34))
+
 ## [1.4.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.4.0...v1.4.1) (2026-02-19)
 
 
