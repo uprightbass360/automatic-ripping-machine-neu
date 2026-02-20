@@ -647,6 +647,416 @@ class TestIdentifyUnmount:
             mock_run.assert_called_once()
 
 
+class TestMatcherIntegration:
+    """End-to-end integration tests: create jobs with matching-relevant
+    fields only, feed mock search results through update_job(), and
+    verify the matcher picks the correct result."""
+
+    TMDB = "https://image.tmdb.org/t/p/original"
+
+    def _make_job(self, app_context, *, label, year_auto=None, video_type_auto=None):
+        """Create a minimal Job with only the fields used by the matcher."""
+        from arm.database import db
+        from arm.models.job import Job
+
+        with unittest.mock.patch.object(Job, 'parse_udev'), \
+             unittest.mock.patch.object(Job, 'get_pid'):
+            job = Job('/dev/sr0')
+
+        job.label = label
+        job.title = label.replace('_', ' ').title()
+        job.title_auto = job.title
+        job.year = year_auto or ""
+        job.year_auto = year_auto or ""
+        job.video_type = video_type_auto or ""
+        job.video_type_auto = video_type_auto or ""
+        job.imdb_id = ""
+        job.imdb_id_auto = ""
+        job.poster_url = ""
+        job.poster_url_auto = ""
+        job.hasnicetitle = False
+        job.disctype = "bluray"
+
+        db.session.add(job)
+        db.session.flush()
+        return job
+
+    # -- LOTR: the original production bug --
+
+    def test_lotr_picks_fellowship_over_parody(self, app_context):
+        """LOTR label must pick Fellowship (2001), not 'Pronouns of Power' parody at [0]."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="LOTR_FELLOWSHIP_OF_THE_RING_P1",
+                             year_auto="2001", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'LOTR: the Pronouns of Power', 'Year': '2022',
+             'imdbID': 'tt22262280', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'The Lord of the Rings: The Fellowship of the Ring', 'Year': '2001',
+             'imdbID': 'tt0120737', 'Type': 'movie', 'Poster': f'{self.TMDB}/lotr.jpg'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0120737'
+        assert job.year == '2001'
+        assert job.hasnicetitle is True
+
+    # -- Sequel disambiguation --
+
+    def test_hotel_transylvania_3_not_2(self, app_context):
+        """'3' in title must be preserved — must match HT3 over HT2 or HT1."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="HOTEL_TRANSYLVANIA_3",
+                             year_auto="2018", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Hotel Transylvania 2', 'Year': '2015',
+             'imdbID': 'tt2510894', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'Hotel Transylvania 3: Summer Vacation', 'Year': '2018',
+             'imdbID': 'tt5220122', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'Hotel Transylvania', 'Year': '2012',
+             'imdbID': 'tt0837562', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt5220122'
+
+    def test_godfather_part_2_not_part_1(self, app_context):
+        """'PART 2' stays in title and picks Godfather Part II."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_GODFATHER_PART_2",
+                             year_auto="1974", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'The Godfather', 'Year': '1972',
+             'imdbID': 'tt0068646', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'The Godfather Part II', 'Year': '1974',
+             'imdbID': 'tt0071562', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'The Godfather Part III', 'Year': '1990',
+             'imdbID': 'tt0099674', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0071562'
+
+    # -- Year-like numbers in titles --
+
+    def test_blade_runner_2049_not_1982(self, app_context):
+        """2049 in title must NOT be treated as year — match the correct sequel."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="BLADE_RUNNER_2049",
+                             year_auto="2017", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Blade Runner', 'Year': '1982',
+             'imdbID': 'tt0083658', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'Blade Runner 2049', 'Year': '2017',
+             'imdbID': 'tt1856101', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt1856101'
+
+    def test_2001_space_odyssey(self, app_context):
+        """2001 in title is title content, not a year."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="2001_A_SPACE_ODYSSEY",
+                             year_auto="1968", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': '2010: The Year We Make Contact', 'Year': '1984',
+             'imdbID': 'tt0086837', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': '2001: A Space Odyssey', 'Year': '1968',
+             'imdbID': 'tt0062622', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0062622'
+
+    # -- Compound word matching --
+
+    def test_antman_compound_word(self, app_context):
+        """ANTMAN (no separator) must match 'Ant-Man'."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="ANTMAN",
+                             year_auto="2015", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Ant-Man', 'Year': '2015',
+             'imdbID': 'tt0478970', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'Ant-Man and the Wasp', 'Year': '2018',
+             'imdbID': 'tt5095030', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0478970'
+
+    def test_faceoff_compound_word(self, app_context):
+        """FACEOFF must match 'Face/Off'."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="FACEOFF",
+                             year_auto="1997", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Face/Off', 'Year': '1997',
+             'imdbID': 'tt0119094', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0119094'
+
+    # -- Multi-disc suffix stripping --
+
+    def test_disc_suffix_p1_stripped(self, app_context):
+        """_P1 is a disc suffix — stripped before matching."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="BACK_TO_THE_FUTURE_P1",
+                             year_auto="1985", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Back to the Future', 'Year': '1985',
+             'imdbID': 'tt0088763', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'Back to the Future Part II', 'Year': '1989',
+             'imdbID': 'tt0096874', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0088763'
+
+    def test_disc_suffix_disc_1_stripped(self, app_context):
+        """_DISC_1 is a disc suffix — stripped before matching."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="BACK_TO_THE_FUTURE_DISC_1",
+                             year_auto="1985", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Back to the Future', 'Year': '1985',
+             'imdbID': 'tt0088763', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0088763'
+
+    def test_disc_suffix_d2_stripped(self, app_context):
+        """_D2 is a disc suffix — stripped before matching."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="STAR_WARS_EP_IV_D2",
+                             year_auto="1977", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Star Wars: Episode IV - A New Hope', 'Year': '1977',
+             'imdbID': 'tt0076759', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0076759'
+
+    # -- PART preserved in title --
+
+    def test_dune_part_two_preserved(self, app_context):
+        """PART_TWO must stay in title — it's 'Dune: Part Two', not disc 2."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="DUNE_PART_TWO",
+                             year_auto="2024", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Dune', 'Year': '2021',
+             'imdbID': 'tt1160419', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'Dune: Part Two', 'Year': '2024',
+             'imdbID': 'tt15239678', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt15239678'
+
+    # -- Type hint tie-breaking --
+
+    def test_fargo_movie_over_series(self, app_context):
+        """Type hint 'movie' + year 1996 picks Fargo movie over TV series."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="FARGO",
+                             year_auto="1996", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Fargo', 'Year': '2014–', 'imdbID': 'tt2802850',
+             'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Fargo', 'Year': '1996', 'imdbID': 'tt0116282',
+             'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0116282'
+
+    def test_fargo_series_over_movie(self, app_context):
+        """Type hint 'series' + year 2014 picks Fargo series over movie."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="FARGO",
+                             year_auto="2014", video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Fargo', 'Year': '2014–', 'imdbID': 'tt2802850',
+             'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Fargo', 'Year': '1996', 'imdbID': 'tt0116282',
+             'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt2802850'
+
+    # -- Rejection / no-match --
+
+    def test_rejects_all_unrelated(self, app_context):
+        """All unrelated results should be rejected — returns None."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="SERIAL_MOM",
+                             year_auto="1994", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Finding Nemo', 'Year': '2003',
+             'imdbID': 'tt0266543', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'The Avengers', 'Year': '2012',
+             'imdbID': 'tt0848228', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is None
+        assert job.hasnicetitle is False
+
+    def test_no_search_key_returns_none(self, app_context):
+        """API error response (no 'Search' key) returns None."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_MATRIX",
+                             year_auto="1999", video_type_auto="movie")
+        result = update_job(job, {'Response': 'False', 'Error': 'Movie not found!'})
+        assert result is None
+
+    def test_empty_search_returns_none(self, app_context):
+        """Empty Search array returns None."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_MATRIX",
+                             year_auto="1999", video_type_auto="movie")
+        result = update_job(job, {'Search': []})
+        assert result is None
+
+    # -- Poster normalization --
+
+    def test_poster_na_becomes_empty_string(self, app_context):
+        """OMDb 'N/A' poster stored as empty string on job."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_MATRIX",
+                             year_auto="1999", video_type_auto="movie")
+        update_job(job, {'Search': [
+            {'Title': 'The Matrix', 'Year': '1999',
+             'imdbID': 'tt0133093', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert job.poster_url == ''
+        assert job.poster_url_auto == ''
+
+    def test_poster_url_preserved(self, app_context):
+        """Real poster URL is stored as-is."""
+        from arm.ripper.identify import update_job
+
+        poster = f'{self.TMDB}/matrix.jpg'
+        job = self._make_job(app_context, label="THE_MATRIX",
+                             year_auto="1999", video_type_auto="movie")
+        update_job(job, {'Search': [
+            {'Title': 'The Matrix', 'Year': '1999',
+             'imdbID': 'tt0133093', 'Type': 'movie', 'Poster': poster},
+        ]})
+        assert job.poster_url == poster
+
+    # -- Label cleaning applied to stored title --
+
+    def test_title_cleaned_for_filename(self, app_context):
+        """Matched title is run through clean_for_filename before storing."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="LOTR_FELLOWSHIP_OF_THE_RING_P1",
+                             year_auto="2001", video_type_auto="movie")
+        update_job(job, {'Search': [
+            {'Title': 'The Lord of the Rings: The Fellowship of the Ring', 'Year': '2001',
+             'imdbID': 'tt0120737', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        # clean_for_filename replaces colons with hyphens and spaces with hyphens
+        assert ':' not in job.title
+        assert 'Fellowship' in job.title
+
+    # -- No prior year/type (auto fields empty) --
+
+    def test_no_year_hint_still_matches(self, app_context):
+        """Without year_auto, title similarity alone drives the match."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_MATRIX")
+        result = update_job(job, {'Search': [
+            {'Title': 'The Matrix', 'Year': '1999',
+             'imdbID': 'tt0133093', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'The Matrix Reloaded', 'Year': '2003',
+             'imdbID': 'tt0234215', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0133093'
+
+    # -- Aspect ratio / SKU cleaning --
+
+    def test_16x9_stripped(self, app_context):
+        """16x9 aspect ratio marker stripped from label before matching."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="ALIEN_16x9",
+                             year_auto="1979", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'Alien', 'Year': '1979',
+             'imdbID': 'tt0078748', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0078748'
+
+    def test_sku_stripped(self, app_context):
+        """SKU suffix stripped from label before matching."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="OCEAN_S_ELEVEN_SKU1234",
+                             year_auto="2001", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {"Title": "Ocean's Eleven", 'Year': '2001',
+             'imdbID': 'tt0240772', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0240772'
+
+    # -- Year proximity: DVD release ±1 year from movie release --
+
+    def test_year_off_by_one_still_matches(self, app_context):
+        """Disc year 2009 should still match a 2008 movie (DVD ±1 year)."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_DARK_KNIGHT",
+                             year_auto="2009", video_type_auto="movie")
+        result = update_job(job, {'Search': [
+            {'Title': 'The Dark Knight', 'Year': '2008',
+             'imdbID': 'tt0468569', 'Type': 'movie', 'Poster': 'N/A'},
+            {'Title': 'The Dark Knight Rises', 'Year': '2012',
+             'imdbID': 'tt1345836', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0468569'
+
+    # -- metadata_selector retry behavior --
+
+    def test_metadata_selector_returns_none_on_reject(self, app_context):
+        """metadata_selector returns None when matcher rejects — enables retry."""
+        from arm.ripper.identify import metadata_selector
+        import arm.config.config as cfg
+
+        job = self._make_job(app_context, label="SERIAL_MOM",
+                             year_auto="1994", video_type_auto="movie")
+
+        bad_results = {'Search': [
+            {'Title': 'Completely Wrong Movie', 'Year': '2020',
+             'imdbID': 'tt9999999', 'Type': 'movie', 'Poster': 'N/A'},
+        ], 'Response': 'True'}
+
+        original = cfg.arm_config.get('METADATA_PROVIDER')
+        cfg.arm_config['METADATA_PROVIDER'] = 'omdb'
+        try:
+            with unittest.mock.patch('arm.ripper.identify.ui_utils.call_omdb_api',
+                                     return_value=bad_results):
+                result = metadata_selector(job, 'Serial+Mom', '1994')
+            assert result is None
+        finally:
+            if original is not None:
+                cfg.arm_config['METADATA_PROVIDER'] = original
+
+
 class TestOmdbShortTitleFallback:
     """Test call_omdb_api() fallback to ?t= for short/numeric titles (#1430)."""
 
