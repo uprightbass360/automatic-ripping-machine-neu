@@ -17,8 +17,10 @@ DEFAULT_GID=1000
 # Function to check if the ARM user has ownership of the requested folder
 check_folder_ownership() {
     local check_dir="$1"  # Get the folder path from the first argument
-    local folder_uid=$(stat -c "%u" "$check_dir")
-    local folder_gid=$(stat -c "%g" "$check_dir")
+    local folder_uid
+    folder_uid=$(stat -c "%u" "$check_dir")
+    local folder_gid
+    folder_gid=$(stat -c "%g" "$check_dir")
 
     echo "Checking ownership of $check_dir"
 
@@ -69,6 +71,10 @@ for dir in $SUBDIRS ; do
   # Always fix ownership — Docker volumes mount as root by default
   chown arm:arm "$thisDir"
 done
+
+# Download/update MakeMKV community keydb (non-fatal on failure)
+echo "Updating MakeMKV keydb..."
+/opt/arm/scripts/update_keydb.sh || echo "[WARN] keydb update failed — MakeMKV may not decrypt some discs"
 
 echo "Removing any link between music and Music"
 if [ -h /home/arm/Music ]; then
@@ -121,6 +127,6 @@ fi
 
 # Setup Timezone info
 echo "Setting ARM Timezone info: $TZ"
-DEBIAN_FRONTEND=noninteractive
-ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
+export DEBIAN_FRONTEND=noninteractive
+ln -sf /usr/share/zoneinfo/"$TZ" /etc/localtime
 dpkg-reconfigure --frontend noninteractive tzdata

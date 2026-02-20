@@ -198,6 +198,11 @@ CHOWN_GROUP:
 # Storage for a purchased key the user may have paid for. Populating will prevent the beta key updater from running.
 MAKEMKV_PERMA_KEY: ""
 
+# Download the community keydb.cfg from the FindVUK Online Database at container startup.
+# This provides Volume Unique Keys (VUKs) needed for Blu-ray decryption when MakeMKV's
+# built-in key server is unavailable. Set to false to disable automatic updates.
+MAKEMKV_COMMUNITY_KEYDB: true
+
 # Method of MakeMKV to use for Blu-ray discs
 # Options are "mkv", "backup", or "backup_dvd".
 # backup decrypts the dvd and then copies it to the hard drive.
