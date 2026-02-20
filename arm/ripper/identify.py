@@ -49,9 +49,10 @@ def check_mount(job: Job) -> bool:
         job.mountpoint = mountpoint
     else:
         logging.info(f"Trying to mount disc at {job.devpath}...")
-        # --all: Automount devpath to mountpoint specified in fstab
-        # -o X-mount.mkdir: create directory for the mountpoint, if necessary
-        arm_subprocess(["mount", "--all", "-o", "X-mount.mkdir", job.devpath])
+        # Mount the specific device; fstab provides the mountpoint and options.
+        # Note: "mount --all" requires root even with fstab "users" option,
+        # so we mount the single device directly instead.
+        arm_subprocess(["mount", job.devpath])
         if mountpoint := find_mount(job.devpath):
             logging.info(f"Successfully mounted disc to {mountpoint}")
             job.mountpoint = mountpoint
