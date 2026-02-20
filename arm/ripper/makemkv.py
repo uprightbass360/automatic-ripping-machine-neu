@@ -663,8 +663,16 @@ def makemkv_mkv(job, rawpath):
     # Get drive mode for the current drive
     mode = utils.get_drive_mode(job.devpath)
     logging.info(f"Job running in {mode} mode")
-    # Get track info form mkv rip
+    # Get track info from mkv rip
     get_track_info(job.drive.mdisc, job)
+
+    # Bail out early if MakeMKV found nothing to rip
+    if job.no_of_titles is not None and job.no_of_titles == 0:
+        raise utils.RipperException(
+            "MakeMKV found 0 titles on disc — nothing to rip. "
+            "The disc may be dirty, damaged, or copy-protected."
+        )
+
     # route to ripping functions.
     if job.config.MAINFEATURE:
         logging.info("Trying to find mainfeature")
@@ -983,7 +991,15 @@ def prep_mkv():
         stdout = proc.stdout.decode("utf-8")
         logging.debug(f"Command Output for update_key.sh: {stdout.splitlines()}")
     except subprocess.CalledProcessError as err:
-        raise UpdateKeyRunTimeError(err.returncode, cmd, output=err.stdout.decode("utf-8"))
+        rc = err.returncode
+        output = err.stdout.decode("utf-8") if err.stdout else ""
+        if rc == UpdateKeyErrorCodes.URL_ERROR:
+            logging.error(
+                "Could not fetch MakeMKV beta key from forum.makemkv.com. "
+                "The server may be unreachable. Set MAKEMKV_PERMA_KEY in "
+                "arm.yaml to use a purchased key and avoid this dependency."
+            )
+        raise UpdateKeyRunTimeError(rc, cmd, output=output)
 
 
 def progress_log(job):

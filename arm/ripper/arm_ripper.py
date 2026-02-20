@@ -58,7 +58,13 @@ def rip_visual_media(have_dupes, job, logfile, protection):
         db.session.commit()
         try:
             makemkv_out_path = makemkv.makemkv(job)
-        except Exception as mkv_error:  # noqa: E722
+        except makemkv.UpdateKeyRunTimeError as key_error:
+            raise utils.RipperException(
+                "MakeMKV key update failed — cannot decrypt discs. "
+                "Check network access to forum.makemkv.com or set "
+                "MAKEMKV_PERMA_KEY in arm.yaml."
+            ) from key_error
+        except Exception as mkv_error:
             raise utils.RipperException("Error while running MakeMKV") from mkv_error
 
         # Persist raw_path to DB — this is the actual directory on disk
