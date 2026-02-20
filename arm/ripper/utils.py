@@ -911,9 +911,17 @@ def job_dupe_check(job):
 
 
 def is_ripping_paused():
-    """Check whether global ripping is paused via AppState."""
+    """Check whether global ripping is paused via AppState.
+
+    Uses a direct engine connection to bypass the session's open
+    transaction, which may hold a stale SQLite read snapshot.
+    """
     try:
-        return AppState.get().ripping_paused
+        with db.engine.connect() as conn:
+            row = conn.execute(
+                db.text("SELECT ripping_paused FROM app_state WHERE id = 1")
+            ).first()
+            return bool(row[0]) if row else False
     except Exception:
         return False
 
