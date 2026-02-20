@@ -12,6 +12,19 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.6.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.5.0...v1.6.0) (2026-02-20)
+
+
+### Features
+
+* add TV series season/disc parsing to disc title matcher ([0119c2c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0119c2c8552a8bcac15aedcf7a9e278cb6ffc637))
+* integrate disc title matcher into identification pipeline ([2687b3a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2687b3aaed346f32298e7447ebf3a10927472b3f))
+
+
+### Bug Fixes
+
+* mount single device instead of --all so arm user can mount discs ([8c0550b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8c0550bee3d1bc28e3f2b9d13b17e967321103d7))
+
 ## [1.5.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.4.1...v1.5.0) (2026-02-20)
 
 
