@@ -274,29 +274,65 @@ def get_video_details(job):
 
 def update_job(job, search_results):
     """
-    used to update a successfully found job
+    Score all API results against the disc label and update the job
+    with the best confident match.
+
+    Uses arm_matcher to pick the best result instead of blindly
+    taking Search[0].
+
     :param job: job obj
     :param search_results: json returned from metadata provider
-    :return: None if error
+    :return: None if no confident match, database_updater result otherwise
     """
-    # logging.debug(f"s =======  {search_results}")
+    from arm.ripper.arm_matcher import match_disc
+
     if 'Search' not in search_results:
         return None
-    new_year = search_results['Search'][0]['Year']
-    title = utils.clean_for_filename(search_results['Search'][0]['Title'])
-    logging.debug("Webservice successful.  New title is %s.  New Year is: %s", str(title), str(new_year))
+
+    # Use the disc label for matching; fall back to current title if no label
+    raw_label = job.label or job.title or ''
+
+    # disc_year from prior identification (bdmt_eng.xml timestamp, CRC64 lookup)
+    disc_year = str(job.year_auto) if job.year_auto else None
+
+    # type_hint from prior identification (CRC64 lookup may set video_type_auto)
+    type_hint = str(job.video_type_auto) if job.video_type_auto else None
+
+    selection = match_disc(
+        raw_label,
+        search_results,
+        disc_year=disc_year,
+        type_hint=type_hint,
+    )
+
+    if not selection.hasnicetitle or selection.best is None:
+        logging.info(
+            "No confident match for label '%s' — top scores: %s",
+            raw_label,
+            [(m.title, f"{m.score:.3f}") for m in selection.all_scored[:3]],
+        )
+        return None
+
+    best = selection.best
+    title = utils.clean_for_filename(best.title)
+    logging.debug(
+        "Matcher selected '%s' (%s) with score %.3f (title=%.3f year=%.3f type=%.3f)",
+        best.title, best.imdb_id, best.score,
+        best.title_score, best.year_score, best.type_score,
+    )
+
     args = {
-        'year_auto': str(new_year),
-        'year': str(new_year),
+        'year_auto': str(best.year),
+        'year': str(best.year),
         'title_auto': title,
         'title': title,
-        'video_type_auto': search_results['Search'][0]['Type'],
-        'video_type': search_results['Search'][0]['Type'],
-        'imdb_id_auto': search_results['Search'][0]['imdbID'],
-        'imdb_id': search_results['Search'][0]['imdbID'],
-        'poster_url_auto': search_results['Search'][0]['Poster'],
-        'poster_url': search_results['Search'][0]['Poster'],
-        'hasnicetitle': True
+        'video_type_auto': best.type,
+        'video_type': best.type,
+        'imdb_id_auto': best.imdb_id,
+        'imdb_id': best.imdb_id,
+        'poster_url_auto': best.poster_url or '',
+        'poster_url': best.poster_url or '',
+        'hasnicetitle': True,
     }
     return utils.database_updater(args, job)
 
@@ -305,6 +341,13 @@ def metadata_selector(job, title=None, year=None):
     """
     Used to switch between OMDB or TMDB as the metadata provider\n
     - TMDB returned queries are converted into the OMDB format
+
+    Returns the search results dict when the matcher finds a confident match,
+    or None when:
+    - The API returned no results
+    - The matcher rejected all results (no confident match)
+
+    Returning None lets identify_loop() continue trying with simplified queries.
 
     :param job: The job class
     :param title: this can either be a search string or movie/show title
@@ -316,16 +359,19 @@ def metadata_selector(job, title=None, year=None):
     if cfg.arm_config['METADATA_PROVIDER'].lower() == "tmdb":
         logging.debug("provider tmdb")
         search_results = ui_utils.tmdb_search(title, year)
-        if search_results is not None:
-            update_job(job, search_results)
     elif cfg.arm_config['METADATA_PROVIDER'].lower() == "omdb":
         logging.debug("provider omdb")
         search_results = ui_utils.call_omdb_api(str(title), str(year))
-        if search_results is not None:
-            update_job(job, search_results)
     else:
         logging.debug(cfg.arm_config['METADATA_PROVIDER'])
         logging.debug("unknown provider - doing nothing, saying nothing. Getting Kryten")
+
+    if search_results is not None:
+        if update_job(job, search_results) is None:
+            # Matcher wasn't confident — treat as no results so the
+            # retry loop continues with simplified queries
+            return None
+
     return search_results
 
 

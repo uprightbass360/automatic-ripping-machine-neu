@@ -186,10 +186,10 @@ class TestIdentifyBluray:
 
 
 class TestUpdateJob:
-    """Test update_job() search result processing."""
+    """Test update_job() search result processing with disc matcher."""
 
     def test_valid_search_results(self, app_context, sample_job):
-        """Valid OMDb-format search results update the job."""
+        """Valid OMDb-format search results update the job via matcher."""
         from arm.ripper.identify import update_job
 
         search_results = {
@@ -216,12 +216,75 @@ class TestUpdateJob:
         result = update_job(sample_job, {'Response': 'False', 'Error': 'Not found'})
         assert result is None
 
-    def test_empty_search_list(self, app_context, sample_job):
-        """Empty 'Search' list raises IndexError (expected — caller catches)."""
+    def test_empty_search_list_returns_none(self, app_context, sample_job):
+        """Empty 'Search' list returns None (matcher handles gracefully)."""
         from arm.ripper.identify import update_job
 
-        with pytest.raises(IndexError):
-            update_job(sample_job, {'Search': []})
+        result = update_job(sample_job, {'Search': []})
+        assert result is None
+
+    def test_picks_best_match_not_first(self, app_context, sample_job):
+        """Matcher should pick the best-scoring result, not Search[0]."""
+        from arm.ripper.identify import update_job
+
+        # sample_job.label = 'SERIAL_MOM'
+        search_results = {
+            'Search': [
+                {
+                    'Title': 'Serial Killer Mom',
+                    'Year': '2020',
+                    'Type': 'movie',
+                    'imdbID': 'tt9999999',
+                    'Poster': 'N/A',
+                },
+                {
+                    'Title': 'Serial Mom',
+                    'Year': '1994',
+                    'Type': 'movie',
+                    'imdbID': 'tt0111127',
+                    'Poster': 'https://example.com/poster.jpg',
+                },
+            ]
+        }
+        result = update_job(sample_job, search_results)
+        assert result is True
+        # Should pick "Serial Mom" (index 1), not "Serial Killer Mom" (index 0)
+        assert sample_job.imdb_id == 'tt0111127'
+
+    def test_rejects_low_confidence(self, app_context, sample_job):
+        """Matcher rejects results that don't match the disc label well."""
+        from arm.ripper.identify import update_job
+
+        # sample_job.label = 'SERIAL_MOM'
+        search_results = {
+            'Search': [{
+                'Title': 'Finding Nemo',
+                'Year': '2003',
+                'Type': 'movie',
+                'imdbID': 'tt0266543',
+                'Poster': 'https://example.com/nemo.jpg',
+            }]
+        }
+        result = update_job(sample_job, search_results)
+        # Finding Nemo shouldn't match SERIAL_MOM
+        assert result is None
+
+    def test_poster_na_normalized(self, app_context, sample_job):
+        """OMDb 'N/A' poster should be stored as empty string."""
+        from arm.ripper.identify import update_job
+
+        search_results = {
+            'Search': [{
+                'Title': 'Serial Mom',
+                'Year': '1994',
+                'Type': 'movie',
+                'imdbID': 'tt0111127',
+                'Poster': 'N/A',
+            }]
+        }
+        update_job(sample_job, search_results)
+        # Matcher normalizes N/A to None, update_job converts to ''
+        assert sample_job.poster_url == ''
 
 
 class TestMetadataSelector:
@@ -281,6 +344,36 @@ class TestMetadataSelector:
         cfg.arm_config['METADATA_PROVIDER'] = 'invalid_provider'
         try:
             result = metadata_selector(job, 'Serial Mom', '1994')
+            assert result is None
+        finally:
+            if original is not None:
+                cfg.arm_config['METADATA_PROVIDER'] = original
+
+    def test_returns_none_when_matcher_rejects(self):
+        """When API returns results but matcher isn't confident, return None
+        so identify_loop retries with simplified queries."""
+        from arm.ripper.identify import metadata_selector
+        import arm.config.config as cfg
+
+        job = self._make_job()
+        # label = 'TEST' but API returns unrelated result
+        original = cfg.arm_config.get('METADATA_PROVIDER')
+        cfg.arm_config['METADATA_PROVIDER'] = 'omdb'
+        try:
+            bad_results = {
+                'Search': [{
+                    'Title': 'Completely Unrelated Movie',
+                    'Year': '2020',
+                    'Type': 'movie',
+                    'imdbID': 'tt9999999',
+                    'Poster': 'N/A',
+                }],
+                'Response': 'True',
+            }
+            with unittest.mock.patch('arm.ripper.identify.ui_utils.call_omdb_api',
+                                     return_value=bad_results):
+                result = metadata_selector(job, 'TEST', '2020')
+            # Should return None because matcher rejected the results
             assert result is None
         finally:
             if original is not None:
