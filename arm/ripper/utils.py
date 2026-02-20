@@ -947,21 +947,21 @@ def check_for_wait(job):
             sleep_time += 5
             db.session.refresh(job)
 
-            # User clicked "Start Ripping"
+            # Re-check global pause each iteration
+            paused_now = is_ripping_paused()
+
+            # User clicked "Start Ripping" — always honour, even when paused
             if job.manual_start:
                 logging.info("Manual start triggered by user.")
                 break
 
-            # User changed title
-            if job.title_manual:
+            # User changed title — only proceed if not globally paused
+            if job.title_manual and not paused_now:
                 logging.info("Manual override found.  Overriding auto identification values.")
                 job.updated = True
                 job.hasnicetitle = True
                 database_updater({"hasnicetitle": True, "updated": True}, job)
                 break
-
-            # Re-check global pause each iteration
-            paused_now = is_ripping_paused()
 
             # Timeout only applies when not globally paused
             if not paused_now and sleep_time >= job.config.MANUAL_WAIT_TIME:
