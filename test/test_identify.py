@@ -1030,6 +1030,309 @@ class TestMatcherIntegration:
         assert result is True
         assert job.imdb_id == 'tt0468569'
 
+    # -- TV Series: basic season suffix stripping --
+
+    def test_series_game_of_thrones_s1(self, app_context):
+        """GAME_OF_THRONES_S1 — S suffix stripped, matches series."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="GAME_OF_THRONES_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Game of Thrones', 'Year': '2011–2019',
+             'imdbID': 'tt0944947', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Game of Thrones: The Last Watch', 'Year': '2019',
+             'imdbID': 'tt10731768', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0944947'
+        assert job.hasnicetitle is True
+
+    def test_series_breaking_bad_s1d1(self, app_context):
+        """BREAKING_BAD_S1D1 — combined season+disc stripped."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="BREAKING_BAD_S1D1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Breaking Bad', 'Year': '2008–2013',
+             'imdbID': 'tt0903747', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'El Camino: A Breaking Bad Movie', 'Year': '2019',
+             'imdbID': 'tt9243946', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0903747'
+
+    def test_series_stranger_things_s1(self, app_context):
+        """STRANGER_THINGS_S1 — S suffix."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="STRANGER_THINGS_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Stranger Things', 'Year': '2016–',
+             'imdbID': 'tt4574334', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt4574334'
+
+    # -- TV Series: short titles (most likely to fail without season stripping) --
+
+    def test_series_friends_season_3_disc_2(self, app_context):
+        """FRIENDS_SEASON_3_DISC_2 — short title with SEASON keyword + disc."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="FRIENDS_SEASON_3_DISC_2",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Friends', 'Year': '1994–2004',
+             'imdbID': 'tt0108778', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Friends with Benefits', 'Year': '2011',
+             'imdbID': 'tt1632708', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0108778'
+
+    def test_series_lost_season_1_disc_1(self, app_context):
+        """LOST_SEASON_1_DISC_1 — very short title with full SEASON+DISC."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="LOST_SEASON_1_DISC_1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Lost', 'Year': '2004–2010',
+             'imdbID': 'tt0411008', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Lost in Translation', 'Year': '2003',
+             'imdbID': 'tt0335266', 'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0411008'
+
+    def test_series_er_s1(self, app_context):
+        """ER_S1 — two-letter title, shortest possible."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="ER_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'ER', 'Year': '1994–2009',
+             'imdbID': 'tt0108757', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0108757'
+
+    # -- TV Series: SEASON keyword variants --
+
+    def test_series_office_season_keyword(self, app_context):
+        """THE_OFFICE_SEASON_1 — SEASON keyword with separator."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_OFFICE_SEASON_1",
+                             year_auto="2005", video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'The Office', 'Year': '2005–2013',
+             'imdbID': 'tt0386676', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'The Office', 'Year': '2001–2003',
+             'imdbID': 'tt0290978', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0386676'
+
+    def test_series_sopranos_season1_no_separator(self, app_context):
+        """SOPRANOS_SEASON1 — SEASON keyword with no separator before number."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="SOPRANOS_SEASON1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'The Sopranos', 'Year': '1999–2007',
+             'imdbID': 'tt0141842', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0141842'
+
+    # -- TV Series: zero-padded season/disc --
+
+    def test_series_walking_dead_s01(self, app_context):
+        """THE_WALKING_DEAD_S01 — zero-padded season."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_WALKING_DEAD_S01",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'The Walking Dead', 'Year': '2010–2022',
+             'imdbID': 'tt1520211', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Fear the Walking Dead', 'Year': '2015–2023',
+             'imdbID': 'tt3743822', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt1520211'
+
+    def test_series_friends_s03d02(self, app_context):
+        """FRIENDS_S03D02 — zero-padded combined season+disc."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="FRIENDS_S03D02",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Friends', 'Year': '1994–2004',
+             'imdbID': 'tt0108778', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0108778'
+
+    # -- TV Series: numeric titles --
+
+    def test_series_24_s1_d1(self, app_context):
+        """24_S1_D1 — single-number title is a series."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="24_S1_D1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': '24', 'Year': '2001–2014',
+             'imdbID': 'tt0285331', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': '24: Legacy', 'Year': '2017',
+             'imdbID': 'tt4939064', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0285331'
+
+    def test_series_1883_s1(self, app_context):
+        """1883_S1 — numeric title (Yellowstone prequel)."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="1883_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': '1883', 'Year': '2021–2022',
+             'imdbID': 'tt13991232', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': '1923', 'Year': '2022–',
+             'imdbID': 'tt15299712', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt13991232'
+
+    # -- TV Series: disambiguation --
+
+    def test_series_fargo_s1_over_movie(self, app_context):
+        """FARGO_S1 with series type hint picks the series, not the movie."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="FARGO_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Fargo', 'Year': '2014–', 'imdbID': 'tt2802850',
+             'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'Fargo', 'Year': '1996', 'imdbID': 'tt0116282',
+             'Type': 'movie', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt2802850'
+
+    def test_series_dexter_not_lab(self, app_context):
+        """DEXTER_S1 matches Dexter, not Dexter's Laboratory."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="DEXTER_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Dexter', 'Year': '2006–2013',
+             'imdbID': 'tt0773262', 'Type': 'series', 'Poster': 'N/A'},
+            {"Title": "Dexter's Laboratory", 'Year': '1996–2003',
+             'imdbID': 'tt0115157', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0773262'
+
+    def test_series_walking_dead_not_fear(self, app_context):
+        """THE_WALKING_DEAD_S1 picks main show over Fear the Walking Dead."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="THE_WALKING_DEAD_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Fear the Walking Dead', 'Year': '2015–2023',
+             'imdbID': 'tt3743822', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'The Walking Dead', 'Year': '2010–2022',
+             'imdbID': 'tt1520211', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt1520211'
+
+    # -- TV Series: S-ending titles not misinterpreted --
+
+    def test_series_alias_no_season_suffix(self, app_context):
+        """ALIAS — trailing S is NOT a season indicator."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="ALIAS",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Alias', 'Year': '2001–2006',
+             'imdbID': 'tt0285333', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0285333'
+
+    def test_series_ncis_no_season_suffix(self, app_context):
+        """NCIS — acronym ending in S, not a season indicator."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="NCIS",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'NCIS', 'Year': '2003–',
+             'imdbID': 'tt0364845', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'NCIS: Los Angeles', 'Year': '2009–2023',
+             'imdbID': 'tt1378167', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0364845'
+
+    def test_series_ncis_with_season(self, app_context):
+        """NCIS_S1 — S1 IS a season suffix, NCIS title preserved."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="NCIS_S1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'NCIS', 'Year': '2003–',
+             'imdbID': 'tt0364845', 'Type': 'series', 'Poster': 'N/A'},
+            {'Title': 'NCIS: Los Angeles', 'Year': '2009–2023',
+             'imdbID': 'tt1378167', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0364845'
+
+    # -- TV Series: mini series (disc only, no season) --
+
+    def test_series_chernobyl_d1(self, app_context):
+        """CHERNOBYL_D1 — limited series, disc only."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="CHERNOBYL_D1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Chernobyl', 'Year': '2019',
+             'imdbID': 'tt7366338', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt7366338'
+
+    def test_series_band_of_brothers_d1(self, app_context):
+        """BAND_OF_BROTHERS_D1 — mini series, disc only."""
+        from arm.ripper.identify import update_job
+
+        job = self._make_job(app_context, label="BAND_OF_BROTHERS_D1",
+                             video_type_auto="series")
+        result = update_job(job, {'Search': [
+            {'Title': 'Band of Brothers', 'Year': '2001',
+             'imdbID': 'tt0185906', 'Type': 'series', 'Poster': 'N/A'},
+        ]})
+        assert result is True
+        assert job.imdb_id == 'tt0185906'
+
     # -- metadata_selector retry behavior --
 
     def test_metadata_selector_returns_none_on_reject(self, app_context):
