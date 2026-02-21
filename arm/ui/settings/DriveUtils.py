@@ -11,6 +11,7 @@ Ripper Utils
 import dataclasses
 import logging
 import re
+import time
 import pyudev
 
 from arm.models import SystemDrives
@@ -243,6 +244,19 @@ def drives_update(startup=False):
 
     # Update drive information:
     system_drives = sorted(drives_search())
+    if startup and len(system_drives) < 1:
+        # In container environments, udev may not have settled when the
+        # web UI starts.  Retry a few times before marking drives stale.
+        for attempt in range(1, 4):
+            delay = attempt * 5  # 5 s, 10 s, 15 s
+            logging.info(
+                "No drives detected at startup (attempt %d/3). "
+                "Retrying in %ds for udev to settle...", attempt, delay,
+            )
+            time.sleep(delay)
+            system_drives = sorted(drives_search())
+            if system_drives:
+                break
     if len(system_drives) < 1:
         logging.error(f"We Cant find any system drives!. {system_drives}")
     for drive in system_drives:  # sorted by mount point
