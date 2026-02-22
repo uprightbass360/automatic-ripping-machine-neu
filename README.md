@@ -4,6 +4,16 @@
 
 A fork of the [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine) with bug fixes, improvements, and better integration with companion services.
 
+## Related Projects
+
+This fork is part of a suite of projects for a complete disc-to-library pipeline:
+
+| Project | Description |
+|---------|-------------|
+| **automatic-ripping-machine-neu** | Fork of ARM with fixes and improvements (this project) |
+| [automatic-ripping-machine-ui](https://github.com/uprightbass360/automatic-ripping-machine-ui) | Modern replacement dashboard (SvelteKit + FastAPI) |
+| [automatic-ripping-machine-transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) | GPU-accelerated transcoding service |
+
 ## What is ARM?
 
 Insert an optical disc (Blu-ray, DVD, CD) and ARM automatically detects, identifies, rips, and transcodes it. Headless and server-based, designed for unattended operation with one or more optical drives.
@@ -131,23 +141,13 @@ All images are built for `linux/amd64`. The transcoder also publishes GPU-specif
 
 ### Version Pinning
 
-Pin all three versions in your `.env` for reproducible deployments:
+Pin all three versions in your `.env` for reproducible deployments (check each repo's releases for the latest version):
 
 ```bash
-ARM_VERSION=1.3.0
-UI_VERSION=0.4.1
-TRANSCODER_VERSION=0.4.1
+ARM_VERSION=X.Y.Z
+UI_VERSION=X.Y.Z
+TRANSCODER_VERSION=X.Y.Z
 ```
-
-## Related Projects
-
-This fork is part of a suite of projects for a complete disc-to-library pipeline:
-
-| Project | Description |
-|---------|-------------|
-| **automatic-ripping-machine-neu** | Fork of ARM with fixes and improvements (this project) |
-| [automatic-ripping-machine-ui](https://github.com/uprightbass360/automatic-ripping-machine-ui) | Modern replacement dashboard (SvelteKit + FastAPI) |
-| [automatic-ripping-machine-transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) | GPU-accelerated transcoding service |
 
 ## Upstream
 
