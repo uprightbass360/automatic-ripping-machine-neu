@@ -6,7 +6,7 @@ A fork of the [Automatic Ripping Machine](https://github.com/automatic-ripping-m
 
 ## Related Projects
 
-This fork is part of a suite of projects for a complete disc-to-library pipeline:
+Part of the Automatic Ripping Machine ecosystem:
 
 | Project | Description |
 |---------|-------------|
@@ -14,25 +14,9 @@ This fork is part of a suite of projects for a complete disc-to-library pipeline
 | [automatic-ripping-machine-ui](https://github.com/uprightbass360/automatic-ripping-machine-ui) | Modern replacement dashboard (SvelteKit + FastAPI) |
 | [automatic-ripping-machine-transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) | GPU-accelerated transcoding service |
 
-## What is ARM?
-
-Insert an optical disc (Blu-ray, DVD, CD) and ARM automatically detects, identifies, rips, and transcodes it. Headless and server-based, designed for unattended operation with one or more optical drives.
-
-See the original project for full documentation: [automatic-ripping-machine/automatic-ripping-machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine)
-
-## Why This Fork?
-
-The upstream ARM project is a solid foundation but has some areas that benefit from improvement:
-
-- Bug fixes not yet merged upstream
-- Better notification payloads for external service integration
-- Improved compatibility with the companion transcoder and UI projects
-
-Changes in this fork are documented in commit history. Upstream can reference our commits for any fixes they wish to incorporate.
+Insert an optical disc (Blu-ray, DVD, CD) and ARM automatically detects, identifies, rips, and transcodes it. Headless and server-based, designed for unattended operation with one or more optical drives. This fork adds bug fixes, better notification payloads for external service integration, and improved compatibility with the companion transcoder and UI projects.
 
 ## Features
-
-All features from the original ARM, plus:
 
 - Detects insertion of disc using udev
 - Determines disc type (Blu-ray, DVD, CD, data)
@@ -137,7 +121,7 @@ Pre-built images are published to Docker Hub and GHCR on every release:
 | UI | `uprightbass360/arm-ui` | Dashboard (SvelteKit + FastAPI) |
 | Transcoder | `uprightbass360/arm-transcoder` | GPU-accelerated transcoding |
 
-All images are built for `linux/amd64`. The transcoder also publishes GPU-specific tags: `:X.Y.Z-nvidia`, `:X.Y.Z-amd`, `:X.Y.Z-intel`.
+ARM, base dependencies, and transcoder images are built for `linux/amd64`. The UI image is multi-platform (`amd64` + `arm64`). The transcoder also publishes GPU-specific tag suffixes (`-nvidia`, `-amd`, `-intel`).
 
 ### Version Pinning
 
