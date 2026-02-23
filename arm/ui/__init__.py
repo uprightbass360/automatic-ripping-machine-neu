@@ -60,6 +60,16 @@ app.logger.debug("Debugging pin: " + os.environ["WERKZEUG_DEBUG_PIN"])
 
 init_db(app)
 
+# Always start accepting discs — stale pause state from a previous
+# container run should not block new rips after a restart.
+with app.app_context():
+    from arm.models.app_state import AppState
+    state = AppState.get()
+    if state.ripping_paused:
+        state.ripping_paused = False
+        db.session.commit()
+        app.logger.info("Cleared stale ripping_paused flag from previous run.")
+
 # Register route blueprints
 # loaded post database declaration to avoid circular loops
 from arm.ui.settings.settings import route_settings  # noqa: E402,F811
