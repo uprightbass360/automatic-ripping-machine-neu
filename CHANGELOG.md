@@ -12,6 +12,13 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.6.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.1...v1.6.2) (2026-02-23)
+
+
+### Bug Fixes
+
+* create missing optical drive device nodes at container startup ([da556c0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/da556c06135fcf43e0a211cc0422e126b6d89a52))
+
 ## [1.6.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.0...v1.6.1) (2026-02-22)
 
 
