@@ -12,6 +12,13 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.6.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.2...v1.6.3) (2026-02-23)
+
+
+### Bug Fixes
+
+* pass completed path base to notify script for correct transcoder path ([678fcd3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/678fcd3b825f5e4d92a5be993281a21021585096))
+
 ## [1.6.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.1...v1.6.2) (2026-02-23)
 
 
