@@ -62,13 +62,16 @@ init_db(app)
 
 # Always start accepting discs — stale pause state from a previous
 # container run should not block new rips after a restart.
-with app.app_context():
-    from arm.models.app_state import AppState
-    state = AppState.get()
-    if state.ripping_paused:
-        state.ripping_paused = False
-        db.session.commit()
-        app.logger.info("Cleared stale ripping_paused flag from previous run.")
+try:
+    with app.app_context():
+        from arm.models.app_state import AppState
+        state = AppState.get()
+        if state.ripping_paused:
+            state.ripping_paused = False
+            db.session.commit()
+            app.logger.info("Cleared stale ripping_paused flag from previous run.")
+except Exception:
+    pass  # Table may not exist yet (pre-migration)
 
 # Register route blueprints
 # loaded post database declaration to avoid circular loops

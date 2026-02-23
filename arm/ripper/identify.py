@@ -30,7 +30,6 @@ from arm.ripper.ProcessHandler import arm_subprocess
 from arm.database import db
 
 # flake8: noqa: W605
-from arm.ui import utils as ui_utils
 
 
 def find_mount(devpath: str) -> str | None:
@@ -438,6 +437,8 @@ def metadata_selector(job, title=None, year=None):
 
     :return: json/dict object or None
     """
+    from arm.ui import utils as ui_utils  # lazy: avoid pulling Flask app at import time
+
     search_results = None
     if cfg.arm_config['METADATA_PROVIDER'].lower() == "tmdb":
         logging.debug("provider tmdb")

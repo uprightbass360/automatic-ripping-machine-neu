@@ -101,8 +101,14 @@ def check_db_version(install_path, db_file):
         conn = sqlite3.connect(db_file)
         c = conn.cursor()
 
-        c.execute('SELECT version_num FROM alembic_version')
-        db_version = c.fetchone()[0]
+        try:
+            c.execute('SELECT version_num FROM alembic_version')
+            db_version = c.fetchone()[0]
+        except sqlite3.OperationalError:
+            app.logger.warning("alembic_version table missing — database may need migration.")
+            conn.close()
+            return
+
         app.logger.debug(f"Database version is: {db_version}")
         if head_revision == db_version:
             app.logger.info("Database is up to date")
@@ -116,14 +122,22 @@ def check_db_version(install_path, db_file):
                 flask_migrate.upgrade(mig_dir)
             app.logger.info("Upgrade complete.  Validating version level...")
 
-            c.execute("SELECT version_num FROM alembic_version")
-            db_version = c.fetchone()[0]
+            try:
+                c.execute("SELECT version_num FROM alembic_version")
+                db_version = c.fetchone()[0]
+            except sqlite3.OperationalError:
+                app.logger.error("alembic_version table still missing after upgrade.")
+                conn.close()
+                return
+
             app.logger.debug(f"Database version is: {db_version}")
             if head_revision == db_version:
                 app.logger.info("Database is now up to date")
             else:
                 app.logger.error(f"Database is still out of date. "
                                  f"Head is {head_revision} and database is {db_version}.  Exiting arm.")
+
+        conn.close()
 
 
 def arm_alembic_get():
@@ -149,10 +163,17 @@ def arm_db_get():
     """
     Get the Alembic Head revision
     """
-    alembic_db = AlembicVersion()
-    db_revision = alembic_db.query.first()
-    app.logger.debug(f"Database Head is: {db_revision.version_num}")
-    return db_revision
+    try:
+        alembic_db = AlembicVersion()
+        db_revision = alembic_db.query.first()
+        if db_revision is None:
+            app.logger.warning("alembic_version table is empty.")
+            return None
+        app.logger.debug(f"Database Head is: {db_revision.version_num}")
+        return db_revision
+    except Exception:
+        app.logger.warning("Could not read alembic_version table — database may need migration.")
+        return None
 
 
 def arm_db_check():
@@ -172,7 +193,10 @@ def arm_db_check():
         db_exists = True
         # Get the database alembic version
         db_revision = arm_db_get()
-        if db_revision.version_num == head_revision:
+        if db_revision is None:
+            db_current = False
+            app.logger.warning("Database file exists but alembic_version unreadable.")
+        elif db_revision.version_num == head_revision:
             db_current = True
             app.logger.debug(
                 f"Database is current. Head: {head_revision}" +

@@ -306,7 +306,7 @@ class TestMetadataSelector:
         cfg.arm_config['METADATA_PROVIDER'] = 'omdb'
         try:
             # Return None to avoid update_job being called
-            with unittest.mock.patch('arm.ripper.identify.ui_utils.call_omdb_api',
+            with unittest.mock.patch('arm.ui.utils.call_omdb_api',
                                      return_value=None) as mock_omdb:
                 metadata_selector(job, 'Serial Mom', '1994')
                 mock_omdb.assert_called_once()
@@ -323,7 +323,7 @@ class TestMetadataSelector:
         original = cfg.arm_config.get('METADATA_PROVIDER')
         cfg.arm_config['METADATA_PROVIDER'] = 'tmdb'
         try:
-            with unittest.mock.patch('arm.ripper.identify.ui_utils.tmdb_search',
+            with unittest.mock.patch('arm.ui.utils.tmdb_search',
                                      return_value=None) as mock_tmdb:
                 metadata_selector(job, 'Serial Mom', '1994')
                 mock_tmdb.assert_called_once()
@@ -367,7 +367,7 @@ class TestMetadataSelector:
                 }],
                 'Response': 'True',
             }
-            with unittest.mock.patch('arm.ripper.identify.ui_utils.call_omdb_api',
+            with unittest.mock.patch('arm.ui.utils.call_omdb_api',
                                      return_value=bad_results):
                 result = metadata_selector(job, 'TEST', '2020')
             # Should return None because matcher rejected the results
@@ -1345,7 +1345,7 @@ class TestMatcherIntegration:
         original = cfg.arm_config.get('METADATA_PROVIDER')
         cfg.arm_config['METADATA_PROVIDER'] = 'omdb'
         try:
-            with unittest.mock.patch('arm.ripper.identify.ui_utils.call_omdb_api',
+            with unittest.mock.patch('arm.ui.utils.call_omdb_api',
                                      return_value=bad_results):
                 result = metadata_selector(job, 'Serial+Mom', '1994')
             assert result is None
