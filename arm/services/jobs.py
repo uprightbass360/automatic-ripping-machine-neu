@@ -74,20 +74,16 @@ def get_x_jobs(job_status):
 
 def process_logfile(logfile, job, job_results):
     """
-        Decide if we need to process HandBrake or MakeMKV
+        Parse MakeMKV or abcde progress from the job logfile.
         :param logfile: the logfile for parsing
         :param job: the Job class
         :param job_results: the {} of
         :return: should be dict for the json api
     """
     log.debug(f"Disc Type: {job.disctype}, Status: {job.status}")
-    if job.disctype in {"dvd", "bluray", "bluray4k"}:
-        if job.status == JobState.VIDEO_RIPPING.value:
-            log.debug("using mkv - " + logfile)
-            return process_makemkv_logfile(job, job_results)
-        if job.status == JobState.TRANSCODE_ACTIVE.value:
-            log.debug("using handbrake")
-            return process_handbrake_logfile(logfile, job, job_results)
+    if job.disctype in {"dvd", "bluray", "bluray4k"} and job.status == JobState.VIDEO_RIPPING.value:
+        log.debug("using mkv - " + logfile)
+        return process_makemkv_logfile(job, job_results)
     if job.disctype == "music" and job.status == JobState.AUDIO_RIPPING.value:
         log.debug("using audio disc")
         return process_audio_logfile(job.logfile, job, job_results)
@@ -132,71 +128,6 @@ def process_makemkv_logfile(job, job_results):
             job.stage = f"Unknown -  {error}"
 
     job.eta = "Unknown"
-
-    return job_results
-
-
-def process_handbrake_logfile(logfile, job, job_results):
-    """
-    process a logfile looking for HandBrake or FFMPEG progress
-    :param logfile: the logfile for parsing
-    :param job: the Job class
-    :param job_results: the {} of
-    :return: should be dict for the json api
-    """
-    job_status = None
-    job_status_index = None
-    ffmpeg_job_status = None
-    lines = read_log_line(logfile)
-    for line in lines:
-        # This correctly get the very last ETA and % for HandBrake
-        hb_search = re.search(r"Encoding: task (\d of \d), (\d{1,3}\.\d{2}) %.{0,40}"
-                              r"ETA ([\dhms]*?)\)(?!\\rEncod)", str(line))
-        if hb_search:
-            job_status = hb_search
-
-        hb_index_search = re.search(r"Processing track #(\d{1,2}) of (\d{1,2})"
-                                    r"(?!.*Processing track #)", str(line))
-        if hb_index_search:
-            job_status_index = hb_index_search
-
-        # Check for FFMPEG status
-        ffmpeg_search = re.search(r"ARM: .* - (\d{1,3}\.\d{2})%", str(line))
-        if ffmpeg_search:
-            ffmpeg_job_status = ffmpeg_search
-
-    # Check ARM can read the Handbrake library and get a status
-    if job_status is not None:
-        log.debug(job_status.group())
-        job.stage = job_status.group(1)
-        job.progress = job_status.group(2)
-        job.eta = job_status.group(3)
-        job.progress_round = int(float(job.progress))
-    elif ffmpeg_job_status is not None:
-        job.stage = "Transcoding"
-        job.progress = ffmpeg_job_status.group(1)
-        job.eta = "Unknown"
-        job.progress_round = int(float(job.progress))
-    else:
-        log.debug(f"Job [{job.job_id}] handbrake/ffmpeg status not defined - setting progress to 0%")
-        job.stage = "Unknown"
-        job.progress = job.progress_round = 0
-        job.eta = "Unknown"
-
-    job_results['stage'] = job.stage
-    job_results['progress'] = job.progress
-    job_results['eta'] = job.eta
-    job_results['progress_round'] = int(float(job_results['progress']))
-
-    if job_status_index:
-        try:
-            current_index = int(job_status_index.group(1))
-            job.stage = job_results['stage'] = f"{job.stage} - {current_index}/{job.no_of_titles}"
-        except Exception as error:
-            log.debug(f"Problem finding the current track {error}")
-            job.stage = f"{job.stage} - %0%/%0%"
-    else:
-        log.debug("Cant find index")
 
     return job_results
 

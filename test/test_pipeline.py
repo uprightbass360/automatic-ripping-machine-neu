@@ -1,8 +1,7 @@
 """Tests for pipeline utilities — README Features: Video Ripping, Duplicate Detection.
 
-Covers job_dupe_check(), check_for_dupe_folder(), move_files(),
-find_matching_file(), find_file(), scan_emby(), check_for_wait(),
-duplicate_run_check(), and MusicBrainz helper functions.
+Covers job_dupe_check(), check_for_dupe_folder(), find_file(), scan_emby(),
+check_for_wait(), duplicate_run_check(), and MusicBrainz helper functions.
 """
 import os
 import unittest.mock
@@ -165,125 +164,6 @@ class TestFindFile:
         from arm.ripper.utils import find_file
 
         assert find_file('any.txt', str(tmp_path)) is False
-
-
-class TestFindMatchingFile:
-    """Test find_matching_file() fuzzy filename matching."""
-
-    def test_exact_match_returns_directly(self, tmp_path):
-        """If exact file exists, returns it immediately."""
-        from arm.ripper.utils import find_matching_file
-
-        target = tmp_path / 'title_01.mkv'
-        target.write_bytes(b'\x00')
-
-        result = find_matching_file(str(target))
-        assert result == str(target)
-
-    def test_close_match_found(self, tmp_path):
-        """Finds file with minor naming discrepancy."""
-        from arm.ripper.utils import find_matching_file
-
-        # Expected: title_01.mkv, actual on disk: title_01x.mkv
-        (tmp_path / 'title_01x.mkv').write_bytes(b'\x00')
-        expected = str(tmp_path / 'title_01.mkv')
-
-        result = find_matching_file(expected)
-        assert result == str(tmp_path / 'title_01x.mkv')
-
-    def test_no_match_returns_expected(self, tmp_path):
-        """When no files match at all, returns original expected path."""
-        from arm.ripper.utils import find_matching_file
-
-        expected = str(tmp_path / 'completely_different.mkv')
-        (tmp_path / 'something_else.avi').write_bytes(b'\x00')
-
-        result = find_matching_file(expected)
-        assert result == expected
-
-    def test_nonexistent_directory(self):
-        """Non-existent directory returns original path."""
-        from arm.ripper.utils import find_matching_file
-
-        result = find_matching_file('/nonexistent/dir/file.mkv')
-        assert result == '/nonexistent/dir/file.mkv'
-
-    def test_extension_must_match(self, tmp_path):
-        """Only files with matching extension are candidates."""
-        from arm.ripper.utils import find_matching_file
-
-        (tmp_path / 'title_01.avi').write_bytes(b'\x00')
-        expected = str(tmp_path / 'title_01.mkv')
-
-        result = find_matching_file(expected)
-        assert result == expected  # No .mkv files → returns original
-
-
-class TestMoveFiles:
-    """Test move_files() file routing to final directories."""
-
-    def test_empty_filename_returns_none(self, app_context, sample_job):
-        """Empty filename returns None without moving anything."""
-        from arm.ripper.utils import move_files
-
-        result = move_files('/raw', '', sample_job)
-        assert result is None
-
-    def test_main_feature_moves_with_title(self, app_context, sample_job, tmp_path):
-        """Main feature file gets renamed to formatted title."""
-        from arm.ripper.utils import move_files
-
-        sample_job.path = str(tmp_path / 'output')
-
-        # Create source file
-        raw = tmp_path / 'raw'
-        raw.mkdir()
-        (raw / 'title_01.mkv').write_bytes(b'\x00' * 100)
-
-        with unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
-            result = move_files(str(raw), 'title_01.mkv', sample_job, is_main_feature=True)
-
-        assert result == str(tmp_path / 'output')
-        mock_move.assert_called_once()
-        # Destination should contain the formatted title
-        dest = mock_move.call_args[0][1]
-        assert 'SERIAL_MOM' in dest or 'Serial' in dest
-
-    def test_extras_go_to_subfolder(self, app_context, sample_job, tmp_path):
-        """Non-main-feature files go to extras subfolder."""
-        from arm.ripper.utils import move_files
-
-        sample_job.path = str(tmp_path / 'output')
-        sample_job.video_type = 'movie'
-
-        raw = tmp_path / 'raw'
-        raw.mkdir()
-        (raw / 'extra.mkv').write_bytes(b'\x00' * 100)
-
-        with unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
-            move_files(str(raw), 'extra.mkv', sample_job, is_main_feature=False)
-
-        dest = mock_move.call_args[0][1]
-        assert 'extras' in dest
-
-    def test_series_no_extras_subfolder(self, app_context, sample_job, tmp_path):
-        """Series files go directly to path, not extras subfolder."""
-        from arm.ripper.utils import move_files
-
-        output_dir = tmp_path / 'media_output'
-        sample_job.path = str(output_dir)
-        sample_job.video_type = 'series'
-
-        raw = tmp_path / 'raw'
-        raw.mkdir()
-        (raw / 'episode.mkv').write_bytes(b'\x00' * 100)
-
-        with unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
-            move_files(str(raw), 'episode.mkv', sample_job, is_main_feature=False)
-
-        # For series, extras_path == movie_path (no extras subfolder)
-        dest_dir = mock_move.call_args[0][2]  # base_path arg
-        assert dest_dir == str(output_dir)
 
 
 class TestScanEmby:

@@ -1,5 +1,5 @@
 ###########################################################
-# ARM (neu) base image — system dependencies, MakeMKV, HandBrake
+# ARM (neu) base image — system dependencies, MakeMKV
 # Built separately to cache the slow compile steps.
 #
 # Build:  docker build -t arm-base:latest docker/base/
@@ -67,14 +67,10 @@ RUN pip3 install --upgrade pip wheel setuptools psutil pyudev
 RUN pip3 install --ignore-installed --prefer-binary -r ./requirements.txt
 
 ###########################################################
-FROM deps-ripper AS install-makemkv-handbrake
+FROM deps-ripper AS install-makemkv
 
-COPY scripts/install_mkv_hb_deps.sh /install_mkv_hb_deps.sh
-RUN chmod +x /install_mkv_hb_deps.sh && /install_mkv_hb_deps.sh
-
-COPY VERSION_HANDBRAKE /VERSION_HANDBRAKE
-COPY scripts/install_handbrake.sh /install_handbrake.sh
-RUN chmod +x /install_handbrake.sh && /install_handbrake.sh
+COPY scripts/install_mkv_deps.sh /install_mkv_deps.sh
+RUN chmod +x /install_mkv_deps.sh && /install_mkv_deps.sh
 
 COPY VERSION_MAKEMKV /VERSION_MAKEMKV
 COPY scripts/install_makemkv.sh /install_makemkv.sh

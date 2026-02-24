@@ -77,14 +77,12 @@ def log_arm_params(job):
         logging.info(f"{key}: {str(getattr(job, key))}")
     logging.info("******************* End of ARM variables *******************")
     logging.info("******************* Logging config parameters *******************")
-    for key in ("SKIP_TRANSCODE", "MAINFEATURE", "MINLENGTH", "MAXLENGTH",
+    for key in ("MAINFEATURE", "MINLENGTH", "MAXLENGTH",
                 "VIDEOTYPE", "MANUAL_WAIT", "MANUAL_WAIT_TIME", "RIPMETHOD",
-                "MKV_ARGS", "DELRAWFILES", "HB_PRESET_DVD", "HB_PRESET_BD",
-                "HB_ARGS_DVD", "HB_ARGS_BD", "FFMPEG_CLI", "FFMPEG_LOCAL", "USE_FFMPEG",
-                "FFMPEG_ARGS", "RAW_PATH", "TRANSCODE_PATH",
+                "MKV_ARGS", "DELRAWFILES", "RAW_PATH", "TRANSCODE_PATH",
                 "COMPLETED_PATH", "EXTRAS_SUB", "EMBY_REFRESH", "EMBY_SERVER",
                 "EMBY_PORT", "NOTIFY_RIP", "NOTIFY_TRANSCODE",
-                "MAX_CONCURRENT_TRANSCODES", "MAX_CONCURRENT_MAKEMKVINFO"):
+                "MAX_CONCURRENT_MAKEMKVINFO"):
         logging.info(f"{key.lower()}: {str(cfg.arm_config.get(key, '<not given>'))}")
     logging.info("******************* End of config parameters *******************")
 

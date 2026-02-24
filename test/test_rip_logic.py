@@ -3,66 +3,6 @@ import os
 import unittest.mock
 
 
-class TestRipWithMkv:
-    """Test rip_with_mkv() decision logic from arm_ripper.py."""
-
-    def test_bluray_always_uses_mkv(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "bluray"
-        assert rip_with_mkv(sample_job) is True
-
-    def test_dvd_mkv_no_mainfeature(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "dvd"
-        sample_job.config.MAINFEATURE = False
-        sample_job.config.RIPMETHOD = "mkv"
-        assert rip_with_mkv(sample_job) is True
-
-    def test_dvd_mainfeature_enabled(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "dvd"
-        sample_job.config.MAINFEATURE = True
-        sample_job.config.RIPMETHOD = "mkv"
-        sample_job.config.SKIP_TRANSCODE = False
-        assert rip_with_mkv(sample_job) is False
-
-    def test_dvd_skip_transcode(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "dvd"
-        sample_job.config.SKIP_TRANSCODE = True
-        assert rip_with_mkv(sample_job) is True
-
-    def test_dvd_99_protection(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "dvd"
-        sample_job.config.MAINFEATURE = True
-        sample_job.config.RIPMETHOD = "backup"
-        sample_job.config.SKIP_TRANSCODE = False
-        assert rip_with_mkv(sample_job, protection=1) is True
-
-    def test_dvd_no_protection_mainfeature_backup(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "dvd"
-        sample_job.config.MAINFEATURE = True
-        sample_job.config.RIPMETHOD = "backup"
-        sample_job.config.SKIP_TRANSCODE = False
-        assert rip_with_mkv(sample_job, protection=0) is False
-
-    def test_backup_dvd_method(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "dvd"
-        sample_job.config.RIPMETHOD = "backup_dvd"
-        assert rip_with_mkv(sample_job) is True
-
-    def test_unknown_disctype(self, sample_job):
-        from arm.ripper.arm_ripper import rip_with_mkv
-        sample_job.disctype = "unknown"
-        sample_job.config.MAINFEATURE = True
-        sample_job.config.RIPMETHOD = "backup"
-        sample_job.config.SKIP_TRANSCODE = False
-        assert rip_with_mkv(sample_job) is False
-
-
 class TestJobState:
     """Test JobState enum and status sets."""
 
@@ -127,12 +67,12 @@ class TestRipData:
         (raw / "MYDATA").mkdir()
 
         with unittest.mock.patch('arm.ripper.utils.subprocess.check_output') as mock_dd, \
-             unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
+             unittest.mock.patch('arm.ripper.utils.shutil.move') as mock_move:
             mock_dd.return_value = b""
             rip_data(sample_job)
 
-            # move_files_main should have been called with a timestamped .iso filename
-            assert mock_move.called, "move_files_main was never called"
+            # shutil.move should have been called with a timestamped .iso filename
+            assert mock_move.called, "shutil.move was never called"
             final_file = mock_move.call_args[0][1]  # full_final_file
             # The ISO filename should NOT be just "MYDATA.iso" — it should have a suffix
             assert os.path.basename(final_file) != "MYDATA.iso"
@@ -153,11 +93,11 @@ class TestRipData:
         sample_job.config.COMPLETED_PATH = str(completed)
 
         with unittest.mock.patch('arm.ripper.utils.subprocess.check_output') as mock_dd, \
-             unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move:
+             unittest.mock.patch('arm.ripper.utils.shutil.move') as mock_move:
             mock_dd.return_value = b""
             rip_data(sample_job)
 
-            assert mock_move.called, "move_files_main was never called"
+            assert mock_move.called, "shutil.move was never called"
             final_file = mock_move.call_args[0][1]
             assert final_file.endswith("UNIQUE_DISC.iso")
 

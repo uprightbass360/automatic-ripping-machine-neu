@@ -1,7 +1,7 @@
 """Tests for notification flow and ripping dispatch — README Features:
 Notifications (Apprise), Audio CD Ripping, Data Disc ISO Backup.
 
-Covers notify(), notify_entry(), rip_music(), rip_data(), set_permissions(),
+Covers notify(), notify_entry(), rip_music(), rip_data(),
 clean_old_jobs(), and the full notification pipeline.
 """
 import os
@@ -303,7 +303,7 @@ class TestRipData:
 
         job = self._make_job(tmp_path)
         with unittest.mock.patch('subprocess.check_output', return_value=b''), \
-             unittest.mock.patch('arm.ripper.utils.move_files_main') as mock_move, \
+             unittest.mock.patch('arm.ripper.utils.shutil.move') as mock_move, \
              unittest.mock.patch('arm.ripper.utils.database_updater'):
             result = rip_data(job)
         assert result is True
@@ -316,7 +316,7 @@ class TestRipData:
         job = self._make_job(tmp_path)
         job.label = ""
         with unittest.mock.patch('subprocess.check_output', return_value=b''), \
-             unittest.mock.patch('arm.ripper.utils.move_files_main'), \
+             unittest.mock.patch('arm.ripper.utils.shutil.move'), \
              unittest.mock.patch('arm.ripper.utils.database_updater'):
             rip_data(job)
         assert job.label == 'data-disc'
@@ -338,43 +338,6 @@ class TestRipData:
         fail_calls = [c for c in mock_updater.call_args_list
                       if 'status' in c[0][0] and c[0][0]['status'] == 'fail']
         assert len(fail_calls) >= 1
-
-
-class TestSetPermissions:
-    """Test set_permissions() recursive chmod."""
-
-    def test_sets_permissions_on_files(self, tmp_path):
-        """Recursively sets permissions on all files and dirs."""
-        from arm.ripper.utils import set_permissions
-        import arm.config.config as cfg
-
-        original_set = cfg.arm_config.get('SET_MEDIA_PERMISSIONS', False)
-        original_val = cfg.arm_config.get('CHMOD_VALUE', '777')
-        cfg.arm_config['SET_MEDIA_PERMISSIONS'] = True
-        cfg.arm_config['CHMOD_VALUE'] = '777'
-
-        subdir = tmp_path / 'subdir'
-        subdir.mkdir()
-        (subdir / 'file.mkv').write_bytes(b'\x00')
-        try:
-            result = set_permissions(str(tmp_path))
-            assert result is True
-        finally:
-            cfg.arm_config['SET_MEDIA_PERMISSIONS'] = original_set
-            cfg.arm_config['CHMOD_VALUE'] = original_val
-
-    def test_disabled_returns_false(self):
-        """Returns False when SET_MEDIA_PERMISSIONS is disabled."""
-        from arm.ripper.utils import set_permissions
-        import arm.config.config as cfg
-
-        original = cfg.arm_config.get('SET_MEDIA_PERMISSIONS', False)
-        cfg.arm_config['SET_MEDIA_PERMISSIONS'] = False
-        try:
-            result = set_permissions('/tmp')
-            assert result is False
-        finally:
-            cfg.arm_config['SET_MEDIA_PERMISSIONS'] = original
 
 
 class TestCleanOldJobs:

@@ -43,39 +43,6 @@ class TestCleanForFilename:
         assert "(1994)" in result
 
 
-class TestConvertJobType:
-    """Test convert_job_type() folder mapping."""
-
-    def test_movie(self):
-        from arm.ripper.utils import convert_job_type
-        assert convert_job_type("movie") == "movies"
-
-    def test_series(self):
-        from arm.ripper.utils import convert_job_type
-        assert convert_job_type("series") == "tv"
-
-    def test_unknown(self):
-        from arm.ripper.utils import convert_job_type
-        assert convert_job_type("unknown") == "unidentified"
-
-    def test_empty(self):
-        from arm.ripper.utils import convert_job_type
-        assert convert_job_type("") == "unidentified"
-
-
-class TestFixJobTitle:
-    """Test fix_job_title() delegates to job.formatted_title."""
-
-    def test_delegates_to_formatted_title(self, sample_job):
-        from arm.ripper.utils import fix_job_title
-        assert fix_job_title(sample_job) == sample_job.formatted_title
-
-    def test_with_manual_title(self, sample_job):
-        from arm.ripper.utils import fix_job_title
-        sample_job.title_manual = "Serial Mom"
-        assert fix_job_title(sample_job) == "Serial Mom (1994)"
-
-
 class TestDatabaseUpdaterUI:
     """Test database_updater in arm/ui/utils.py."""
 
@@ -150,37 +117,6 @@ class TestDatabaseAdder:
         assert found.title == "TEST_ADDER"
 
 
-class TestFindLargestFile:
-    """Test find_largest_file() file size comparison."""
-
-    def test_finds_largest(self, tmp_path):
-        from arm.ripper.utils import find_largest_file
-        # Create files of different sizes
-        (tmp_path / "small.mkv").write_bytes(b"x" * 100)
-        (tmp_path / "large.mkv").write_bytes(b"x" * 10000)
-        (tmp_path / "medium.mkv").write_bytes(b"x" * 5000)
-
-        files = ["small.mkv", "large.mkv", "medium.mkv"]
-        result = find_largest_file(files, str(tmp_path))
-        assert result == "large.mkv"
-
-    def test_single_file(self, tmp_path):
-        from arm.ripper.utils import find_largest_file
-        (tmp_path / "only.mkv").write_bytes(b"x" * 100)
-
-        result = find_largest_file(["only.mkv"], str(tmp_path))
-        assert result == "only.mkv"
-
-    def test_equal_sizes(self, tmp_path):
-        from arm.ripper.utils import find_largest_file
-        (tmp_path / "a.mkv").write_bytes(b"x" * 100)
-        (tmp_path / "b.mkv").write_bytes(b"x" * 100)
-
-        result = find_largest_file(["a.mkv", "b.mkv"], str(tmp_path))
-        # Should return one of them (first stays since not strictly greater)
-        assert result in ("a.mkv", "b.mkv")
-
-
 class TestConfigModel:
     """Test Config model initialization and methods."""
 
@@ -205,52 +141,6 @@ class TestConfigModel:
         result = str(config)
         assert 'secret123' not in result
         assert '/test/raw' in result
-
-
-class TestCalculateFilenameSimilarity:
-    """Test _calculate_filename_similarity() fuzzy matching algorithm."""
-
-    def test_identical_strings(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        score = _calculate_filename_similarity("FiveArmies", "FiveArmies")
-        assert score > 0
-
-    def test_off_by_one(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        score = _calculate_filename_similarity("FiveArmies", "FiveArmiess")
-        # Should score highly — only 1 char difference
-        assert score >= len("FiveArmies") * 0.8
-
-    def test_completely_different(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        score = _calculate_filename_similarity("FiveArmies", "ZZZZZZZ")
-        # Very low score
-        assert score < len("FiveArmies") * 0.5
-
-    def test_prefix_match(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        # "title_01" vs "title_01x" — matches from start, slight difference at end
-        score = _calculate_filename_similarity("title_01", "title_01x")
-        assert score >= 8  # 8 chars match from start
-
-    def test_empty_strings(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        score = _calculate_filename_similarity("", "")
-        # Both empty — length bonus for 0 diff
-        assert score >= 0
-
-    def test_length_bonus_same_length(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        score_same = _calculate_filename_similarity("abc", "xbc")
-        score_diff = _calculate_filename_similarity("abc", "xbcdefgh")
-        # Same-length pair should get length bonus, different shouldn't
-        assert score_same > score_diff
-
-    def test_symmetry(self):
-        from arm.ripper.utils import _calculate_filename_similarity
-        s1 = _calculate_filename_similarity("hello", "helloo")
-        s2 = _calculate_filename_similarity("helloo", "hello")
-        assert s1 == s2
 
 
 class TestPutTrack:

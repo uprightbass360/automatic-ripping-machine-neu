@@ -43,67 +43,6 @@ def restart():
     return svc_jobs.restart_ui()
 
 
-@router.get('/system/gpu')
-def get_gpu_support():
-    """Probe available GPU encoders (HandBrake + FFmpeg)."""
-    result = {
-        "handbrake_nvenc": False,
-        "ffmpeg_nvenc_h265": False,
-        "ffmpeg_nvenc_h264": False,
-        "ffmpeg_vaapi_h265": False,
-        "ffmpeg_vaapi_h264": False,
-        "ffmpeg_amf_h265": False,
-        "ffmpeg_amf_h264": False,
-        "ffmpeg_qsv_h265": False,
-        "ffmpeg_qsv_h264": False,
-        "vaapi_device": False,
-    }
-
-    # Check HandBrake NVENC
-    try:
-        output = subprocess.run(
-            ["HandBrakeCLI", "--help"],
-            capture_output=True, text=True, timeout=10
-        )
-        if "nvenc" in output.stdout.lower() or "nvenc" in output.stderr.lower():
-            result["handbrake_nvenc"] = True
-    except Exception:
-        pass
-
-    # Check FFmpeg encoders
-    try:
-        output = subprocess.run(
-            ["ffmpeg", "-encoders"],
-            capture_output=True, text=True, timeout=10
-        )
-        stdout = output.stdout
-        if "hevc_nvenc" in stdout:
-            result["ffmpeg_nvenc_h265"] = True
-        if "h264_nvenc" in stdout:
-            result["ffmpeg_nvenc_h264"] = True
-        if "hevc_vaapi" in stdout:
-            result["ffmpeg_vaapi_h265"] = True
-        if "h264_vaapi" in stdout:
-            result["ffmpeg_vaapi_h264"] = True
-        if "hevc_amf" in stdout:
-            result["ffmpeg_amf_h265"] = True
-        if "h264_amf" in stdout:
-            result["ffmpeg_amf_h264"] = True
-        if "hevc_qsv" in stdout:
-            result["ffmpeg_qsv_h265"] = True
-        if "h264_qsv" in stdout:
-            result["ffmpeg_qsv_h264"] = True
-    except Exception:
-        pass
-
-    # Check for VAAPI render device
-    vaapi_device = os.environ.get("VAAPI_DEVICE", "/dev/dri/renderD128")
-    if os.path.exists(vaapi_device):
-        result["vaapi_device"] = True
-
-    return result
-
-
 @router.get('/system/stats')
 def get_system_stats():
     """Return live system metrics: CPU, memory, and disk usage."""
@@ -165,7 +104,7 @@ def get_ripping_enabled():
 
 @router.get('/system/version')
 def get_version():
-    """Return ARM, MakeMKV, and HandBrake versions."""
+    """Return ARM and MakeMKV versions."""
     import re
 
     arm_version = "unknown"
@@ -189,22 +128,9 @@ def get_version():
     except Exception:
         pass
 
-    handbrake_version = "unknown"
-    try:
-        result = subprocess.run(
-            ["HandBrakeCLI", "--version"],
-            capture_output=True, text=True, timeout=5
-        )
-        m = re.search(r'HandBrake ([\d.]+)', result.stdout + result.stderr)
-        if m:
-            handbrake_version = m.group(1)
-    except Exception:
-        pass
-
     return {
         "arm_version": arm_version,
         "makemkv_version": makemkv_version,
-        "handbrake_version": handbrake_version,
     }
 
 

@@ -1,110 +1,5 @@
-"""Tests for arm_ripper.py dispatch logic and post-processing functions."""
+"""Tests for arm_ripper.py dispatch logic and notification functions."""
 import unittest.mock
-
-
-class TestStartTranscode:
-    """Test start_transcode() dispatch to correct transcoder."""
-
-    def _make_job(self, **overrides):
-        """Build a mock job with configurable attributes."""
-        job = unittest.mock.MagicMock()
-        job.config.SKIP_TRANSCODE = overrides.get('skip_transcode', False)
-        job.config.USE_FFMPEG = overrides.get('use_ffmpeg', False)
-        job.config.RIPMETHOD = overrides.get('ripmethod', 'mkv')
-        job.config.MAINFEATURE = overrides.get('mainfeature', False)
-        job.video_type = overrides.get('video_type', 'movie')
-        job.hasnicetitle = overrides.get('hasnicetitle', True)
-        job.disctype = overrides.get('disctype', 'bluray')
-        return job
-
-    def test_skip_transcode_returns_none(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(skip_transcode=True)
-        result = start_transcode(job, "test.log", "/raw", "/out", 0)
-        assert result is None
-
-    def test_ffmpeg_mkv_dispatch(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(use_ffmpeg=True, disctype='bluray', ripmethod='mkv')
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.ffmpeg') as mock_ff, \
-             unittest.mock.patch('arm.ripper.arm_ripper.utils'):
-            result = start_transcode(job, "test.log", "/raw", "/out", 0)
-            mock_ff.ffmpeg_mkv.assert_called_once_with("/raw", "/out", job)
-            assert result is True
-
-    def test_ffmpeg_main_feature_dispatch(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(
-            use_ffmpeg=True, disctype='dvd', ripmethod='backup',
-            mainfeature=True, video_type='movie', hasnicetitle=True,
-        )
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.ffmpeg') as mock_ff, \
-             unittest.mock.patch('arm.ripper.arm_ripper.utils'), \
-             unittest.mock.patch('arm.ripper.arm_ripper.db'):
-            result = start_transcode(job, "test.log", "/dev/sr0", "/out", 0)
-            mock_ff.ffmpeg_main_feature.assert_called_once()
-            assert result is True
-
-    def test_ffmpeg_all_dispatch(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(
-            use_ffmpeg=True, disctype='dvd', ripmethod='backup',
-            mainfeature=False, video_type='series',
-        )
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.ffmpeg') as mock_ff, \
-             unittest.mock.patch('arm.ripper.arm_ripper.utils'), \
-             unittest.mock.patch('arm.ripper.arm_ripper.db'):
-            result = start_transcode(job, "test.log", "/dev/sr0", "/out", 0)
-            mock_ff.ffmpeg_all.assert_called_once()
-            assert result is True
-
-    def test_handbrake_mkv_dispatch(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(use_ffmpeg=False, disctype='bluray', ripmethod='mkv')
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.handbrake') as mock_hb, \
-             unittest.mock.patch('arm.ripper.arm_ripper.utils'):
-            result = start_transcode(job, "test.log", "/raw", "/out", 0)
-            mock_hb.handbrake_mkv.assert_called_once_with("/raw", "/out", "test.log", job)
-            assert result is True
-
-    def test_handbrake_main_feature_dispatch(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(
-            use_ffmpeg=False, disctype='dvd', ripmethod='backup',
-            mainfeature=True, video_type='movie', hasnicetitle=True,
-        )
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.handbrake') as mock_hb, \
-             unittest.mock.patch('arm.ripper.arm_ripper.utils'), \
-             unittest.mock.patch('arm.ripper.arm_ripper.db'):
-            result = start_transcode(job, "test.log", "/dev/sr0", "/out", 0)
-            mock_hb.handbrake_main_feature.assert_called_once()
-            assert result is True
-
-    def test_handbrake_all_dispatch(self):
-        from arm.ripper.arm_ripper import start_transcode
-
-        job = self._make_job(
-            use_ffmpeg=False, disctype='dvd', ripmethod='backup',
-            mainfeature=False, video_type='series',
-        )
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.handbrake') as mock_hb, \
-             unittest.mock.patch('arm.ripper.arm_ripper.utils'), \
-             unittest.mock.patch('arm.ripper.arm_ripper.db'):
-            result = start_transcode(job, "test.log", "/dev/sr0", "/out", 0)
-            mock_hb.handbrake_all.assert_called_once()
-            assert result is True
 
 
 class TestNotifyExit:
@@ -151,71 +46,111 @@ class TestNotifyExit:
             mock_utils.notify.assert_not_called()
 
 
-class TestSkipTranscodeMovie:
-    """Test skip_transcode_movie() file routing logic."""
+class TestRipVisualMedia:
+    """Test simplified rip_visual_media() flow: rip -> persist -> notify."""
 
-    def test_largest_file_is_main_feature(self, tmp_path):
-        from arm.ripper.arm_ripper import skip_transcode_movie
-
-        # Create test files
-        (tmp_path / "small.mkv").write_bytes(b"x" * 100)
-        (tmp_path / "large.mkv").write_bytes(b"x" * 10000)
-        (tmp_path / "medium.mkv").write_bytes(b"x" * 5000)
-
+    def _make_job(self, **overrides):
+        """Build a mock job with configurable attributes."""
         job = unittest.mock.MagicMock()
-        job.video_type = "movie"
-        job.config.MAINFEATURE = False
-        job.config.EXTRAS_SUB = "extras"
+        job.title = overrides.get('title', 'Test Movie')
+        job.disctype = overrides.get('disctype', 'bluray')
+        job.config.NOTIFY_RIP = overrides.get('notify_rip', True)
+        job.config.NOTIFY_TRANSCODE = overrides.get('notify_transcode', True)
+        job.config.MAINFEATURE = overrides.get('mainfeature', False)
+        job.errors = overrides.get('errors', None)
+        job.build_final_path.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
+        return job
 
-        files = ["small.mkv", "large.mkv", "medium.mkv"]
+    def test_rip_calls_makemkv(self):
+        from arm.ripper.arm_ripper import rip_visual_media
 
-        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils:
-            # find_largest_file must return a real filename
-            mock_utils.find_largest_file.return_value = "large.mkv"
-            skip_transcode_movie(files, job, str(tmp_path))
+        job = self._make_job()
 
-            # large.mkv should be moved as main feature (is_main_feature=True)
-            calls = mock_utils.move_files.call_args_list
-            main_calls = [c for c in calls if c[0][1] == "large.mkv"]
-            assert len(main_calls) == 1
-            assert main_calls[0][0][3] is True  # is_main_feature=True
+        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.db'):
+            mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
+            mock_mkv.makemkv.return_value = '/home/arm/media/raw/Test Movie (2024)'
 
-    def test_mainfeature_skips_extras(self, tmp_path):
-        from arm.ripper.arm_ripper import skip_transcode_movie
+            rip_visual_media(False, job, "test.log", 0)
 
-        (tmp_path / "main.mkv").write_bytes(b"x" * 10000)
-        (tmp_path / "extra.mkv").write_bytes(b"x" * 100)
+            mock_mkv.makemkv.assert_called_once_with(job)
 
-        job = unittest.mock.MagicMock()
-        job.video_type = "movie"
-        job.config.MAINFEATURE = True
-        job.config.EXTRAS_SUB = "extras"
+    def test_rip_persists_raw_path(self):
+        from arm.ripper.arm_ripper import rip_visual_media
 
-        files = ["main.mkv", "extra.mkv"]
+        job = self._make_job()
+        raw_path = '/home/arm/media/raw/Test Movie (2024)'
 
-        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils:
-            mock_utils.find_largest_file.return_value = "main.mkv"
-            skip_transcode_movie(files, job, str(tmp_path))
+        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.db'):
+            mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
+            mock_mkv.makemkv.return_value = raw_path
 
-            # Only main.mkv should be moved (extras skipped due to MAINFEATURE=True)
-            assert mock_utils.move_files.call_count == 1
+            rip_visual_media(False, job, "test.log", 0)
 
-    def test_extras_sub_none_skips_extras(self, tmp_path):
-        from arm.ripper.arm_ripper import skip_transcode_movie
+            # Verify raw_path was persisted to DB
+            raw_path_calls = [
+                c for c in mock_utils.database_updater.call_args_list
+                if 'raw_path' in c[0][0]
+            ]
+            assert len(raw_path_calls) == 1
+            assert raw_path_calls[0][0][0]['raw_path'] == raw_path
 
-        (tmp_path / "main.mkv").write_bytes(b"x" * 10000)
-        (tmp_path / "extra.mkv").write_bytes(b"x" * 100)
+    def test_rip_sends_notification_on_completion(self):
+        from arm.ripper.arm_ripper import rip_visual_media
 
-        job = unittest.mock.MagicMock()
-        job.video_type = "movie"
-        job.config.MAINFEATURE = False
-        job.config.EXTRAS_SUB = "none"
+        job = self._make_job(notify_rip=True)
 
-        files = ["main.mkv", "extra.mkv"]
+        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.db'):
+            mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
+            mock_mkv.makemkv.return_value = '/home/arm/media/raw/Test Movie (2024)'
 
-        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils:
-            mock_utils.find_largest_file.return_value = "main.mkv"
-            skip_transcode_movie(files, job, str(tmp_path))
+            rip_visual_media(False, job, "test.log", 0)
 
-            # Only main.mkv moved; extra skipped because EXTRAS_SUB is "none"
-            assert mock_utils.move_files.call_count == 1
+            # At least one notify call for rip complete
+            assert mock_utils.notify.call_count >= 1
+
+    def test_makemkv_error_raises_ripper_exception(self):
+        from arm.ripper.arm_ripper import rip_visual_media
+        from arm.ripper.utils import RipperException
+        from arm.ripper.makemkv import UpdateKeyRunTimeError
+
+        job = self._make_job()
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.db'):
+            mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
+            mock_utils.RipperException = RipperException
+            mock_mkv.UpdateKeyRunTimeError = UpdateKeyRunTimeError
+            mock_mkv.makemkv.side_effect = RuntimeError("MakeMKV crashed")
+
+            try:
+                rip_visual_media(False, job, "test.log", 0)
+                assert False, "Expected RipperException"
+            except RipperException:
+                pass
+
+    def test_no_rip_notification_when_disabled(self):
+        from arm.ripper.arm_ripper import rip_visual_media
+
+        job = self._make_job(notify_rip=False)
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.db'):
+            mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
+            mock_mkv.makemkv.return_value = '/home/arm/media/raw/Test Movie (2024)'
+
+            rip_visual_media(False, job, "test.log", 0)
+
+            # Only notify_exit should call notify (for NOTIFY_TRANSCODE), not rip notification
+            rip_complete_calls = [
+                c for c in mock_utils.notify.call_args_list
+                if 'rip complete' in str(c).lower()
+            ]
+            assert len(rip_complete_calls) == 0

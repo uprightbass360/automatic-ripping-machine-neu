@@ -20,27 +20,17 @@ jobs:
         id: check
         run: |
           CURRENT_MKV=$(cat docker/base/VERSION_MAKEMKV | tr -d '[:space:]')
-          CURRENT_HB=$(cat docker/base/VERSION_HANDBRAKE | tr -d '[:space:]')
 
           LATEST_MKV=$(curl -s https://www.makemkv.com/download/ \
             | grep -o '[0-9.]*\.txt' | sed 's/\.txt//' | head -1)
 
-          LATEST_HB=$(curl -s https://api.github.com/repos/HandBrake/HandBrake/releases/latest \
-            | jq -r '.tag_name')
-
           echo "current_mkv=$CURRENT_MKV" >> "$GITHUB_OUTPUT"
-          echo "current_hb=$CURRENT_HB" >> "$GITHUB_OUTPUT"
           echo "latest_mkv=$LATEST_MKV" >> "$GITHUB_OUTPUT"
-          echo "latest_hb=$LATEST_HB" >> "$GITHUB_OUTPUT"
 
           UPDATES=""
           if [ "$CURRENT_MKV" != "$LATEST_MKV" ]; then
             echo "$LATEST_MKV" > docker/base/VERSION_MAKEMKV
             UPDATES="makemkv"
-          fi
-          if [ "$CURRENT_HB" != "$LATEST_HB" ]; then
-            echo "$LATEST_HB" > docker/base/VERSION_HANDBRAKE
-            UPDATES="${UPDATES:+$UPDATES+}handbrake"
           fi
 
           echo "updates=$UPDATES" >> "$GITHUB_OUTPUT"
@@ -59,7 +49,6 @@ jobs:
             | Dependency | Current | Latest | Changed |
             |-----------|---------|--------|---------|
             | MakeMKV | `${{ steps.check.outputs.current_mkv }}` | `${{ steps.check.outputs.latest_mkv }}` | ${{ contains(steps.check.outputs.updates, 'makemkv') && '**yes**' || 'no' }} |
-            | HandBrake | `${{ steps.check.outputs.current_hb }}` | `${{ steps.check.outputs.latest_hb }}` | ${{ contains(steps.check.outputs.updates, 'handbrake') && '**yes**' || 'no' }} |
 
             Merging this PR will trigger a base image rebuild via the `publish-base-image` workflow.
           commit-message: "build(deps): bump base image dependencies"

@@ -6,13 +6,13 @@ class TestArmYamlTestBool:
 
     def test_true_value(self):
         from arm.config.config_utils import arm_yaml_test_bool
-        result = arm_yaml_test_bool("SKIP_TRANSCODE", "True")
-        assert result == "SKIP_TRANSCODE: true\n"
+        result = arm_yaml_test_bool("MAINFEATURE", "True")
+        assert result == "MAINFEATURE: true\n"
 
     def test_false_value(self):
         from arm.config.config_utils import arm_yaml_test_bool
-        result = arm_yaml_test_bool("SKIP_TRANSCODE", "False")
-        assert result == "SKIP_TRANSCODE: false\n"
+        result = arm_yaml_test_bool("MAINFEATURE", "False")
+        assert result == "MAINFEATURE: false\n"
 
     def test_case_insensitive_true(self):
         from arm.config.config_utils import arm_yaml_test_bool
@@ -54,7 +54,6 @@ def _full_comments():
             'WEB_SERVER': '# Web Server',
             'FILE_PERMS': '# File Permissions',
             'MAKE_MKV': '# MakeMKV',
-            'HANDBRAKE': '# HandBrake',
             'EMBY': '# Emby',
             'EMBY_ADDITIONAL': '# Emby Additional',
             'NOTIFY_PERMS': '# Notifications',
