@@ -209,7 +209,7 @@ class TestDrivesUpdateNameless:
     def _make_drive(self, mount="/dev/sr0", serial_id=None, location="",
                     maker="VirtualBox", model="CD-ROM"):
         """Create a DriveInformationMedium with optional serial_id."""
-        from arm.ui.settings.DriveUtils import DriveInformationMedium
+        from arm.services.drives import DriveInformationMedium
         return DriveInformationMedium(
             mount=mount,
             maker=maker,
@@ -231,11 +231,11 @@ class TestDrivesUpdateNameless:
 
     def test_none_serial_id_no_crash(self, app_context):
         """A drive with no serial_id should not crash drives_update()."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
 
         drive = self._make_drive(mount="/dev/sr0", serial_id=None)
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=[drive]):
             drives_update(startup=True)
 
@@ -247,11 +247,11 @@ class TestDrivesUpdateNameless:
 
     def test_normal_serial_id_stored(self, app_context):
         """A drive with a normal serial_id stores it in name."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
 
         drive = self._make_drive(mount="/dev/sr0", serial_id="VBox_CD-ROM_12345")
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=[drive]):
             drives_update(startup=True)
 
@@ -265,7 +265,7 @@ class TestDrivesUpdateMatching:
 
     def _make_drive(self, mount="/dev/sr0", serial_id="", location="",
                     maker="ASUS", model="BW-16D1HT"):
-        from arm.ui.settings.DriveUtils import DriveInformationMedium
+        from arm.services.drives import DriveInformationMedium
         return DriveInformationMedium(
             mount=mount, maker=maker, model=model, serial="",
             serial_id=serial_id, connection="ata",
@@ -293,7 +293,7 @@ class TestDrivesUpdateMatching:
     def test_two_empty_serial_different_locations_kept_separate(self, app_context):
         """Two drives with empty serial_id but different ID_PATH (location)
         should each keep their own DB record and custom name."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -310,7 +310,7 @@ class TestDrivesUpdateMatching:
             self._make_drive(mount="/dev/sr1", serial_id="",
                              location="pci-0000:00:1f.2-ata-2"),
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 
@@ -326,7 +326,7 @@ class TestDrivesUpdateMatching:
     def test_two_empty_serial_swap_mount_points(self, app_context):
         """Two drives with empty serial_id swap /dev/sr0 ↔ /dev/sr1 after
         reboot. Location fallback should track the physical drive."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -344,7 +344,7 @@ class TestDrivesUpdateMatching:
             self._make_drive(mount="/dev/sr1", serial_id="",
                              location="pci-0000:00:1f.2-ata-1"),
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 
@@ -360,7 +360,7 @@ class TestDrivesUpdateMatching:
 
     def test_serial_match_beats_location(self, app_context):
         """When serial_id is populated, it takes priority over location."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -373,7 +373,7 @@ class TestDrivesUpdateMatching:
             self._make_drive(mount="/dev/sr0", serial_id="ASUS_BW_ABC123",
                              location="pci-0000:03:00.0-ata-1"),
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 
@@ -385,7 +385,7 @@ class TestDrivesUpdateMatching:
 
     def test_empty_serial_empty_location_falls_to_mount(self, app_context):
         """With no serial_id and no location, mount path is the last resort."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -395,7 +395,7 @@ class TestDrivesUpdateMatching:
         scan = [
             self._make_drive(mount="/dev/sr0", serial_id="", location=""),
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 
@@ -407,7 +407,7 @@ class TestDrivesUpdateMatching:
     def test_three_identical_drives_all_empty_serial(self, app_context):
         """Three identical drives, all with empty serial_id but unique
         locations, should each preserve their custom name."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -431,7 +431,7 @@ class TestDrivesUpdateMatching:
                 ("Drive C", "pci-0000:00:1f.2-ata-3"),
             ])
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 
@@ -442,7 +442,7 @@ class TestDrivesUpdateMatching:
 
     def test_new_drive_gets_created(self, app_context):
         """A drive with unknown serial_id and location creates a new record."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -450,7 +450,7 @@ class TestDrivesUpdateMatching:
             self._make_drive(mount="/dev/sr0", serial_id="NEW_DRIVE_XYZ",
                              location="pci-0000:05:00.0-usb-0:1"),
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 
@@ -462,7 +462,7 @@ class TestDrivesUpdateMatching:
     def test_custom_name_survives_mount_swap_with_serial(self, app_context):
         """Drive with valid serial_id preserves custom name even when mount
         path changes."""
-        from arm.ui.settings.DriveUtils import drives_update
+        from arm.services.drives import drives_update
         from arm.models.system_drives import SystemDrives
         _, db = app_context
 
@@ -482,7 +482,7 @@ class TestDrivesUpdateMatching:
             self._make_drive(mount="/dev/sr1", serial_id="LG_WH16NS40_SN111",
                              location="pci-0000:00:1f.2-ata-1"),
         ]
-        with unittest.mock.patch('arm.ui.settings.DriveUtils.drives_search',
+        with unittest.mock.patch('arm.services.drives.drives_search',
                                  return_value=scan):
             drives_update(startup=True)
 

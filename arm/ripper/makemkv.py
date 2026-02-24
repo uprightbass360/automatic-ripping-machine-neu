@@ -348,7 +348,7 @@ class DriveInformation:
 
     `DRV:index,visible,enabled,flags,drive name,disc name`
 
-    @see arm.ui.settings.DriveUtils.Drive
+    @see arm.services.drives.DriveInformation
     """
 
     mount: str

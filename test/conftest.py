@@ -14,6 +14,7 @@ import unittest.mock
 
 import pytest
 import yaml
+from sqlalchemy.pool import StaticPool
 
 # --- Stub hardware-dependent modules BEFORE any arm imports ---
 # discid requires libdiscid.so.0 (C library) — stub it for CI/test
@@ -50,7 +51,7 @@ _ABCDE_TMP.write("# test abcde config\n")
 _ABCDE_TMP.close()
 
 # Create a temp DB file path (real file, not :memory:) for startup checks.
-# ARM's UI init calls check_db_version() at import time with os.path.isfile().
+# ARM's startup calls check_db_version() with os.path.isfile().
 _DB_TMP = tempfile.NamedTemporaryFile(
     suffix=".db", prefix="arm_test_db_", delete=False
 )
@@ -81,18 +82,18 @@ if _PROJECT_ROOT not in sys.path:
 
 @pytest.fixture
 def app_context():
-    """Create Flask app with in-memory test database."""
-    from arm.ui import app
+    """Create standalone SQLAlchemy engine with in-memory test database."""
     from arm.database import db
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
-    app.config["TESTING"] = True
-
-    with app.app_context():
-        db.create_all()
-        yield app, db
-        db.session.remove()
-        db.drop_all()
+    db.dispose()  # reset any prior engine (idempotent init_engine)
+    db.init_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    db.create_all()
+    yield None, db
+    db.dispose()
 
 
 @pytest.fixture

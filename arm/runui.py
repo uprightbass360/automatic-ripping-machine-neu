@@ -1,5 +1,6 @@
 # pylint: disable=wrong-import-position
-"""Main run page for armui"""
+"""Main run page for ARM API server."""
+import logging
 import os
 import sys
 
@@ -7,18 +8,31 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import arm.config.config as cfg  # noqa E402
-import arm.ui.routes  # noqa E402
-import arm.ui.settings.DriveUtils  # noqa E402
-import arm.ui.utils  # noqa E402
+from arm.database import db  # noqa E402
+from arm.services import config as svc_config  # noqa E402
+from arm.services import drives as svc_drives  # noqa E402
 
-from arm.ui import app  # noqa E402
+
+def _clear_stale_pause():
+    """Clear ripping_paused flag left over from a previous container run."""
+    try:
+        from arm.models.app_state import AppState
+        state = AppState.get()
+        if state.ripping_paused:
+            state.ripping_paused = False
+            db.session.commit()
+            logging.info("Cleared stale ripping_paused flag from previous run.")
+    except Exception:
+        pass  # Table may not exist yet (pre-migration)
 
 
 def startup():
-    db_update = arm.ui.utils.arm_db_check()
+    db.init_engine('sqlite:///' + cfg.arm_config['DBFILE'])
+    _clear_stale_pause()
+    db_update = svc_config.arm_db_check()
     if db_update["db_current"]:
-        app.logger.info("Updating Optical Drives")
-        arm.ui.settings.DriveUtils.drives_update(startup=True)
+        logging.info("Updating Optical Drives")
+        svc_drives.drives_update(startup=True)
 
 
 def is_docker():
@@ -53,12 +67,11 @@ def get_host():
     return host
 
 
-# Start ARM using waitress, default number of threads is "4", set ARM count to "40"
-# Higher thread count to accommodate slow blocking processes when the UI is polling the ripper during ripping
 if __name__ == '__main__':
     host = get_host()
     port = cfg.arm_config['WEBSERVER_PORT']
-    app.logger.info("Starting ARM-UI on interface address - %s:%s", host, port)
+    logging.info("Starting ARM API on interface address - %s:%s", host, port)
     startup()
-    from waitress import serve
-    serve(app, host=host, port=port, threads=40)
+    import uvicorn
+    from arm.app import app  # noqa E402
+    uvicorn.run(app, host=host, port=int(port), workers=1)

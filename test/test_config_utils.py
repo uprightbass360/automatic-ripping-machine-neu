@@ -91,7 +91,7 @@ class TestBuildArmCfgStrip:
     """Test that build_arm_cfg strips whitespace from values (#1684)."""
 
     def test_key_value_stripped(self):
-        from arm.ui.utils import build_arm_cfg
+        from arm.services.config import build_arm_cfg
         comments = _full_comments()
         comments['ARM_CFG_GROUPS']['BEGIN'] = '# ARM config'
         form_data = {
@@ -102,7 +102,7 @@ class TestBuildArmCfgStrip:
         assert '  T-abc123xyz' not in result
 
     def test_normal_value_unchanged(self):
-        from arm.ui.utils import build_arm_cfg
+        from arm.services.config import build_arm_cfg
         comments = _full_comments()
         comments['ARM_CFG_GROUPS']['BEGIN'] = '# ARM config'
         form_data = {

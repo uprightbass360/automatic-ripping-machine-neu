@@ -4,14 +4,10 @@
 import logging
 import re
 import musicbrainzngs as mb
-import werkzeug
 from discid import read, Disc
 
 import arm.config.config as cfg
 from arm.ripper import utils as u
-
-
-werkzeug.cached_property = werkzeug.utils.cached_property
 
 
 def main(disc):

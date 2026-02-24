@@ -32,8 +32,10 @@ import arm.constants as constants  # noqa E402
 from arm.ripper import (arm_ripper, identify, logger,  # noqa: E402
                         music_brainz, utils)
 from arm.ripper.ARMInfo import ARMInfo  # noqa E402
-from arm.ui import app  # noqa E402
-from arm.ui.settings import DriveUtils as drive_utils  # noqa E402
+from arm.services import drives as drive_utils  # noqa E402
+
+# Initialise standalone database (no Flask)
+db.init_engine('sqlite:///' + cfg.arm_config['DBFILE'])
 
 job: Optional[Job] = None
 args: Optional[Namespace] = None

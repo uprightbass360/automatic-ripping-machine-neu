@@ -43,7 +43,7 @@ if len(cur_cfg) != len(new_cfg):
 
     # 4. Save the dictionary
     with open(
-            os.path.join(cur_cfg["INSTALLPATH"], "arm/ui/comments.json"),
+            os.path.join(cur_cfg["INSTALLPATH"], "arm/data/comments.json"),
             "r",
     ) as comments_file:
         comments = json.load(comments_file)

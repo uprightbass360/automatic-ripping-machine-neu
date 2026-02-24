@@ -1,12 +1,13 @@
 """API v1 — Log endpoints."""
-from flask import jsonify
+from fastapi import APIRouter
 
-from arm.api import api_bp
-from arm.ui import json_api
+from arm.services import jobs as svc_jobs
 import arm.config.config as cfg
 
+router = APIRouter(prefix="/api/v1", tags=["logs"])
 
-@api_bp.route('/v1/jobs/<int:job_id>/log', methods=['GET'])
-def get_job_log(job_id):
+
+@router.get('/jobs/{job_id}/log')
+def get_job_log(job_id: int):
     """Get the full log for a job."""
-    return jsonify(json_api.generate_log(cfg.arm_config['LOGPATH'], str(job_id)))
+    return svc_jobs.generate_log(cfg.arm_config['LOGPATH'], str(job_id))

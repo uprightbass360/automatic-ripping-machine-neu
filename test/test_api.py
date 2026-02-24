@@ -2,14 +2,14 @@
 import unittest.mock
 
 import pytest
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def client(app_context):
-    """Flask test client."""
-    app, db = app_context
-    app.config['LOGIN_DISABLED'] = True
-    with app.test_client() as client:
+    """FastAPI test client."""
+    from arm.app import app
+    with TestClient(app, raise_server_exceptions=True) as client:
         yield client
 
 
@@ -19,7 +19,7 @@ class TestApiJobsList:
     def test_list_jobs_returns_json(self, client):
         response = client.get('/api/v1/jobs')
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert isinstance(data, dict)
 
     def test_list_jobs_with_status_filter(self, client):
@@ -47,13 +47,13 @@ class TestApiJobAbandon:
     """Test POST /api/v1/jobs/<id>/abandon endpoint."""
 
     def test_abandon_nonexistent_raises(self, client):
-        """Upstream json_api.abandon_job doesn't handle missing jobs gracefully."""
-        # json_api.abandon_job tries to set attrs on None (Job.query.get returns None)
+        """Upstream svc_jobs.abandon_job doesn't handle missing jobs gracefully."""
+        # abandon_job tries to set attrs on None (Job.query.get returns None)
         with pytest.raises(AttributeError):
             client.post('/api/v1/jobs/99999/abandon')
 
     def test_abandon_with_mock(self, client):
-        with unittest.mock.patch('arm.api.v1.jobs.json_api') as mock_api:
+        with unittest.mock.patch('arm.api.v1.jobs.svc_jobs') as mock_api:
             mock_api.abandon_job.return_value = {"success": True}
             response = client.post('/api/v1/jobs/1/abandon')
             assert response.status_code == 200
@@ -66,17 +66,15 @@ class TestApiJobConfig:
         response = client.patch(
             '/api/v1/jobs/99999/config',
             json={"RIPMETHOD": "mkv"},
-            content_type='application/json',
         )
         assert response.status_code == 404
-        data = response.get_json()
+        data = response.json()
         assert data["success"] is False
 
     def test_change_config_empty_body(self, client, sample_job, app_context):
         response = client.patch(
             f'/api/v1/jobs/{sample_job.job_id}/config',
             json={},
-            content_type='application/json',
         )
         assert response.status_code == 400
 
@@ -84,10 +82,9 @@ class TestApiJobConfig:
         response = client.patch(
             f'/api/v1/jobs/{sample_job.job_id}/config',
             json={"RIPMETHOD": "invalid"},
-            content_type='application/json',
         )
         assert response.status_code == 400
-        data = response.get_json()
+        data = response.json()
         assert data["success"] is False
         assert "RIPMETHOD" in data["error"]
 
@@ -95,10 +92,9 @@ class TestApiJobConfig:
         response = client.patch(
             f'/api/v1/jobs/{sample_job.job_id}/config',
             json={"RIPMETHOD": "backup", "MAINFEATURE": True, "MINLENGTH": 600},
-            content_type='application/json',
         )
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data["success"] is True
         assert data["job_id"] == sample_job.job_id
 
@@ -107,7 +103,7 @@ class TestApiJobFixPermissions:
     """Test POST /api/v1/jobs/<id>/fix-permissions endpoint."""
 
     def test_fix_permissions_with_mock(self, client):
-        with unittest.mock.patch('arm.api.v1.jobs.ui_utils') as mock_utils:
+        with unittest.mock.patch('arm.api.v1.jobs.svc_files') as mock_utils:
             mock_utils.fix_permissions.return_value = {"success": True}
             response = client.post('/api/v1/jobs/1/fix-permissions')
             assert response.status_code == 200
@@ -117,7 +113,7 @@ class TestApiJobSend:
     """Test POST /api/v1/jobs/<id>/send endpoint."""
 
     def test_send_with_mock(self, client):
-        with unittest.mock.patch('arm.api.v1.jobs.ui_utils') as mock_utils:
+        with unittest.mock.patch('arm.api.v1.jobs.svc_files') as mock_utils:
             mock_utils.send_to_remote_db.return_value = {"success": True}
             response = client.post('/api/v1/jobs/1/send')
             assert response.status_code == 200
@@ -145,7 +141,7 @@ class TestApiNotifyTimeout:
     def test_get_notify_timeout(self, client):
         response = client.get('/api/v1/settings/notify-timeout')
         assert response.status_code == 200
-        data = response.get_json()
+        data = response.json()
         assert data is not None
 
 
@@ -153,7 +149,7 @@ class TestApiSystemRestart:
     """Test POST /api/v1/system/restart endpoint."""
 
     def test_restart_returns_response(self, client):
-        with unittest.mock.patch('arm.api.v1.system.json_api') as mock_api:
+        with unittest.mock.patch('arm.api.v1.system.svc_jobs') as mock_api:
             mock_api.restart_ui.return_value = {"success": True}
             response = client.post('/api/v1/system/restart')
             assert response.status_code == 200

@@ -4,13 +4,15 @@ import platform
 import subprocess
 
 import psutil
-from flask import jsonify, request
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
 import arm.config.config as cfg
-from arm.api import api_bp
 from arm.database import db
 from arm.models.app_state import AppState
-from arm.ui import json_api
+from arm.services import jobs as svc_jobs
+
+router = APIRouter(prefix="/api/v1", tags=["system"])
 
 
 def _detect_cpu() -> str:
@@ -25,23 +27,23 @@ def _detect_cpu() -> str:
     return platform.processor() or "Unknown"
 
 
-@api_bp.route('/v1/system/info', methods=['GET'])
+@router.get('/system/info')
 def get_system_info():
     """Return static hardware identity (CPU model, total RAM). No DB access."""
     mem = psutil.virtual_memory()
-    return jsonify({
+    return {
         "cpu": _detect_cpu(),
         "memory_total_gb": round(mem.total / 1073741824, 1),
-    })
+    }
 
 
-@api_bp.route('/v1/system/restart', methods=['POST'])
+@router.post('/system/restart')
 def restart():
     """Restart the ARM UI service."""
-    return jsonify(json_api.restart_ui())
+    return svc_jobs.restart_ui()
 
 
-@api_bp.route('/v1/system/gpu', methods=['GET'])
+@router.get('/system/gpu')
 def get_gpu_support():
     """Probe available GPU encoders (HandBrake + FFmpeg)."""
     result = {
@@ -99,13 +101,12 @@ def get_gpu_support():
     if os.path.exists(vaapi_device):
         result["vaapi_device"] = True
 
-    return jsonify(result)
+    return result
 
 
-@api_bp.route('/v1/system/stats', methods=['GET'])
+@router.get('/system/stats')
 def get_system_stats():
     """Return live system metrics: CPU, memory, and disk usage."""
-    # CPU
     cpu_percent = psutil.cpu_percent()
     cpu_temp = 0.0
     try:
@@ -117,7 +118,6 @@ def get_system_stats():
     except (AttributeError, OSError):
         pass
 
-    # Memory
     mem = psutil.virtual_memory()
     memory = {
         "total_gb": round(mem.total / 1073741824, 1),
@@ -126,7 +126,6 @@ def get_system_stats():
         "percent": mem.percent,
     }
 
-    # Storage
     media_paths = [
         ("Raw", cfg.arm_config.get("RAW_PATH", "")),
         ("Transcode", cfg.arm_config.get("TRANSCODE_PATH", "")),
@@ -149,36 +148,81 @@ def get_system_stats():
         except FileNotFoundError:
             continue
 
-    return jsonify({
+    return {
         "cpu_percent": cpu_percent,
         "cpu_temp": cpu_temp,
         "memory": memory,
         "storage": storage,
-    })
+    }
 
 
-@api_bp.route('/v1/system/ripping-enabled', methods=['GET'])
+@router.get('/system/ripping-enabled')
 def get_ripping_enabled():
     """Return whether ripping is currently enabled (not paused)."""
     state = AppState.get()
-    return jsonify({"ripping_enabled": not state.ripping_paused})
+    return {"ripping_enabled": not state.ripping_paused}
 
 
-@api_bp.route('/v1/system/ripping-enabled', methods=['POST'])
-def set_ripping_enabled():
-    """Toggle global ripping pause.
+@router.get('/system/version')
+def get_version():
+    """Return ARM, MakeMKV, and HandBrake versions."""
+    import re
 
-    Accepts JSON body: {"enabled": bool}
-    """
-    body = request.get_json(silent=True) or {}
+    arm_version = "unknown"
+    install_path = cfg.arm_config.get("INSTALLPATH", "")
+    version_file = os.path.join(install_path, "VERSION")
+    try:
+        with open(version_file) as f:
+            arm_version = f.read().strip()
+    except OSError:
+        pass
+
+    makemkv_version = "unknown"
+    try:
+        result = subprocess.run(
+            ["makemkvcon", "--version"],
+            capture_output=True, text=True, timeout=5
+        )
+        m = re.search(r'v([\d.]+)', result.stdout + result.stderr)
+        if m:
+            makemkv_version = m.group(1)
+    except Exception:
+        pass
+
+    handbrake_version = "unknown"
+    try:
+        result = subprocess.run(
+            ["HandBrakeCLI", "--version"],
+            capture_output=True, text=True, timeout=5
+        )
+        m = re.search(r'HandBrake ([\d.]+)', result.stdout + result.stderr)
+        if m:
+            handbrake_version = m.group(1)
+    except Exception:
+        pass
+
+    return {
+        "arm_version": arm_version,
+        "makemkv_version": makemkv_version,
+        "handbrake_version": handbrake_version,
+    }
+
+
+@router.post('/system/ripping-enabled')
+async def set_ripping_enabled(request: Request):
+    """Toggle global ripping pause."""
+    body = await request.json()
     if 'enabled' not in body:
-        return jsonify({"success": False, "error": "'enabled' field required"}), 400
+        return JSONResponse(
+            {"success": False, "error": "'enabled' field required"},
+            status_code=400,
+        )
 
     state = AppState.get()
     state.ripping_paused = not bool(body['enabled'])
     db.session.commit()
 
-    return jsonify({
+    return {
         "success": True,
         "ripping_enabled": not state.ripping_paused,
-    })
+    }

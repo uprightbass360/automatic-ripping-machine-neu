@@ -1,9 +1,7 @@
-from flask_login import UserMixin
-
 from arm.database import db
 
 
-class User(db.Model, UserMixin):
+class User(db.Model):
     """
     Class to hold admin users
     """
