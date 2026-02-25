@@ -12,6 +12,14 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [1.6.4](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.3...v1.6.4) (2026-02-23)
+
+
+### Bug Fixes
+
+* break arm.ui import chain to fix CI test collection failure ([dc35772](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/dc357724af654d8af55095041c2fc4ee830fd4ae))
+* clear stale ripping_paused flag on container startup ([3788776](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3788776cfec576edc3c698c2c454118ed542bcfb))
+
 ## [1.6.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.2...v1.6.3) (2026-02-23)
 
 
