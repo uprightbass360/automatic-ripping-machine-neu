@@ -108,6 +108,7 @@ class TestNotify:
                  unittest.mock.patch('arm.ripper.utils.bash_notify'), \
                  unittest.mock.patch('apprise.Apprise') as MockApprise:
                 mock_instance = MockApprise.return_value
+                mock_instance.__len__ = lambda self: 4  # 4 services added
                 notify(job, 'Title', 'Body')
                 # PB_KEY, IFTTT, Pushover, JSON_URL = 4 add calls
                 assert mock_instance.add.call_count == 4

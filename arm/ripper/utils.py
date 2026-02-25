@@ -74,10 +74,11 @@ def notify(job, title: str, body: str):
         apobj.add('pover://' + str(cfg.arm_config["PO_USER_KEY"]) + "@" + str(cfg.arm_config["PO_APP_KEY"]))
     if cfg.arm_config["JSON_URL"] != "":
         apobj.add(str(cfg.arm_config["JSON_URL"]).replace("http://", "json://").replace("https://", "jsons://"))
-    try:
-        apobj.notify(body, title=title)
-    except Exception as error:  # noqa: E722
-        logging.error(f"Failed sending notifications. error:{error}. Continuing processing...")
+    if len(apobj) > 0:
+        try:
+            apobj.notify(body, title=title)
+        except Exception as error:  # noqa: E722
+            logging.error(f"Failed sending notifications. error:{error}. Continuing processing...")
 
     # Bulk send notifications, using the config set on the ripper config page
     if cfg.arm_config["APPRISE"] != "":
@@ -152,7 +153,7 @@ def transcoder_notify(cfg, title, body, job=None):
     if raw_basename:
         payload["path"] = raw_basename
     if job is not None:
-        payload["job_id"] = job.job_id
+        payload["job_id"] = str(job.job_id)
         payload["video_type"] = str(job.video_type or '')
         payload["year"] = str(job.year or '')
         payload["disctype"] = str(job.disctype or '')
@@ -688,7 +689,10 @@ def check_for_dupe_folder(have_dupes, hb_out_path, job):
             make_dir(hb_out_path, False)
         else:
             # We aren't allowed to rip dupes, notify and exit
-            logging.info("Duplicate rips are disabled.")
+            logging.warning(
+                f"Duplicate disc detected: '{job.title}' (label={job.label}, "
+                f"crc={job.crc_id}). Skipping — ALLOW_DUPLICATES is false."
+            )
             notify(job, NOTIFY_TITLE, f"ARM Detected a duplicate disc. For {job.title}. "
                                       f"Duplicate rips are disabled. "
                                       f"You can re-enable them from your config file. ")
