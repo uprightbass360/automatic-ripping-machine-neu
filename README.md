@@ -1,4 +1,8 @@
+[![CI](https://github.com/uprightbass360/automatic-ripping-machine-neu/actions/workflows/test.yml/badge.svg)](https://github.com/uprightbass360/automatic-ripping-machine-neu/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/uprightbass360/automatic-ripping-machine-neu/graph/badge.svg)](https://codecov.io/gh/uprightbass360/automatic-ripping-machine-neu)
+[![GitHub release](https://img.shields.io/github/v/release/uprightbass360/automatic-ripping-machine-neu)](https://github.com/uprightbass360/automatic-ripping-machine-neu/releases/latest)
+[![Docker Image](https://img.shields.io/docker/v/uprightbass360/automatic-ripping-machine?label=docker)](https://hub.docker.com/r/uprightbass360/automatic-ripping-machine)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 # Automatic Ripping Machine (ARM) - Neu
 
