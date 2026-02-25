@@ -100,6 +100,22 @@ for conf in $CONFS; do
   fi
 done
 
+##### Apply environment variable overrides to arm.yaml
+# Allows docker-compose to set transcoder integration values via env vars.
+# Only updates keys that exist in arm.yaml; does not add new keys.
+ARM_YAML="/etc/arm/config/arm.yaml"
+apply_yaml_override() {
+  local key="$1" envvar="$2"
+  if [ -n "${!envvar:-}" ] && grep -q "^${key}:" "$ARM_YAML"; then
+    sed -i "s|^${key}:.*|${key}: \"${!envvar}\"|" "$ARM_YAML"
+    echo "arm.yaml: ${key} set from \$${envvar}"
+  fi
+}
+apply_yaml_override TRANSCODER_URL ARM_TRANSCODER_URL
+apply_yaml_override TRANSCODER_WEBHOOK_SECRET ARM_TRANSCODER_WEBHOOK_SECRET
+apply_yaml_override LOCAL_RAW_PATH ARM_LOCAL_RAW_PATH
+apply_yaml_override SHARED_RAW_PATH ARM_SHARED_RAW_PATH
+
 ##### abcde config setup
 # abcde.conf is expected in /etc by the abcde installation
 echo "Checking location of abcde configuration files"

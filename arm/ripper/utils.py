@@ -13,6 +13,7 @@ from pathlib import Path, PurePath
 from math import ceil
 
 import bcrypt
+import httpx
 import requests
 import apprise
 import psutil
@@ -60,6 +61,7 @@ def notify(job, title: str, body: str):
     database_adder(notification)
 
     bash_notify(cfg.arm_config, title, body, job)
+    transcoder_notify(cfg.arm_config, title, body, job)
 
     # Sent to remote sites
     # Create an Apprise instance
@@ -112,6 +114,68 @@ def bash_notify(cfg, title, body, job=None):
             logging.debug("Sent bash notification successful")
         except Exception as error:  # noqa: E722
             logging.error(f"Failed sending notification via bash. Continuing  processing...{error}")
+
+
+def transcoder_notify(cfg, title, body, job=None):
+    """Send a webhook notification to the arm-transcoder service.
+    If LOCAL_RAW_PATH and SHARED_RAW_PATH are both set, moves the job's
+    raw directory from local to shared storage before notifying."""
+    transcoder_url = cfg.get('TRANSCODER_URL', '')
+    if not transcoder_url:
+        return
+
+    # Move files from local scratch to shared storage if configured
+    local_raw = cfg.get('LOCAL_RAW_PATH', '')
+    shared_raw = cfg.get('SHARED_RAW_PATH', '')
+    raw_basename = ''
+
+    if job is not None and job.raw_path:
+        raw_basename = os.path.basename(str(job.raw_path))
+
+    if local_raw and shared_raw and raw_basename:
+        src = os.path.join(local_raw, raw_basename)
+        dst = os.path.join(shared_raw, raw_basename)
+        if os.path.isdir(src):
+            try:
+                os.makedirs(shared_raw, exist_ok=True)
+                shutil.move(src, dst)
+                logging.info(f"Moved {src} -> {dst}")
+            except OSError as e:
+                logging.error(f"Failed to move {src} -> {dst}: {e}")
+
+    # Build payload
+    payload = {
+        "title": title,
+        "body": body,
+        "type": "info",
+    }
+    if raw_basename:
+        payload["path"] = raw_basename
+    if job is not None:
+        payload["job_id"] = job.job_id
+        payload["video_type"] = str(job.video_type or '')
+        payload["year"] = str(job.year or '')
+        payload["disctype"] = str(job.disctype or '')
+        payload["status"] = str(job.status or '')
+
+    # Send webhook
+    headers = {"Content-Type": "application/json"}
+    secret = cfg.get('TRANSCODER_WEBHOOK_SECRET', '')
+    if secret:
+        headers["X-Webhook-Secret"] = secret
+
+    try:
+        with httpx.Client(timeout=10) as client:
+            resp = client.post(transcoder_url, json=payload, headers=headers)
+        if resp.status_code in (401, 403):
+            logging.error(
+                f"Transcoder webhook auth failed (HTTP {resp.status_code}). "
+                "Check TRANSCODER_WEBHOOK_SECRET matches WEBHOOK_SECRET on the transcoder."
+            )
+        else:
+            logging.info(f"Transcoder webhook sent (HTTP {resp.status_code})")
+    except Exception as e:
+        logging.error(f"Failed sending transcoder webhook: {e}")
 
 
 def notify_entry(job):

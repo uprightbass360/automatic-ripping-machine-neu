@@ -49,6 +49,9 @@ services:
       - ARM_UID=${ARM_UID}
       - ARM_GID=${ARM_GID}
       - TZ=${TZ}
+      # Transcoder integration (written to arm.yaml at startup)
+      - ARM_TRANSCODER_URL=${ARM_TRANSCODER_URL:-http://arm-transcoder:5000/webhook/arm}
+      - ARM_TRANSCODER_WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
     volumes:
       - ${ARM_MUSIC_PATH}:/home/arm/music
       - ${ARM_LOGS_PATH}:/home/arm/logs
