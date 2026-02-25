@@ -4,8 +4,8 @@
 # Base image:   docker build -t arm-base:latest docker/base/
 # This image:   docker build -t arm:latest .
 #
-# The base image compiles MakeMKV + HandBrake from source
-# and only needs rebuilding when those versions change.
+# The base image compiles MakeMKV from source
+# and only needs rebuilding when that version changes.
 ###########################################################
 
 ARG BASE_IMAGE=uprightbass360/arm-dependencies:latest

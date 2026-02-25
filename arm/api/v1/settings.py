@@ -1,26 +1,27 @@
 """API v1 — Settings endpoints."""
 import importlib
-
 import logging
 
-from flask import jsonify, request
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
 import arm.config.config as cfg
-
-app = logging.getLogger("ARM")
-from arm.api import api_bp
 from arm.models.config import hidden_attribs, HIDDEN_VALUE
-from arm.ui import json_api
-from arm.ui.utils import generate_comments, build_arm_cfg
+from arm.services import jobs as svc_jobs
+from arm.services.config import generate_comments, build_arm_cfg
+
+log = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1", tags=["settings"])
 
 
-@api_bp.route('/v1/settings/notify-timeout', methods=['GET'])
+@router.get('/settings/notify-timeout')
 def get_notify_timeout():
     """Get the notification timeout setting."""
-    return jsonify(json_api.get_notify_timeout('notify_timeout'))
+    return svc_jobs.get_notify_timeout('notify_timeout')
 
 
-@api_bp.route('/v1/settings/config', methods=['GET'])
+@router.get('/settings/config')
 def get_config():
     """Return live arm.yaml config with sensitive fields masked."""
     raw_config = dict(cfg.arm_config)
@@ -32,24 +33,25 @@ def get_config():
             config[str(key)] = str(raw_config[key]) if raw_config[key] is not None else None
 
     comments = generate_comments()
-    return jsonify({"config": config, "comments": comments})
+    return {"config": config, "comments": comments}
 
 
-@api_bp.route('/v1/settings/config', methods=['PUT'])
-def update_config():
-    """Update arm.yaml config from JSON payload.
-
-    Expects ``{"config": {key: value, ...}}``.  For sensitive fields where
-    the client sends the ``HIDDEN_VALUE`` sentinel, the existing value is
-    preserved so secrets are never lost on save.
-    """
-    data = request.get_json(silent=True)
+@router.put('/settings/config')
+async def update_config(request: Request):
+    """Update arm.yaml config from JSON payload."""
+    data = await request.json()
     if not data or "config" not in data:
-        return jsonify({"success": False, "error": "Missing 'config' in request body"}), 400
+        return JSONResponse(
+            {"success": False, "error": "Missing 'config' in request body"},
+            status_code=400,
+        )
 
     incoming = data["config"]
     if not isinstance(incoming, dict) or len(incoming) == 0:
-        return jsonify({"success": False, "error": "'config' must be a non-empty object"}), 400
+        return JSONResponse(
+            {"success": False, "error": "'config' must be a non-empty object"},
+            status_code=400,
+        )
 
     # Preserve existing values for hidden fields that were not changed
     current = dict(cfg.arm_config)
@@ -67,17 +69,20 @@ def update_config():
         with open(cfg.arm_config_path, "w") as f:
             f.write(arm_cfg_text)
     except OSError as e:
-        app.logger.error(f"Failed to write config: {e}")
-        return jsonify({"success": False, "error": "Failed to write config file"}), 500
+        log.error(f"Failed to write config: {e}")
+        return JSONResponse(
+            {"success": False, "error": "Failed to write config file"},
+            status_code=500,
+        )
 
     # Reload the config module so the running process picks up changes
     try:
         importlib.reload(cfg)
     except Exception as e:
-        app.logger.error(f"Config reload failed: {e}")
-        return jsonify({
+        log.error(f"Config reload failed: {e}")
+        return {
             "success": True,
             "warning": "Config saved but reload failed",
-        })
+        }
 
-    return jsonify({"success": True})
+    return {"success": True}

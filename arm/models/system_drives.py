@@ -146,7 +146,7 @@ class SystemDrives(db.Model):  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        drive: arm.ui.settings.DriveUtils.Drive
+        drive: arm.services.drives.DriveInformationMedium
         """
         # static information
         self.serial_id = drive.serial_id

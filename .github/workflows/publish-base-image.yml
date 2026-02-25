@@ -30,7 +30,6 @@ jobs:
         id: versions
         run: |
           echo "makemkv=$(cat docker/base/VERSION_MAKEMKV | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
-          echo "handbrake=$(cat docker/base/VERSION_HANDBRAKE | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
           echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
@@ -56,12 +55,12 @@ jobs:
           push: true
           tags: |
             ${{ env.DOCKERHUB_IMAGE }}:latest
-            ${{ env.DOCKERHUB_IMAGE }}:mkv${{ steps.versions.outputs.makemkv }}-hb${{ steps.versions.outputs.handbrake }}
+            ${{ env.DOCKERHUB_IMAGE }}:mkv${{ steps.versions.outputs.makemkv }}
             ${{ env.GHCR_IMAGE }}:latest
-            ${{ env.GHCR_IMAGE }}:mkv${{ steps.versions.outputs.makemkv }}-hb${{ steps.versions.outputs.handbrake }}
+            ${{ env.GHCR_IMAGE }}:mkv${{ steps.versions.outputs.makemkv }}
           build-args: |
-            VERSION=mkv${{ steps.versions.outputs.makemkv }}-hb${{ steps.versions.outputs.handbrake }}
+            VERSION=mkv${{ steps.versions.outputs.makemkv }}
             BUILD_DATE=${{ steps.versions.outputs.date }}
           labels: |
-            org.opencontainers.image.version=mkv${{ steps.versions.outputs.makemkv }}-hb${{ steps.versions.outputs.handbrake }}
+            org.opencontainers.image.version=mkv${{ steps.versions.outputs.makemkv }}
             org.opencontainers.image.created=${{ steps.versions.outputs.date }}

@@ -1,4 +1,4 @@
-"""Tests for database layer extraction (Phase 1)."""
+"""Tests for database layer (standalone SQLAlchemy)."""
 
 
 class TestDatabaseLayer:
@@ -7,16 +7,8 @@ class TestDatabaseLayer:
         from arm.database import db
         assert db is not None
 
-    def test_db_same_instance(self):
-        """arm.ui.db and arm.database.db should be the same object."""
-        from arm.database import db as db1
-        from arm.ui import db as db2
-        assert db1 is db2
-
-    def test_init_db_binds_to_app(self, app_context):
-        """init_db() should have bound db to the Flask app."""
-        app, _ = app_context
-        # Verify we can query within the app context
+    def test_init_db_creates_tables(self, app_context):
+        """init_engine + create_all should set up tables."""
         from arm.models.job import Job
         assert Job.query.all() == []
 

@@ -1,109 +1,88 @@
 """API v1 — Job endpoints."""
 import re
 
-from flask import jsonify, request
+from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
-from arm.api import api_bp
 import arm.config.config as cfg
 from arm.database import db
 from arm.models.job import Job, JobState
 from arm.models.notifications import Notifications
-from arm.ui import json_api
-import arm.ui.utils as ui_utils
+from arm.services import jobs as svc_jobs
+from arm.services import files as svc_files
+
+router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
 
-@api_bp.route('/v1/jobs', methods=['GET'])
-def list_jobs():
-    """List jobs, optionally filtered by status or search query.
-
-    Query params:
-        status: 'fail' | 'success' (omit for active jobs)
-        q: search query string
-    """
-    status = request.args.get('status')
-    query = request.args.get('q')
-
-    if query:
-        return jsonify(json_api.search(query))
+@router.get('/jobs')
+def list_jobs(status: str = None, q: str = None):
+    """List jobs, optionally filtered by status or search query."""
+    if q:
+        return svc_jobs.search(q)
     elif status == 'fail':
-        return jsonify(json_api.get_x_jobs(JobState.FAILURE.value))
+        return svc_jobs.get_x_jobs(JobState.FAILURE.value)
     elif status == 'success':
-        return jsonify(json_api.get_x_jobs(JobState.SUCCESS.value))
+        return svc_jobs.get_x_jobs(JobState.SUCCESS.value)
     else:
-        return jsonify(json_api.get_x_jobs('joblist'))
+        return svc_jobs.get_x_jobs('joblist')
 
 
-@api_bp.route('/v1/jobs/<int:job_id>', methods=['DELETE'])
-def delete_job(job_id):
+@router.delete('/jobs/{job_id}')
+def delete_job(job_id: int):
     """Delete a job by ID."""
-    return jsonify(json_api.delete_job(str(job_id), 'delete'))
+    return svc_jobs.delete_job(str(job_id), 'delete')
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/abandon', methods=['POST'])
-def abandon_job(job_id):
+@router.post('/jobs/{job_id}/abandon')
+def abandon_job(job_id: int):
     """Abandon a running job."""
-    return jsonify(json_api.abandon_job(str(job_id)))
+    return svc_jobs.abandon_job(str(job_id))
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/start', methods=['POST'])
-def start_waiting_job(job_id):
-    """Start a job that is in 'waiting' status.
-
-    Sets manual_start=True so the ripper loop picks it up.
-    """
+@router.post('/jobs/{job_id}/start')
+def start_waiting_job(job_id: int):
+    """Start a job that is in 'waiting' status."""
     job = Job.query.get(job_id)
     if not job:
-        return jsonify({"success": False, "error": "Job not found"}), 404
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
 
     if job.status != JobState.MANUAL_WAIT_STARTED.value:
-        return jsonify({"success": False, "error": "Job is not in waiting state"}), 409
+        return JSONResponse({"success": False, "error": "Job is not in waiting state"}, status_code=409)
 
-    ui_utils.database_updater({"manual_start": True}, job)
-    return jsonify({"success": True, "job_id": job.job_id})
+    svc_files.database_updater({"manual_start": True}, job)
+    return {"success": True, "job_id": job.job_id}
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/cancel', methods=['POST'])
-def cancel_waiting_job(job_id):
-    """Cancel a job that is in 'waiting' status.
-
-    Unlike abandon (which kills a running process), this simply marks the
-    waiting job as failed so the ripper loop exits cleanly.
-    """
+@router.post('/jobs/{job_id}/cancel')
+def cancel_waiting_job(job_id: int):
+    """Cancel a job that is in 'waiting' status."""
     job = Job.query.get(job_id)
     if not job:
-        return jsonify({"success": False, "error": "Job not found"}), 404
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
 
     if job.status != JobState.MANUAL_WAIT_STARTED.value:
-        return jsonify({"success": False, "error": "Job is not in waiting state"}), 409
+        return JSONResponse({"success": False, "error": "Job is not in waiting state"}, status_code=409)
 
     notification = Notifications(
         f"Job: {job.job_id} was cancelled",
         f"'{job.title}' was cancelled by user during manual-wait"
     )
     db.session.add(notification)
-    ui_utils.database_updater({"status": JobState.FAILURE.value}, job)
+    svc_files.database_updater({"status": JobState.FAILURE.value}, job)
 
-    return jsonify({"success": True, "job_id": job.job_id})
+    return {"success": True, "job_id": job.job_id}
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/config', methods=['PATCH'])
-def change_job_config(job_id):
-    """Update job rip parameters.
-
-    Accepts JSON body with optional fields:
-        RIPMETHOD: 'mkv' | 'backup'
-        DISCTYPE: 'dvd' | 'bluray' | 'bluray4k' | 'music' | 'data'
-        MAINFEATURE: bool
-        MINLENGTH: int (seconds)
-        MAXLENGTH: int (seconds)
-    """
+@router.patch('/jobs/{job_id}/config')
+async def change_job_config(job_id: int, request: Request):
+    """Update job rip parameters."""
     job = Job.query.get(job_id)
     if not job:
-        return jsonify({"success": False, "error": "Job not found"}), 404
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
 
-    body = request.get_json(silent=True) or {}
+    body = await request.json()
     if not body:
-        return jsonify({"success": False, "error": "No fields to update"}), 400
+        return JSONResponse({"success": False, "error": "No fields to update"}, status_code=400)
 
     config = job.config
     job_args = {}
@@ -115,7 +94,10 @@ def change_job_config(job_id):
     if 'RIPMETHOD' in body:
         val = str(body['RIPMETHOD']).lower()
         if val not in valid_ripmethods:
-            return jsonify({"success": False, "error": f"RIPMETHOD must be one of {valid_ripmethods}"}), 400
+            return JSONResponse(
+                {"success": False, "error": f"RIPMETHOD must be one of {valid_ripmethods}"},
+                status_code=400,
+            )
         config.RIPMETHOD = val
         cfg.arm_config["RIPMETHOD"] = val
         changes.append(f"Rip Method={val}")
@@ -123,7 +105,10 @@ def change_job_config(job_id):
     if 'DISCTYPE' in body:
         val = str(body['DISCTYPE']).lower()
         if val not in valid_disctypes:
-            return jsonify({"success": False, "error": f"DISCTYPE must be one of {valid_disctypes}"}), 400
+            return JSONResponse(
+                {"success": False, "error": f"DISCTYPE must be one of {valid_disctypes}"},
+                status_code=400,
+            )
         job_args['disctype'] = val
         changes.append(f"Disctype={val}")
 
@@ -146,49 +131,41 @@ def change_job_config(job_id):
         changes.append(f"Max Length={val}")
 
     if not changes:
-        return jsonify({"success": False, "error": "No valid fields provided"}), 400
+        return JSONResponse({"success": False, "error": "No valid fields provided"}, status_code=400)
 
     message = f"Parameters changed: {', '.join(changes)}"
     notification = Notifications(f"Job: {job.job_id} Config updated!", message)
     db.session.add(notification)
-    ui_utils.database_updater(job_args, job)
+    svc_files.database_updater(job_args, job)
 
-    return jsonify({"success": True, "job_id": job.job_id})
+    return {"success": True, "job_id": job.job_id}
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/fix-permissions', methods=['POST'])
-def fix_job_permissions(job_id):
+@router.post('/jobs/{job_id}/fix-permissions')
+def fix_job_permissions(job_id: int):
     """Fix file permissions for a job."""
-    return jsonify(ui_utils.fix_permissions(str(job_id)))
+    return svc_files.fix_permissions(str(job_id))
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/send', methods=['POST'])
-def send_job(job_id):
+@router.post('/jobs/{job_id}/send')
+def send_job(job_id: int):
     """Send a job to a remote database."""
-    return jsonify(ui_utils.send_to_remote_db(str(job_id)))
+    return svc_files.send_to_remote_db(str(job_id))
 
 
-@api_bp.route('/v1/jobs/<int:job_id>/title', methods=['PUT'])
-def update_job_title(job_id):
-    """Update a job's title metadata.
-
-    Accepts JSON body with optional fields:
-        title, year, video_type, imdb_id, poster_url
-
-    Sets both the effective and _manual fields for each provided value,
-    marks hasnicetitle=True, and creates a notification.
-    """
+@router.put('/jobs/{job_id}/title')
+async def update_job_title(job_id: int, request: Request):
+    """Update a job's title metadata."""
     job = Job.query.get(job_id)
     if not job:
-        return jsonify({"success": False, "error": "Job not found"}), 404
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
 
-    body = request.get_json(silent=True) or {}
+    body = await request.json()
 
     old_title = job.title
     old_year = job.year
     updated = {}
 
-    # Map of body keys to (effective_field, manual_field) pairs
     field_map = {
         'title': ('title', 'title_manual'),
         'year': ('year', 'year_manual'),
@@ -197,7 +174,6 @@ def update_job_title(job_id):
         'poster_url': ('poster_url', 'poster_url_manual'),
     }
 
-    # Fields that map directly (no _manual counterpart)
     direct_fields = ('path',)
 
     args = {}
@@ -217,7 +193,7 @@ def update_job_title(job_id):
             updated[key] = value
 
     if not updated:
-        return jsonify({"success": False, "error": "No fields to update"}), 400
+        return JSONResponse({"success": False, "error": "No fields to update"}, status_code=400)
 
     args['hasnicetitle'] = True
 
@@ -227,17 +203,17 @@ def update_job_title(job_id):
         f"{updated.get('title', old_title)} ({updated.get('year', old_year)})"
     )
     db.session.add(notification)
-    ui_utils.database_updater(args, job)
+    svc_files.database_updater(args, job)
 
-    return jsonify({
+    return {
         "success": True,
         "job_id": job.job_id,
         "updated": updated,
-    })
+    }
 
 
 def _clean_for_filename(string):
-    """Clean a string for use in filenames (mirrors ui_utils.clean_for_filename)."""
+    """Clean a string for use in filenames."""
     string = re.sub(r'\s+', ' ', string)
     string = string.replace(' : ', ' - ')
     string = string.replace(':', '-')

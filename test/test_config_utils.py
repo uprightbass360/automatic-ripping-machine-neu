@@ -6,13 +6,13 @@ class TestArmYamlTestBool:
 
     def test_true_value(self):
         from arm.config.config_utils import arm_yaml_test_bool
-        result = arm_yaml_test_bool("SKIP_TRANSCODE", "True")
-        assert result == "SKIP_TRANSCODE: true\n"
+        result = arm_yaml_test_bool("MAINFEATURE", "True")
+        assert result == "MAINFEATURE: true\n"
 
     def test_false_value(self):
         from arm.config.config_utils import arm_yaml_test_bool
-        result = arm_yaml_test_bool("SKIP_TRANSCODE", "False")
-        assert result == "SKIP_TRANSCODE: false\n"
+        result = arm_yaml_test_bool("MAINFEATURE", "False")
+        assert result == "MAINFEATURE: false\n"
 
     def test_case_insensitive_true(self):
         from arm.config.config_utils import arm_yaml_test_bool
@@ -54,7 +54,6 @@ def _full_comments():
             'WEB_SERVER': '# Web Server',
             'FILE_PERMS': '# File Permissions',
             'MAKE_MKV': '# MakeMKV',
-            'HANDBRAKE': '# HandBrake',
             'EMBY': '# Emby',
             'EMBY_ADDITIONAL': '# Emby Additional',
             'NOTIFY_PERMS': '# Notifications',
@@ -91,7 +90,7 @@ class TestBuildArmCfgStrip:
     """Test that build_arm_cfg strips whitespace from values (#1684)."""
 
     def test_key_value_stripped(self):
-        from arm.ui.utils import build_arm_cfg
+        from arm.services.config import build_arm_cfg
         comments = _full_comments()
         comments['ARM_CFG_GROUPS']['BEGIN'] = '# ARM config'
         form_data = {
@@ -102,7 +101,7 @@ class TestBuildArmCfgStrip:
         assert '  T-abc123xyz' not in result
 
     def test_normal_value_unchanged(self):
-        from arm.ui.utils import build_arm_cfg
+        from arm.services.config import build_arm_cfg
         comments = _full_comments()
         comments['ARM_CFG_GROUPS']['BEGIN'] = '# ARM config'
         form_data = {

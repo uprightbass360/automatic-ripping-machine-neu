@@ -175,195 +175,6 @@ def sleep_check_process(process_str, max_processes, sleep=(20, 120, 10)):
     return True
 
 
-def convert_job_type(video_type):
-    """
-    Converts the job_type to the correct sub-folder.
-    Deprecated: use job.type_subfolder instead.
-    Kept for the call site in rip_data() that passes video_type directly.
-    :param video_type: job.video_type
-    :return: string of the correct folder
-    """
-    if video_type == "movie":
-        type_sub_folder = "movies"
-    elif video_type == "series":
-        type_sub_folder = "tv"
-    else:
-        type_sub_folder = "unidentified"
-    return type_sub_folder
-
-
-def fix_job_title(job):
-    """
-    Validate the job title remove/add job year as needed.
-    Deprecated: use job.formatted_title instead.\n
-    :param job:
-    :return: corrected job.title
-    """
-    return job.formatted_title
-
-
-#  ############## Start of post processing functions
-def move_files(base_path, filename, job, is_main_feature=False):
-    """
-    Run extra checks then move files from RAW_PATH or TRANSCODE_PATH to final media directory\n
-    :param str base_path: Path to source directory\n
-    :param str filename: name of file to be moved\n
-    :param job: instance of Job class\n
-    :param bool is_main_feature: if current is main feature move to main dir
-    :return str: Full movie path
-    """
-    video_title = fix_job_title(job)
-    logging.debug(f"Arguments: {base_path} : {filename} : "
-                  f"{job.hasnicetitle} : {video_title} : {is_main_feature}")
-    # If filename is blank skip and return
-    if filename == "":
-        logging.info(f"{filename} is empty... Skipping")
-        return None
-
-    movie_path = job.path
-    logging.info(f"Moving {job.video_type} {filename} to {movie_path}")
-    # For series there are no extras so always use the base path
-    extras_path = os.path.join(movie_path, job.config.EXTRAS_SUB) if job.video_type != "series" else movie_path
-    make_dir(movie_path)
-
-    if is_main_feature:
-        movie_file = os.path.join(movie_path, video_title + "." + job.config.DEST_EXT)
-        logging.info(f"Track is the Main Title.  Moving '{os.path.join(base_path, filename)}' to {movie_file}")
-        move_files_main(os.path.join(base_path, filename), movie_file, movie_path)
-    else:
-        # Don't make the extra's path unless we need it
-        make_dir(extras_path)
-        logging.info(f"Moving '{os.path.join(base_path, filename)}' to {extras_path}")
-        # This also handles series - But it doesn't use the extras folder
-        move_files_main(os.path.join(base_path, filename), os.path.join(extras_path, filename), extras_path)
-    return movie_path
-
-
-def _calculate_filename_similarity(expected_base, actual_base):
-    """
-    Calculate similarity score between two filenames.
-
-    :param str expected_base: Expected filename without extension
-    :param str actual_base: Actual filename without extension
-    :return int: Similarity score
-    """
-    score = 0
-    min_len = min(len(expected_base), len(actual_base))
-
-    # Count matching characters from the start
-    for i in range(min_len):
-        if expected_base[i] == actual_base[i]:
-            score += 1
-        else:
-            break
-
-    # Count matching characters from the end
-    for i in range(1, min_len + 1):
-        if expected_base[-i] == actual_base[-i]:
-            score += 1
-        else:
-            break
-
-    # Bonus for similar length
-    length_diff = abs(len(expected_base) - len(actual_base))
-    if length_diff <= 2:  # Within 2 characters difference
-        score += (3 - length_diff) * 2
-
-    return score
-
-
-def find_matching_file(expected_file):
-    """
-    Find a file that matches the expected filename, handling minor naming discrepancies.
-    This is particularly useful for MKV files transcoded by HandBrake where the output
-    filename may differ slightly from what's stored in the database.
-
-    :param str expected_file: The full path to the expected file
-    :return str: The actual file path if found, or the original expected_file if no match
-    """
-    if os.path.isfile(expected_file):
-        return expected_file
-
-    directory = os.path.dirname(expected_file)
-    expected_filename = os.path.basename(expected_file)
-
-    if not os.path.isdir(directory):
-        return expected_file
-
-    expected_base, expected_ext = os.path.splitext(expected_filename)
-
-    # Get candidate files with same extension
-    try:
-        files_in_dir = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
-    except OSError:
-        return expected_file
-
-    candidate_files = []
-    for file in files_in_dir:
-        base, ext = os.path.splitext(file)
-        if ext.lower() == expected_ext.lower():
-            candidate_files.append((file, base))
-
-    if not candidate_files:
-        return expected_file
-
-    # Find best match
-    best_match = None
-    best_score = 0
-
-    for file, base in candidate_files:
-        score = _calculate_filename_similarity(expected_base, base)
-        if score > best_score:
-            best_score = score
-            best_match = file
-
-    # Use match if similar enough (at least 80% of expected length matched)
-    min_score = len(expected_base) * 0.8
-    if best_match and best_score >= min_score:
-        actual_file = os.path.join(directory, best_match)
-        if actual_file != expected_file:
-            logging.info(f"Found similar file '{best_match}' for expected '{expected_filename}' (score: {best_score})")
-        return actual_file
-
-    return expected_file
-
-
-def move_files_main(old_file, new_file, base_path):
-    """
-    The base function for moving files with logging\n
-    :param str old_file: The file to be moved - must include full path
-    :param str new_file: Final destination of file - must include full path
-    :param str base_path: The base path of the new file - used for logging
-    :return: None
-    """
-    if not os.path.isfile(new_file):
-        # Try to find the file, handling minor naming discrepancies
-        actual_old_file = find_matching_file(old_file)
-
-        try:
-            shutil.move(actual_old_file, new_file)
-        except Exception as error:
-            logging.error(f"Unable to move '{actual_old_file}' to '{base_path}' - Error: {error}")
-    else:
-        logging.info(f"File: {new_file} already exists.  Not moving.")
-
-
-def move_movie_poster(final_directory, hb_out_path):
-    """move movie poster\n
-    ---------\n
-    DEPRECIATED - Arm already builds the final path so moving is no longer needed"""
-    src_poster = os.path.join(hb_out_path, "poster.png")
-    dst_poster = os.path.join(final_directory, "poster.png")
-    if os.path.isfile(src_poster):
-        if not os.path.isfile(dst_poster):
-            try:
-                shutil.move(src_poster, dst_poster)
-            except Exception as poster_error:
-                logging.error(f"Unable to move poster.png to '{final_directory}' - Error: {poster_error}")
-        else:
-            logging.info("File: poster.png already exists.  Not moving.")
-
-
 def scan_emby():
     """Trigger a media scan on Emby"""
 
@@ -400,9 +211,6 @@ def delete_raw_files(dir_list):
                 logging.debug(f"No raw files found to delete in {raw_folder} - {error}")
 
 
-#  ############## End of post processing functions
-
-
 def make_dir(path: str, exist_ok: bool = True) -> bool:
     """
     Make a directory\n
@@ -436,25 +244,6 @@ def find_file(filename, search_path):
         if filename in filenames:
             return True
     return False
-
-
-def find_largest_file(files, mkv_out_path):
-    """
-    Step through given dir and return the largest file name\n
-    :param files: dir in os.listdir() format
-    :param mkv_out_path: RAW_PATH
-    :return: largest file name
-    """
-    largest_file_name = ""
-    for file in files:
-        # initialize largest_file_name
-        if largest_file_name == "":
-            largest_file_name = file
-        temp_path_f = os.path.join(mkv_out_path, file)
-        temp_path_largest = os.path.join(mkv_out_path, largest_file_name)
-        if os.stat(temp_path_f).st_size > os.stat(temp_path_largest).st_size:
-            largest_file_name = file
-    return largest_file_name
 
 
 def rip_music(job, logfile):
@@ -518,7 +307,8 @@ def rip_data(job):
         job.label = "data-disc"
     # get filesystem in order
     raw_path = os.path.join(job.config.RAW_PATH, str(job.label))
-    final_path = os.path.join(job.config.COMPLETED_PATH, convert_job_type(job.video_type))
+    type_sub_folder = job.type_subfolder if hasattr(job, 'type_subfolder') else "unidentified"
+    final_path = os.path.join(job.config.COMPLETED_PATH, type_sub_folder)
     final_file_name = str(job.label)
 
     if (make_dir(raw_path)) is False:
@@ -539,7 +329,13 @@ def rip_data(job):
         subprocess.check_output(cmd, shell=True).decode("utf-8")
         full_final_file = os.path.join(final_path, f"{final_file_name}.iso")
         logging.info(f"Moving data-disc from '{incomplete_filename}' to '{full_final_file}'")
-        move_files_main(incomplete_filename, full_final_file, final_path)
+        if not os.path.isfile(full_final_file):
+            try:
+                shutil.move(incomplete_filename, full_final_file)
+            except Exception as error:
+                logging.error(f"Unable to move '{incomplete_filename}' to '{final_path}' - Error: {error}")
+        else:
+            logging.info(f"File: {full_final_file} already exists.  Not moving.")
         logging.info("Data rip call successful")
         database_updater({'path': full_final_file}, job)
         success = True
@@ -555,34 +351,6 @@ def rip_data(job):
     except OSError as error:
         logging.error(f"Error: {error.filename} - {error.strerror}.")
     return success
-
-
-def set_permissions(directory_to_traverse):
-    """
-
-    :param directory_to_traverse: directory to fix permissions
-    :return: False if fails
-    """
-    if not cfg.arm_config['SET_MEDIA_PERMISSIONS']:
-        return False
-    try:
-        corrected_chmod_value = int(str(cfg.arm_config["CHMOD_VALUE"]), 8)
-        logging.info(f"Setting permissions to: {cfg.arm_config['CHMOD_VALUE']} on: {directory_to_traverse}")
-        os.chmod(directory_to_traverse, corrected_chmod_value)
-
-        for dirpath, l_directories, l_files in os.walk(directory_to_traverse):
-            for cur_dir in l_directories:
-                logging.debug(f"Setting path: {cur_dir} to permissions value: {cfg.arm_config['CHMOD_VALUE']}")
-                os.chmod(os.path.join(dirpath, cur_dir), corrected_chmod_value)
-
-            for cur_file in l_files:
-                logging.debug(f"Setting file: {cur_file} to permissions value: {cfg.arm_config['CHMOD_VALUE']}")
-                os.chmod(os.path.join(dirpath, cur_file), corrected_chmod_value)
-
-        logging.info("Permissions set successfully: True")
-    except Exception as error:
-        logging.error(f"Permissions setting failed as: {error}")
-    return True
 
 
 def try_add_default_user():
@@ -649,7 +417,6 @@ def arm_setup(arm_log: Logger) -> None:
     """
     arm_directories = (
         cfg.arm_config['RAW_PATH'],
-        cfg.arm_config['TRANSCODE_PATH'],
         cfg.arm_config['COMPLETED_PATH'],
         cfg.arm_config['LOGPATH'],
         os.path.join(cfg.arm_config['LOGPATH'], "progress"),

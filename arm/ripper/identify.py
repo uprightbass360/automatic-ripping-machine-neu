@@ -437,15 +437,15 @@ def metadata_selector(job, title=None, year=None):
 
     :return: json/dict object or None
     """
-    from arm.ui import utils as ui_utils  # lazy: avoid pulling Flask app at import time
+    from arm.services import metadata as svc_meta
 
     search_results = None
     if cfg.arm_config['METADATA_PROVIDER'].lower() == "tmdb":
         logging.debug("provider tmdb")
-        search_results = ui_utils.tmdb_search(title, year)
+        search_results = svc_meta.tmdb_search(title, year)
     elif cfg.arm_config['METADATA_PROVIDER'].lower() == "omdb":
         logging.debug("provider omdb")
-        search_results = ui_utils.call_omdb_api(str(title), str(year))
+        search_results = svc_meta.call_omdb_api(str(title), str(year))
     else:
         logging.debug(cfg.arm_config['METADATA_PROVIDER'])
         logging.debug("unknown provider - doing nothing, saying nothing. Getting Kryten")

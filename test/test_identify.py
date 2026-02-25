@@ -306,7 +306,7 @@ class TestMetadataSelector:
         cfg.arm_config['METADATA_PROVIDER'] = 'omdb'
         try:
             # Return None to avoid update_job being called
-            with unittest.mock.patch('arm.ui.utils.call_omdb_api',
+            with unittest.mock.patch('arm.services.metadata.call_omdb_api',
                                      return_value=None) as mock_omdb:
                 metadata_selector(job, 'Serial Mom', '1994')
                 mock_omdb.assert_called_once()
@@ -323,7 +323,7 @@ class TestMetadataSelector:
         original = cfg.arm_config.get('METADATA_PROVIDER')
         cfg.arm_config['METADATA_PROVIDER'] = 'tmdb'
         try:
-            with unittest.mock.patch('arm.ui.utils.tmdb_search',
+            with unittest.mock.patch('arm.services.metadata.tmdb_search',
                                      return_value=None) as mock_tmdb:
                 metadata_selector(job, 'Serial Mom', '1994')
                 mock_tmdb.assert_called_once()
@@ -367,7 +367,7 @@ class TestMetadataSelector:
                 }],
                 'Response': 'True',
             }
-            with unittest.mock.patch('arm.ui.utils.call_omdb_api',
+            with unittest.mock.patch('arm.services.metadata.call_omdb_api',
                                      return_value=bad_results):
                 result = metadata_selector(job, 'TEST', '2020')
             # Should return None because matcher rejected the results
@@ -1345,7 +1345,7 @@ class TestMatcherIntegration:
         original = cfg.arm_config.get('METADATA_PROVIDER')
         cfg.arm_config['METADATA_PROVIDER'] = 'omdb'
         try:
-            with unittest.mock.patch('arm.ui.utils.call_omdb_api',
+            with unittest.mock.patch('arm.services.metadata.call_omdb_api',
                                      return_value=bad_results):
                 result = metadata_selector(job, 'Serial+Mom', '1994')
             assert result is None
@@ -1373,7 +1373,7 @@ class TestOmdbShortTitleFallback:
     @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_search_failure_falls_back_to_exact_title(self):
         """When ?s= returns 'Too many results', ?t= is tried."""
-        from arm.ui.metadata import call_omdb_api
+        from arm.services.metadata import call_omdb_api
 
         search_error = {"Response": "False", "Error": "Too many results."}
         exact_match = {
@@ -1385,7 +1385,7 @@ class TestOmdbShortTitleFallback:
             "Poster": "https://example.com/9.jpg",
         }
         mock_open = self._mock_urlopen([search_error, exact_match])
-        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+        with unittest.mock.patch('arm.services.metadata.urllib.request.urlopen', side_effect=mock_open):
             result = call_omdb_api(title="9", year="2009")
 
         assert result is not None
@@ -1395,11 +1395,11 @@ class TestOmdbShortTitleFallback:
     @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_both_search_and_exact_fail_returns_none(self):
         """When both ?s= and ?t= fail, returns None."""
-        from arm.ui.metadata import call_omdb_api
+        from arm.services.metadata import call_omdb_api
 
         error_resp = {"Response": "False", "Error": "Movie not found!"}
         mock_open = self._mock_urlopen([error_resp, error_resp])
-        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+        with unittest.mock.patch('arm.services.metadata.urllib.request.urlopen', side_effect=mock_open):
             result = call_omdb_api(title="xyznonexistent", year="2020")
 
         assert result is None
@@ -1407,7 +1407,7 @@ class TestOmdbShortTitleFallback:
     @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_search_succeeds_no_fallback_needed(self):
         """When ?s= succeeds, no fallback is triggered."""
-        from arm.ui.metadata import call_omdb_api
+        from arm.services.metadata import call_omdb_api
 
         search_success = {
             "Response": "True",
@@ -1415,7 +1415,7 @@ class TestOmdbShortTitleFallback:
                         "Type": "movie", "Poster": "https://example.com/matrix.jpg"}]
         }
         mock_open = self._mock_urlopen([search_success])
-        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen', side_effect=mock_open):
+        with unittest.mock.patch('arm.services.metadata.urllib.request.urlopen', side_effect=mock_open):
             result = call_omdb_api(title="The Matrix", year="1999")
 
         assert result is not None
@@ -1424,7 +1424,7 @@ class TestOmdbShortTitleFallback:
     @unittest.mock.patch.dict('arm.config.config.arm_config', {'OMDB_API_KEY': 'test_key'})
     def test_fallback_network_error_returns_none(self):
         """When ?s= fails and ?t= raises a network error, returns None gracefully (#1430)."""
-        from arm.ui.metadata import call_omdb_api
+        from arm.services.metadata import call_omdb_api
 
         call_count = [0]
 
@@ -1441,7 +1441,7 @@ class TestOmdbShortTitleFallback:
             raise urllib.error.URLError("DNS lookup failed")
 
         import urllib.error
-        with unittest.mock.patch('arm.ui.metadata.urllib.request.urlopen',
+        with unittest.mock.patch('arm.services.metadata.urllib.request.urlopen',
                                  side_effect=mock_urlopen):
             result = call_omdb_api(title="9", year="2009")
 

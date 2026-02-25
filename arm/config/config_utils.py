@@ -13,7 +13,6 @@ def arm_yaml_check_groups(comments, key):
                       'WEBSERVER_IP': "\n" + comments['ARM_CFG_GROUPS']['WEB_SERVER'],
                       'SET_MEDIA_PERMISSIONS': "\n" + comments['ARM_CFG_GROUPS']['FILE_PERMS'],
                       'RIPMETHOD': "\n" + comments['ARM_CFG_GROUPS']['MAKE_MKV'],
-                      'HB_PRESET_DVD': "\n" + comments['ARM_CFG_GROUPS']['HANDBRAKE'],
                       'EMBY_REFRESH': "\n" + comments['ARM_CFG_GROUPS']['EMBY']
                                       + "\n" + comments['ARM_CFG_GROUPS']['EMBY_ADDITIONAL'],
                       'NOTIFY_RIP': "\n" + comments['ARM_CFG_GROUPS']['NOTIFY_PERMS'],

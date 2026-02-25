@@ -1,11 +1,12 @@
 """API v1 — Notification endpoints."""
-from flask import jsonify
+from fastapi import APIRouter
 
-from arm.api import api_bp
-from arm.ui import json_api
+from arm.services import jobs as svc_jobs
+
+router = APIRouter(prefix="/api/v1", tags=["notifications"])
 
 
-@api_bp.route('/v1/notifications/<int:notify_id>', methods=['PATCH'])
-def read_notification(notify_id):
+@router.patch('/notifications/{notify_id}')
+def read_notification(notify_id: int):
     """Mark a notification as read."""
-    return jsonify(json_api.read_notification(str(notify_id)))
+    return svc_jobs.read_notification(str(notify_id))
