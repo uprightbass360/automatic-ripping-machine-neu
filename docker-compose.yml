@@ -18,6 +18,7 @@ services:
   arm-hb-presets:
     image: uprightbass360/arm-transcoder:${TRANSCODER_VERSION:-latest}
     container_name: arm-hb-presets
+    user: root
     volumes:
       - hb-presets:/data/hb-presets
     entrypoint: ["/bin/sh", "-c"]
