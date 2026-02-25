@@ -195,8 +195,6 @@ MAKEMKV_COMMUNITY_KEYDB: true
 # backup decrypts the dvd and then copies it to the hard drive.
 # backup_dvd forces arm to extract the dvd with MakeMKV prior to any post-processing
 RIPMETHOD: "mkv"
-RIPMETHOD_DVD: "PLACEHOLDER"
-RIPMETHOD_BR: "PLACEHOLDER"
 
 # MakeMKV Arguments
 # MakeMKV Profile used for controlling Audio Track Selection.
