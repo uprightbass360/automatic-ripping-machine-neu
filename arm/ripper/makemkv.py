@@ -835,14 +835,17 @@ def makemkv(job):
         db.session.commit()
         # Refresh job to get updated drive relationship
         db.session.refresh(job)
-        # If job.drive is still None after refresh, log warning with available info
-        if job.drive is None:
-            if disc_index is not None:
-                logging.warning(f"job.drive is None but found disc index {disc_index} for {job.devpath}")
-            else:
-                logging.error(f"Could not find drive for {job.devpath}")
-                raise ValueError(f"No drive found for device {job.devpath}")
-    logging.info(f"MakeMKV disc number: {job.drive.mdisc:d}")
+        # If drive or mdisc still missing after refresh, raise clear error
+        if job.drive is None or job.drive.mdisc is None:
+            logging.error(
+                f"Could not resolve MakeMKV disc number for {job.devpath} "
+                f"(drive={'found' if job.drive else 'None'}, "
+                f"disc_index={disc_index})"
+            )
+            raise ValueError(
+                f"No MakeMKV disc number for device {job.devpath}"
+            )
+    logging.info(f"MakeMKV disc number: {job.drive.mdisc}")
     # get filesystem in order
     rawpath = setup_rawpath(job, job.build_raw_path())
     logging.info(f"Processing files to: {rawpath}")

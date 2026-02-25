@@ -2,6 +2,8 @@
 import os
 import unittest.mock
 
+import pytest
+
 
 class TestJobState:
     """Test JobState enum and status sets."""
@@ -164,3 +166,70 @@ class TestRipMusic:
             result = rip_music(sample_job, "test.log")
 
         assert result is False
+
+
+class TestMakemkvDiscDiscovery:
+    """Test MakeMKV disc number discovery guard (#1545)."""
+
+    def test_mdisc_none_no_drives_raises(self, app_context, sample_job):
+        """When job.drive is None and get_drives yields nothing, raise ValueError."""
+        from arm.ripper.makemkv import makemkv
+
+        # Ensure no SystemDrives linked
+        assert sample_job.drive is None
+
+        with unittest.mock.patch('arm.ripper.makemkv.prep_mkv'), \
+             unittest.mock.patch('arm.ripper.makemkv.get_drives', return_value=iter([])):
+            with pytest.raises(ValueError, match="No MakeMKV disc number"):
+                makemkv(sample_job)
+
+    def test_mdisc_none_drive_exists_but_mdisc_null_raises(self, app_context, sample_job):
+        """When job.drive exists but mdisc is None, and scan finds no match, raise ValueError."""
+        from arm.models.system_drives import SystemDrives
+        from arm.database import db
+        from arm.ripper.makemkv import makemkv
+
+        # Create a SystemDrives row linked to this job, but mdisc=None
+        drive = SystemDrives()
+        drive.mount = sample_job.devpath
+        drive.job_id_current = sample_job.job_id
+        drive.mdisc = None
+        db.session.add(drive)
+        db.session.commit()
+        db.session.refresh(sample_job)
+        assert sample_job.drive is not None
+        assert sample_job.drive.mdisc is None
+
+        with unittest.mock.patch('arm.ripper.makemkv.prep_mkv'), \
+             unittest.mock.patch('arm.ripper.makemkv.get_drives', return_value=iter([])):
+            with pytest.raises(ValueError, match="No MakeMKV disc number"):
+                makemkv(sample_job)
+
+    def test_mdisc_populated_skips_scan(self, app_context, sample_job, tmp_path):
+        """When job.drive.mdisc is already set, skip disc:9999 scan entirely."""
+        from arm.models.system_drives import SystemDrives
+        from arm.database import db
+        from arm.ripper.makemkv import makemkv
+
+        # Create a SystemDrives row with mdisc already populated
+        drive = SystemDrives()
+        drive.mount = sample_job.devpath
+        drive.job_id_current = sample_job.job_id
+        drive.mdisc = 0
+        db.session.add(drive)
+        db.session.commit()
+        db.session.refresh(sample_job)
+
+        mock_get_drives = unittest.mock.MagicMock()
+
+        with unittest.mock.patch('arm.ripper.makemkv.prep_mkv'), \
+             unittest.mock.patch('arm.ripper.makemkv.get_drives', mock_get_drives), \
+             unittest.mock.patch('arm.ripper.makemkv.setup_rawpath', return_value=str(tmp_path)), \
+             unittest.mock.patch('arm.ripper.makemkv.makemkv_mkv'), \
+             unittest.mock.patch.object(sample_job, 'eject'), \
+             unittest.mock.patch('arm.ripper.makemkv._reconcile_filenames'), \
+             unittest.mock.patch.object(sample_job, 'build_raw_path', return_value='raw'):
+            makemkv(sample_job)
+
+        # get_drives should NOT have been called — mdisc was already set
+        mock_get_drives.assert_not_called()
