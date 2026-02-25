@@ -1,6 +1,6 @@
 #!/bin/sh
 # Dump HandBrake built-in preset names to a JSON array.
-# Runs inside the ARM container (which has HandBrakeCLI + Python).
+# Runs inside the transcoder container (which has HandBrakeCLI + Python).
 #
 # Usage: dump-hb-presets.sh /output/presets.json
 

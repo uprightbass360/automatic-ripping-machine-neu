@@ -119,10 +119,10 @@ def get_version():
     makemkv_version = "unknown"
     try:
         result = subprocess.run(
-            ["makemkvcon", "--version"],
-            capture_output=True, text=True, timeout=5
+            ["makemkvcon", "-r", "info", "dev:/dev/null"],
+            capture_output=True, text=True, timeout=10
         )
-        m = re.search(r'v([\d.]+)', result.stdout + result.stderr)
+        m = re.search(r'MakeMKV v([\d.]+)', result.stdout + result.stderr)
         if m:
             makemkv_version = m.group(1)
     except Exception:
@@ -132,6 +132,29 @@ def get_version():
         "arm_version": arm_version,
         "makemkv_version": makemkv_version,
     }
+
+
+@router.get('/system/paths')
+def get_paths():
+    """Check existence and writability of configured ARM paths."""
+    path_keys = [
+        "RAW_PATH", "COMPLETED_PATH", "TRANSCODE_PATH",
+        "LOGPATH", "DBFILE", "INSTALLPATH",
+    ]
+    results = []
+    for key in path_keys:
+        value = cfg.arm_config.get(key, "")
+        if not value:
+            continue
+        exists = os.path.exists(value)
+        writable = os.access(value, os.W_OK) if exists else False
+        results.append({
+            "setting": key,
+            "path": value,
+            "exists": exists,
+            "writable": writable,
+        })
+    return results
 
 
 @router.post('/system/ripping-enabled')

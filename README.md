@@ -85,7 +85,7 @@ curl http://localhost:8888
 curl http://localhost:5000/health
 ```
 
-Insert a disc and ARM handles the rest — rip, identify, transcode, and organize.
+Insert a disc and ARM handles the rest — rip, identify, and organize.
 
 ### Remote Transcoder
 
@@ -116,7 +116,7 @@ Pre-built images are published to Docker Hub and GHCR on every release:
 
 | Component | Docker Hub | Purpose |
 |-----------|-----------|---------|
-| Base dependencies | `uprightbass360/arm-dependencies` | MakeMKV, HandBrake, system deps |
+| Base dependencies | `uprightbass360/arm-dependencies` | MakeMKV, system deps |
 | ARM | `uprightbass360/automatic-ripping-machine` | Ripper application |
 | UI | `uprightbass360/arm-ui` | Dashboard (SvelteKit + FastAPI) |
 | Transcoder | `uprightbass360/arm-transcoder` | GPU-accelerated transcoding |
