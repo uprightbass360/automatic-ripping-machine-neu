@@ -12,6 +12,99 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [10.0.0-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.4...v10.0.0-alpha.1) (2026-02-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* Built-in transcoding is no longer available. Use the dedicated transcoder service (uprightbass360/arm-transcoder) instead.
+* Flask, Werkzeug, WTForms, and Waitress are removed. The API server now uses FastAPI + uvicorn.
+
+### Features
+
+* add 4K UHD Blu-ray disc type detection (bluray4k) ([a972582](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a972582dfa8fbdb2192f8531a79552bf8cb238d6))
+* add AppState model for global ripping pause control ([f4b600c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f4b600ca5b400538cd3a47ff4dbcb956ca1a2c38))
+* add Docker Compose orchestration for multi-service deployment ([5200d42](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5200d42d2243f78bedadca864b9c25c139a9761d))
+* Add drives API endpoint and harden drive matching logic ([4720cea](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4720ceab36fc5353630fdd2c7060942fe8445639))
+* add release bundle workflow to publish deploy zip as release asset ([9c27280](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9c27280f0c9b3b819ceb4cf6065d133b7758fd4d))
+* Add REST API layer at /api/v1/ ([3ce2d7b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3ce2d7b7d1182f31ff8ae89d64098e913ac6e849))
+* add system monitoring, ripping toggle, and job start endpoints ([c9c2b23](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c9c2b23add90af72ff2b27b4ee4250ffdd403ee2))
+* Add title update, settings, and system info API endpoints ([e3477d6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e3477d64de65d60908c76bf005712b957fb17e38))
+* add TV series season/disc parsing to disc title matcher ([0119c2c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0119c2c8552a8bcac15aedcf7a9e278cb6ffc637))
+* add user-settable uhd_capable flag to drives ([4b67675](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4b6767591bf1fe09da9045c49b23d119d9a40952))
+* auto-download community keydb.cfg for MakeMKV Blu-ray decryption ([e35ed23](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e35ed23f3eef2f7f95a3a8cbe947b7680752e43d))
+* auto-update submodules on component releases ([5208420](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5208420f12bc8f590a183e05099f8e052a2789d9))
+* Centralize path logic, persist raw/transcode paths, enhance notifications ([0738575](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/07385757099fbaca318a6229e2090f09eaeb7d2a))
+* GPU hardware detection via sysfs with WSL2 support ([45a6e71](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/45a6e71654a9f06e3bf8b72f88dda3512eea2040))
+* implement global ripping pause and manual start in wait loop ([025622d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/025622d20c321f3bd42583f97dda1edd1f2be04e))
+* integrate disc title matcher into identification pipeline ([2687b3a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2687b3aaed346f32298e7447ebf3a10927472b3f))
+* merge upstream logging refactor and exception handling ([ac51ebb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ac51ebbd1a38186b802a2fc2735cebb69a1d54d6))
+* pin HandBrake version, add weekly dependency check ([7ffa4ed](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7ffa4ed75691aafd349a528ae9fde68c4ea3afed))
+* publish our own base image, clean up workflows ([5aea491](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5aea4915aec53712fcaa314f167f7df9f1e27aae))
+* Remove login_required from API v1, add cancel endpoint and config validation ([5da273f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5da273fefe508d7bbddcbb56652ac6acc151c90b))
+
+
+### Bug Fixes
+
+* always chown subdirs at startup for Docker volume mounts ([0904838](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/090483837c35711d07ccfc039171c52498f3c10e))
+* break arm.ui import chain to fix CI test collection failure ([dc35772](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/dc357724af654d8af55095041c2fc4ee830fd4ae))
+* break CodeQL taint chains for path injection and sensitive logging ([9bf05c5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9bf05c521250170db88b2b44f9661bea742df02b))
+* build ARM from source in remote-transcoder compose, enable devices ([1a472ad](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1a472adc734d495319a3a27e170c46ced573691f))
+* bump Flask-WTF to 1.2.2 for Flask 3.x compatibility ([5462e38](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5462e388f34bae19f4ae6f64c188e3bd2593044b))
+* bump itsdangerous and Werkzeug for Flask 3.1.2 compatibility ([adb4dda](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/adb4dda9635beaf1eae991123fa4305dc72fe4a1))
+* clear stale ripping_paused flag on container startup ([3788776](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3788776cfec576edc3c698c2c454118ed542bcfb))
+* configure release-please to update VERSION file ([8f8634b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8f8634b80e2b369ac60c14790ae9da9c97b90b7c))
+* correct Docker Hub image names for UI and transcoder ([4f0ec61](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4f0ec61dcfd0e5b5c5e45486b96b014e62235c6f))
+* create missing optical drive device nodes at container startup ([da556c0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/da556c06135fcf43e0a211cc0422e126b6d89a52))
+* Detect abcde I/O errors despite zero exit code ([#1526](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1526)) ([abc4f68](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/abc4f684ad415810515a201e87c05b0b1cda2d6b))
+* Don't treat unparsed MakeMKV output as fatal when exit code is 0 ([#1688](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1688)) ([d6623e9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d6623e9f5c2bc1705877c5e90899eea80575cfcf))
+* drop Python 3.9 from CI matrix (alembic 1.18 requires &gt;=3.10) ([6ffd19b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6ffd19b5609afe209e1c25d44100f7b6ab4e125d))
+* early exit on 0 titles, persist MakeMKV key, improve error messages ([248d1a6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/248d1a6ef0cbef35afc9eda8c968002164c2dae1))
+* Fall back to exact title match for short OMDb queries ([#1430](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1430)) ([9a87349](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9a87349cba50165c735ac63643708f3999c1b5ff))
+* force fresh DB read in AppState.get() so pause works across processes ([abbfac8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/abbfac842b7d0ba8569b1dbc059eeeb91f39dd54))
+* Guard HandBrake no_of_titles against None and string type ([#1628](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1628)) ([c10d917](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c10d917347f98c94cd7358baf12ad100bc278d32))
+* Handle malformed BDMV XML and ensure umount ([#1650](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1650), [#1664](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1664)) ([ac33272](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ac33272bb2da72f60683ea0f0570e3815b04a68d))
+* Handle nameless drives in drives_update ([#1584](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1584)) ([2e63381](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2e63381ed2d56a145b9a36dadf7bb4429984011b))
+* Handle None job.drive in makemkv.py ([#1665](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1665)) ([0e465ee](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0e465ee495e639df0a760ed1610e5fb15fcb1dc6))
+* Harden calc_process_time against non-numeric input, downgrade log to DEBUG ([#1641](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1641)) ([78ab2e9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/78ab2e9c26f8021e8626094266c324fd121a29a3))
+* Harden OMDb fallback with timeout and broad exception handling ([#1430](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1430)) ([ed39afc](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ed39afc02bd21226197f7355ea94eb60445fc5b9))
+* **installer:** correctly detect contrib for bookworm-updates/security across deb822 + mirror lists ([e86f8d9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e86f8d9c1edddde8f24325e236028bc568941185))
+* Log umount diagnostics and improve test isolation ([#1664](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1664), [#1584](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1584), [#1430](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1430)) ([d939362](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d939362c2998853c6911d4c107f42a93a5ac6943))
+* mount single device instead of --all so arm user can mount discs ([8c0550b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8c0550bee3d1bc28e3f2b9d13b17e967321103d7))
+* pass completed path base to notify script for correct transcoder path ([678fcd3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/678fcd3b825f5e4d92a5be993281a21021585096))
+* Prevent duplicate file assignment in _reconcile_filenames ([#1355](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1355), [#1281](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1281)) ([c1f6caa](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c1f6caabfdb5045c323c5382e6e120b536c6eba4))
+* Prevent str(None) producing literal 'None' as bluray title ([#1650](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1650)) ([efa139d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/efa139d990815d8472da991eb3ce5069b369d1bf))
+* Reconcile MakeMKV scan-time filenames with actual rip output ([#1355](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1355), [#1281](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1281)) ([2623b11](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2623b116fa1123ad231681c944fd9c2d8ac6f4a1))
+* remove executable bit from files which don't need it ([39e8409](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/39e8409deadd4dbfa71b5599d7db48f8b115c205))
+* remove unused dependencies from base image ([0812356](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0812356ac9c2afb0b7a74280159fc6380151ea67))
+* replace hard-coded paths with configurable ones ([824e720](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/824e720e4608cd520b2ae6f38ce4943cf057354f))
+* resolve all 25 CodeQL security warnings ([9734728](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9734728d6de0112826dd9a646bfc2d6d12272652))
+* resolve flake8 lint errors ([0c72660](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0c726609307c8c09a8c3fd06aef5d82c81ba82fb))
+* Resolve flake8 lint errors across codebase ([1654f76](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1654f7614776d0e0fe8391d31c22b05859789b27))
+* respect global pause even when title_manual is set ([0693e32](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0693e329f34602a055f2dba5af2c7505114c4783))
+* retry drive detection at startup when udev hasn't settled ([2e9cadc](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2e9cadc3afc1fcb5e8015bf6af980643c404f4f1))
+* Rewrite Docker publish workflow for dual-registry push ([83adb0e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/83adb0e723ac2d43f8e11d524ba81ae3b0c7a677))
+* scope Docker builds to linux/amd64 only ([f047133](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f0471338d2b2c49dd62e4aa6e7ccc1e957f664e2))
+* Set fallback no_of_titles on ffprobe failure, guard None comparison ([#1628](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1628)) ([96697d1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/96697d13202b84b6bdf7887b768aeb8eaa964808))
+* **settings:** trim whitespace from form values on save ([97214a8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/97214a845e96a3289018d78cf3ed0a0c07161315))
+* Skip unrecognized MakeMKV output lines in parser ([#1688](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1688)) ([7297893](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7297893d2e17494f92095655eecb8cc94d519f5b))
+* Strip whitespace from settings values, harden git version check ([#1684](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1684), [#1345](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1345)) ([edac6d2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/edac6d2fd4cc5c69384b0ef03ec928911ab15e56))
+* track numbering mismatch causes silent data loss ([#1475](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1475)) ([35f091e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/35f091eb08791d55f6233b50b7fd6da3938fd58a))
+* Use consistent filename in rip_data and harden abcde log check ([#1651](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1651), [#1526](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1526)) ([830a743](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/830a7435156cb53b82ab45ea5e5f442cf3a83b9a))
+* Use de-duplicated filename for data disc ISO output ([#1651](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1651)) ([500e89d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/500e89dc71b9f9999ac15c28f90d853b4d1481a9))
+* use direct DB connection for pause check to bypass stale session ([17f16cf](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/17f16cf4b18fbbbf9ffba57d875ac6006803cd34))
+* Use list args for HandBrake subprocess to prevent shell quoting issues ([#1457](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1457)) ([4f32270](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4f32270fdce65ae3e627c53aedf3a1a0634a3026))
+* use PAT for release-please so releases trigger publish workflow ([c060ec1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c060ec1c8b9f343fd21245043512bca60a3c32d0))
+* Use total_seconds() for ETA calculation over 24 hours ([#1641](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/1641)) ([40bf39f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/40bf39f3acc7f85f22efdc5bb774b39063491678))
+* Use Union type syntax for Python 3.9 compatibility ([ffad9c7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ffad9c772da6844eec767df5c3cda570438d2625))
+* wait for ARM healthcheck before starting UI ([ad1e200](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ad1e200b53b748a7ece94afa08b34c0e80a0fe39))
+
+
+### Code Refactoring
+
+* remove HandBrake/FFmpeg transcoding from ARM ([66ec6d6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/66ec6d633a2df447a41822234f2810c305e78aa0))
+* replace Flask with FastAPI, delete old UI ([0981e7f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0981e7fcc52d974241efef92b810df1134f80cee))
+
 ## [1.6.4](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v1.6.3...v1.6.4) (2026-02-23)
 
 
