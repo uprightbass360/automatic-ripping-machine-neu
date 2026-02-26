@@ -12,6 +12,15 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [10.1.3-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.2-alpha.1...v10.1.3-alpha.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* bind-mount UI VERSION file in dev compose ([771eba8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/771eba8f4150b9c1f985c9d0d053977374fb2d34))
+* replace PLACEHOLDER values with empty strings in rip method config ([af55799](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/af557994e4a9cd116e5bb26e91883f2956aea621))
+* run arm-hb-presets as root to write to volume ([409dbeb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/409dbebf0b0805acc8b8a4c6396916a9e4770afe))
+
 ## [10.1.2-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.1-alpha.1...v10.1.2-alpha.1) (2026-02-25)
 
 
