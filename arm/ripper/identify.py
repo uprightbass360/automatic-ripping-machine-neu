@@ -13,6 +13,7 @@ Phases:
 import os
 import logging
 import subprocess
+import time
 import urllib
 import re
 import datetime
@@ -48,26 +49,49 @@ def find_mount(devpath: str) -> str | None:
 
 def check_mount(job: Job) -> bool:
     """
-    Check if there is a suitable mount for ``job``, if not, try to mount
+    Check if there is a suitable mount for ``job``, if not, try to mount.
+
+    USB optical drives can take 30-60s after disc insertion before the
+    filesystem is readable.  Retries with increasing delays to handle this.
 
     :return: ``True`` if mount exists now, ``False`` otherwise
     """
-    if mountpoint := find_mount(job.devpath):
-        logging.info(f"Found disc {job.devpath} mounted at {mountpoint}")
-        job.mountpoint = mountpoint
-    else:
-        logging.info(f"Trying to mount disc at {job.devpath}...")
-        # Mount the specific device; fstab provides the mountpoint and options.
-        # Note: "mount --all" requires root even with fstab "users" option,
-        # so we mount the single device directly instead.
-        arm_subprocess(["mount", job.devpath])
+    max_attempts = 12  # ~60s total with backoff
+
+    for attempt in range(1, max_attempts + 1):
+        # Check for existing mount
         if mountpoint := find_mount(job.devpath):
-            logging.info(f"Successfully mounted disc to {mountpoint}")
+            if attempt > 1:
+                logging.info(f"Disc {job.devpath} mounted at {mountpoint} (attempt {attempt}/{max_attempts})")
+            else:
+                logging.info(f"Found disc {job.devpath} already mounted at {mountpoint}")
             job.mountpoint = mountpoint
-        else:
-            logging.error("Disc was not and could not be mounted. Rip might fail.")
-            return False
-    return True
+            return True
+
+        # Try to mount — fstab provides the mountpoint and options
+        logging.info(f"[{attempt}/{max_attempts}] Attempting to mount {job.devpath}...")
+        arm_subprocess(["mount", job.devpath])
+
+        # Check if mount succeeded
+        if mountpoint := find_mount(job.devpath):
+            logging.info(f"Successfully mounted disc {job.devpath} to {mountpoint} (attempt {attempt}/{max_attempts})")
+            job.mountpoint = mountpoint
+            return True
+
+        # Wait before retrying (ramps from 3s to 5s per attempt)
+        if attempt < max_attempts:
+            wait = min(2 + attempt, 5)
+            logging.warning(
+                f"[{attempt}/{max_attempts}] Mount failed for {job.devpath} "
+                f"(drive may still be spinning up). Retrying in {wait}s..."
+            )
+            time.sleep(wait)
+
+    logging.error(
+        f"Disc at {job.devpath} could not be mounted after {max_attempts} "
+        f"attempts (~60s). The drive may not be responding. Rip will likely fail."
+    )
+    return False
 
 
 # ── Phase 2: Label resolution ──────────────────────────────────────────
