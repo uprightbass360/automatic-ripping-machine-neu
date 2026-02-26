@@ -49,6 +49,7 @@ def setup_job_log(job):
     # If a more specific log file is created, the messages are not also logged to
     # arm.log, but they are still logged to stdout and syslog
     logger = logging.getLogger()
+    logger.setLevel(cfg.arm_config["LOGLEVEL"])
     for handler in logger.handlers:
         if isinstance(handler, logging.FileHandler):
             logger.removeHandler(handler)

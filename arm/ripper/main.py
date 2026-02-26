@@ -107,8 +107,14 @@ def check_fstab():
 
 def main():
     """main disc processing function"""
+    global log_file
+
     logging.info("Starting Disc identification")
     identify.identify(job)
+
+    # Re-initialize job log now that identification has resolved the label
+    log_file = logger.setup_job_log(job)
+    db.session.commit()
 
     # Check db for entries matching the crc and successful
     have_dupes = utils.job_dupe_check(job)
