@@ -12,6 +12,15 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [10.1.4-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.3-alpha.1...v10.1.4-alpha.1) (2026-02-26)
+
+
+### Bug Fixes
+
+* add mount retry with backoff for slow USB optical drives ([8bc5123](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8bc51230dd86c77d5c60b43f07a0e59c5868c9f4))
+* add mount retry with backoff for slow USB optical drives ([d8a2e1b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d8a2e1b4fce670c37b0776e7db3bb71e121b6ddd))
+* re-initialize job log after disc identification resolves label ([2e3e8f4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2e3e8f4cabe5974105f2f85d311a09f343a9e36d))
+
 ## [10.1.3-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.2-alpha.1...v10.1.3-alpha.1) (2026-02-26)
 
 
