@@ -69,32 +69,46 @@ class TestCheckMount:
 
         job = unittest.mock.MagicMock()
         job.devpath = '/dev/sr0'
-        with unittest.mock.patch('arm.ripper.identify.find_mount', return_value=str(tmp_path)):
+        with unittest.mock.patch('arm.ripper.identify._find_mountpoint', return_value=str(tmp_path)):
             result = check_mount(job)
         assert result is True
         assert job.mountpoint == str(tmp_path)
 
     def test_mount_attempt_succeeds(self, tmp_path):
-        """If not mounted, tries mount and succeeds on second find_mount call."""
+        """If not mounted, tries mount and succeeds on second _find_mountpoint call."""
         from arm.ripper.identify import check_mount
 
         job = unittest.mock.MagicMock()
         job.devpath = '/dev/sr0'
         # First call: not mounted; second call after mount: found
-        with unittest.mock.patch('arm.ripper.identify.find_mount',
+        with unittest.mock.patch('arm.ripper.identify._find_mountpoint',
                                  side_effect=[None, str(tmp_path)]), \
-             unittest.mock.patch('arm.ripper.identify.arm_subprocess'):
+             unittest.mock.patch('subprocess.run'):
             result = check_mount(job)
         assert result is True
 
-    def test_mount_fails(self):
-        """If mount fails, returns False."""
+    def test_mount_fails_disc_ejected(self):
+        """If disc is ejected during retry, bails out early."""
         from arm.ripper.identify import check_mount
 
         job = unittest.mock.MagicMock()
         job.devpath = '/dev/sr0'
-        with unittest.mock.patch('arm.ripper.identify.find_mount', return_value=None), \
-             unittest.mock.patch('arm.ripper.identify.arm_subprocess'):
+        with unittest.mock.patch('arm.ripper.identify._find_mountpoint', return_value=None), \
+             unittest.mock.patch('subprocess.run'), \
+             unittest.mock.patch('arm.ripper.identify._drive_has_disc', return_value=False):
+            result = check_mount(job)
+        assert result is False
+
+    def test_mount_fails_all_retries(self):
+        """If mount never succeeds and disc stays present, exhausts all retries."""
+        from arm.ripper.identify import check_mount
+
+        job = unittest.mock.MagicMock()
+        job.devpath = '/dev/sr0'
+        with unittest.mock.patch('arm.ripper.identify._find_mountpoint', return_value=None), \
+             unittest.mock.patch('subprocess.run'), \
+             unittest.mock.patch('arm.ripper.identify._drive_has_disc', return_value=True), \
+             unittest.mock.patch('time.sleep'):
             result = check_mount(job)
         assert result is False
 

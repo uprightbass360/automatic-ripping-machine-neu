@@ -10,6 +10,7 @@ Phases:
   Finally: Unmount
 """
 
+import fcntl
 import os
 import logging
 import subprocess
@@ -33,9 +34,38 @@ from arm.database import db
 # flake8: noqa: W605
 
 
+def _find_mountpoint(devpath: str) -> str | None:
+    """Find an existing, readable mountpoint for *devpath* (quiet — no error logging)."""
+    result = subprocess.run(
+        ["findmnt", "--json", devpath],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0 and result.stdout:
+        for fs in json.loads(result.stdout).get("filesystems", []):
+            if os.access(fs["target"], os.R_OK):
+                return fs["target"]
+    return None
+
+
+def _drive_has_disc(devpath: str) -> bool:
+    """Quick ioctl check — returns False if tray is open or disc was ejected."""
+    try:
+        fd = os.open(devpath, os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            status = fcntl.ioctl(fd, 0x5326, 0)  # CDROM_DRIVE_STATUS
+            return status == 4  # CDS_DISC_OK
+        finally:
+            os.close(fd)
+    except OSError:
+        return False
+
+
 def find_mount(devpath: str) -> str | None:
     """
-    Find existing, readable mountpoint for ``devpath`` by calling ``findmnt``
+    Find existing, readable mountpoint for ``devpath`` by calling ``findmnt``.
+
+    Logs errors via :func:`arm_subprocess` — use :func:`_find_mountpoint` when
+    error logging is not desired (e.g. inside a retry loop).
 
     :return: Absolute path of mountpoint as ``str`` if any, else ``None``
     """
@@ -54,13 +84,15 @@ def check_mount(job: Job) -> bool:
     USB optical drives can take 30-60s after disc insertion before the
     filesystem is readable.  Retries with increasing delays to handle this.
 
+    Bails out early if the disc is ejected during the retry loop.
+
     :return: ``True`` if mount exists now, ``False`` otherwise
     """
     max_attempts = 12  # ~60s total with backoff
 
     for attempt in range(1, max_attempts + 1):
-        # Check for existing mount
-        if mountpoint := find_mount(job.devpath):
+        # Check for existing mount (quiet — no ERROR log on failure)
+        if mountpoint := _find_mountpoint(job.devpath):
             if attempt > 1:
                 logging.info(f"Disc {job.devpath} mounted at {mountpoint} (attempt {attempt}/{max_attempts})")
             else:
@@ -68,15 +100,27 @@ def check_mount(job: Job) -> bool:
             job.mountpoint = mountpoint
             return True
 
-        # Try to mount — fstab provides the mountpoint and options
+        # Try to mount — fstab provides the mountpoint and options.
+        # Use subprocess.run directly to avoid ERROR-level log spam from
+        # arm_subprocess during expected retries.
         logging.info(f"[{attempt}/{max_attempts}] Attempting to mount {job.devpath}...")
-        arm_subprocess(["mount", job.devpath])
+        result = subprocess.run(
+            ["mount", job.devpath],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            logging.debug(f"mount {job.devpath}: {result.stderr.strip()}")
 
         # Check if mount succeeded
-        if mountpoint := find_mount(job.devpath):
+        if mountpoint := _find_mountpoint(job.devpath):
             logging.info(f"Successfully mounted disc {job.devpath} to {mountpoint} (attempt {attempt}/{max_attempts})")
             job.mountpoint = mountpoint
             return True
+
+        # Bail out early if the disc was ejected
+        if not _drive_has_disc(job.devpath):
+            logging.error(f"Disc ejected from {job.devpath} during mount retry. Aborting.")
+            return False
 
         # Wait before retrying (ramps from 3s to 5s per attempt)
         if attempt < max_attempts:
