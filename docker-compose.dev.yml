@@ -29,6 +29,7 @@ services:
       - --reload
       - --reload-dir=/app/backend
     volumes:
+      - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/VERSION:/app/VERSION:ro
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/backend:/app/backend:ro
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/frontend/build:/app/frontend/build:ro
       - ./dev-data/logs:/data/logs:ro
