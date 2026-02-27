@@ -30,6 +30,10 @@ class TestTypeSubfolder:
         sample_job.video_type = "series"
         assert sample_job.type_subfolder == "tv"
 
+    def test_music(self, sample_job):
+        sample_job.video_type = "music"
+        assert sample_job.type_subfolder == "music"
+
     def test_unknown(self, sample_job):
         sample_job.video_type = "unknown"
         assert sample_job.type_subfolder == "unidentified"

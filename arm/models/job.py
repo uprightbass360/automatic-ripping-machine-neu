@@ -336,11 +336,13 @@ class Job(db.Model):
 
     @property
     def type_subfolder(self):
-        """Map video_type to filesystem subfolder: movies/tv/unidentified."""
+        """Map video_type to filesystem subfolder: movies/tv/music/unidentified."""
         if self.video_type == "movie":
             return "movies"
         elif self.video_type == "series":
             return "tv"
+        elif self.video_type == "music":
+            return "music"
         return "unidentified"
 
     @property

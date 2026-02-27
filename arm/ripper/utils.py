@@ -342,9 +342,11 @@ def rip_music(job, logfile):
             except OSError as e:
                 logging.warning(f"Could not read abcde log {logpath}: {e}")
                 log_content = ""
-            if re.search(r"^\[ERROR\]", log_content, re.MULTILINE) \
-                    or "CDROM drive unavailable" in log_content:
-                err = "abcde reported errors during rip (possible drive/media failure)"
+            error_lines = re.findall(r"^\[ERROR\].*$", log_content, re.MULTILINE)
+            if not error_lines and "CDROM drive unavailable" in log_content:
+                error_lines = ["CDROM drive unavailable"]
+            if error_lines:
+                err = "; ".join(error_lines)
                 logging.error(err)
                 args = {"status": JobState.FAILURE.value, "errors": err}
                 database_updater(args, job)

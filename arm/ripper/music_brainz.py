@@ -187,6 +187,8 @@ def check_musicbrainz_data(job, disc_info: dict) -> str:
                         'job_id': str(job.job_id),
                         'crc_id': release['id'],
                         'hasnicetitle': True,
+                        'video_type': 'music',
+                        'video_type_auto': 'music',
                         'year': str(new_year),
                         'year_auto': str(new_year),
                         'title': artist_title,
@@ -221,6 +223,8 @@ def check_musicbrainz_data(job, disc_info: dict) -> str:
             'job_id': str(job.job_id),
             'crc_id': disc_info['cdstub']['id'],
             'hasnicetitle': True,
+            'video_type': 'music',
+            'video_type_auto': 'music',
             'year': new_year,
             'year_auto': new_year,
             'title': artist_title,
@@ -321,7 +325,7 @@ def get_title(discid: str, job) -> str:
             'crc_id': crc_id,
             'title': str(artist + " " + title),
             'title_auto': str(artist + " " + title),
-            'video_type': "Music"
+            'video_type': "music"
         }
         u.database_updater(args, job)
         return clean_title
