@@ -3,7 +3,7 @@ name: Security issue
 about: Describe this issue template's purpose here.
 title: ":bangbang: [SECURITY] :bangbang:"
 labels: Security
-assignees: 1337-server
+assignees: uprightbass360
 
 ---
 

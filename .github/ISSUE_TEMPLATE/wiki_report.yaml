@@ -29,9 +29,9 @@ body:
       label: The page
       description: Please provide the page the error is on
       placeholder: |
-        https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Setting-up-ARM-manually-(Ubuntu)
+        https://github.com/uprightbass360/automatic-ripping-machine-neu/wiki/Setting-up-ARM-manually-(Ubuntu)
         or
-        https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Building-ARM-docker-image-from-source
+        https://github.com/uprightbass360/automatic-ripping-machine-neu/wiki/Building-ARM-docker-image-from-source
         etc.
     validations:
       required: true
