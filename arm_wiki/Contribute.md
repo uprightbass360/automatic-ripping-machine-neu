@@ -65,8 +65,7 @@ If you have successfully set ARM up in a different environment and would like to
 ARM is written to meed the Python style guide PEP8 (https://pep8.org/. On submitting a new PR to ARM, the new and modified code will be checked against PEP8 for compliance.
 Prior to loading up a new PR, it is recommended that the new or modified file within the PR be run through PEP8 (now pycodestyle).
 
-The ARM Devs have developed some usefull tools for testing and scripting some of the development process.
-Check out the [ARM Development Tools (devtools)](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Contribute-DevTools)
+CI checks (pytest, flake8) run automatically on pull requests via GitHub Actions.
  
 ### Setting up pycodestyle
  
