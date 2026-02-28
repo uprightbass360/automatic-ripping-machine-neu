@@ -21,10 +21,10 @@ If you are making multiple changes, please create separate pull requests, so the
 
 Update the README file in your PR if your changes require them.
 
-After submitting your PR check that the Travis CI build passes, if it doesn't you can fix those issues with additional commits.
+After submitting your PR check that the GitHub Actions CI checks pass. If they don't, you can fix those issues with additional commits.
 
 ## Hardware/OS Documentation
-The installation guide is for Ubuntu 20.04 and the devs run it in VMware, however, many are running ARM in different environments.  If you have successfully set ARM up in a different environment and would like to assist others, please submit a howto to the [wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki).   
+The installation guide is for Ubuntu 20.04 and the devs run it in VMware, however, many are running ARM in different environments.  If you have successfully set ARM up in a different environment and would like to assist others, please submit a howto to the [wiki](https://github.com/uprightbass360/automatic-ripping-machine-neu/wiki).   
 
 ## Testing, Quality, etc.
 If you are interested in helping out with testing, quality, etc. please let us know.

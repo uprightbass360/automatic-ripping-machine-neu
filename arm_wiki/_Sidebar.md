@@ -1,4 +1,4 @@
-**[Home](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki)**
+**[Home](Home)**
 
 **Getting Started**
    - [Getting Started](Getting-Started)
@@ -9,11 +9,11 @@
 
    - **Manual Install**
      - See Alternate Installations
-   
+
    - **Automatic script install**
-       - [Open Media Vault/ Debian (Install script)](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Setting-up-ARM-script-(Debian-OMV))
-       - [Ubuntu 20.04 (install script)](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Ubuntu-20.04-Automatic-Installation)
-   - [Upgrading from old versions](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/upgrading)
+       - [Open Media Vault/ Debian (Install script)](Setting-up-(auto-install))
+       - [Ubuntu 20.04 (install script)](Ubuntu-20.04-Automatic-Installation)
+   - [Upgrading from old versions](Upgrading-from-previous-ARM-verions)
 
 **Web Page Overview**
   - _Coming Soon_
@@ -23,7 +23,7 @@
     - [UI Settings](Web-Settings-UI)
     - [System Information](Web-Settings-System-Info)
 
-**[Known Issues](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Known-Issues)**
+**[Known Issues](Status-Known-Issues)**
 
 **Configuration**
    - [Configuration](Configuring-ARM)
@@ -35,7 +35,7 @@
       - [Skins for ARM ui](Config-ui-skins)
       - [MakeMKV](MakeMKV-Info)
       - [FFmpeg Alternative Transcoder](ffmpeg.md)
-     
+
    - **Alternate Installations**
      - [Ubuntu](Alternate-Install-Ubuntu)
      - ~~[Ubuntu 20.04 (install script)](Ubuntu-20.04-Automatic-Installation)~~ (Run the Debian script)
@@ -55,7 +55,7 @@
    - [FAQ](FAQ)
    - [General Troubleshooting](General-Troubleshooting)
    - [Docker Troubleshooting](Docker-Troubleshooting)
-   - [Open An Issue](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/new/choose)
+   - [Open An Issue](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/new/choose)
 
 
 **ARM Status**
@@ -75,4 +75,4 @@
       - [Related Projects and HowTos](related-howtos)
       - [Hardware/OS HowTo's](VMware)
       - [The ARM Change log](Change-Log)
-      - [The ARM License](https://github.com/automatic-ripping-machine/automatic-ripping-machine/blob/main/LICENSE)
+      - [The ARM License](https://github.com/uprightbass360/automatic-ripping-machine-neu/blob/main/LICENSE)
