@@ -350,7 +350,8 @@ def _score_one(
 ) -> MatchResult:
     """Score a single API result against the disc label."""
     result_title = result.get('Title', '')
-    result_year = result.get('Year', '')
+    from arm.ripper.utils import extract_year
+    result_year = extract_year(result.get('Year', ''))
     result_type = result.get('Type', '')
     result_imdb = result.get('imdbID', '')
     result_poster = result.get('Poster') or None

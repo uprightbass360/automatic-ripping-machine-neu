@@ -13,6 +13,15 @@ from pathlib import Path, PurePath
 from math import ceil
 
 import bcrypt
+
+
+def extract_year(raw: str) -> str:
+    """Extract a 4-digit year from strings like '2006-05-19', '2006–2008', '2006–'.
+
+    Returns the first 4-digit sequence found, or the original string if none.
+    """
+    m = re.search(r"\d{4}", str(raw))
+    return m.group(0) if m else raw
 import httpx
 import requests
 import apprise
@@ -733,7 +742,7 @@ def job_dupe_check(job):
         if len(results) == 1:
             # This might need some tweaks to because of title/year manual
             title = results[0]['title'] if results[0]['title'] else job.label
-            year = results[0]['year'] if results[0]['year'] != "" else ""
+            year = extract_year(results[0]['year']) if results[0]['year'] != "" else ""
             poster_url = results[0]['poster_url'] if results[0]['poster_url'] != "" else None
             hasnicetitle = (str(results[0]['hasnicetitle']).lower() == 'true')
             video_type = results[0]['video_type'] if results[0]['hasnicetitle'] != "" else "unknown"

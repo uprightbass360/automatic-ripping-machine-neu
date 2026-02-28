@@ -102,6 +102,24 @@ class TestCheckForWait:
         assert sample_job.status == "active"  # IDLE = "active"
 
 
+class TestExtractYear:
+    """Test extract_year() date/range parsing."""
+
+    @pytest.mark.parametrize("raw, expected", [
+        ("2006-05-19", "2006"),
+        ("2006\u20132008", "2006"),   # em-dash range
+        ("2006\u2013", "2006"),       # open em-dash range
+        ("2006-2008", "2006"),        # hyphen range
+        ("2006-", "2006"),            # hyphen open range
+        ("2006", "2006"),
+        ("", ""),
+        ("N/A", "N/A"),
+    ])
+    def test_extract_year(self, raw, expected):
+        from arm.ripper.utils import extract_year
+        assert extract_year(raw) == expected
+
+
 class TestCleanForFilename:
     """Test clean_for_filename() string sanitization."""
 

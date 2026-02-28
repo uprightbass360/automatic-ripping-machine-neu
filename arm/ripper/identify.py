@@ -384,8 +384,8 @@ def identify_dvd(job):
             args = {
                 'title': arm_api_json['results']['0']['title'],
                 'title_auto': arm_api_json['results']['0']['title'],
-                'year': arm_api_json['results']['0']['year'],
-                'year_auto': arm_api_json['results']['0']['year'],
+                'year': utils.extract_year(arm_api_json['results']['0']['year']),
+                'year_auto': utils.extract_year(arm_api_json['results']['0']['year']),
                 'imdb_id': arm_api_json['results']['0']['imdb_id'],
                 'imdb_id_auto': arm_api_json['results']['0']['imdb_id'],
                 'video_type': arm_api_json['results']['0']['video_type'],
