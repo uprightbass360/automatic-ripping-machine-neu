@@ -845,3 +845,97 @@ class TestMusicBrainzEdgeCases:
             result = music_brainz.get_title('fake-id', music_job)
         assert result == "not identified"
         mock_db.assert_called_once_with(False, music_job)
+
+
+# ---------------------------------------------------------------------------
+# TestCreateTocTracks — music_brainz._create_toc_tracks(job, discid)
+# ---------------------------------------------------------------------------
+
+class TestCreateTocTracks:
+
+    @staticmethod
+    def _make_fake_discid(track_data):
+        """Create a fake discid.Disc-like object with tracks."""
+        class FakeTrack:
+            def __init__(self, number, seconds):
+                self.number = number
+                self.seconds = seconds
+
+        class FakeDisc:
+            def __init__(self, tracks):
+                self.tracks = [FakeTrack(n, s) for n, s in tracks]
+
+        return FakeDisc(track_data)
+
+    def test_creates_tracks_from_toc(self, music_job):
+        """Creates Track records with lengths from disc TOC."""
+        fake_disc = self._make_fake_discid([(1, 68), (2, 169), (3, 210)])
+        with unittest.mock.patch('arm.ripper.utils.put_track') as mock_put:
+            music_brainz._create_toc_tracks(music_job, fake_disc)
+        assert mock_put.call_count == 3
+        # Check first track
+        args = mock_put.call_args_list[0][0]
+        assert args[0] is music_job
+        assert args[1] == 1       # track number
+        assert args[2] == 68      # seconds
+        assert args[3] == "n/a"   # aspect
+        assert args[4] == 0.1     # fps
+        assert args[5] is False   # main_feature
+        assert args[6] == "TOC"   # source
+        assert args[7] == ""      # empty filename (no track name)
+
+    def test_track_lengths_correct(self, music_job):
+        """Each track gets its actual length from the TOC."""
+        fake_disc = self._make_fake_discid([(1, 120), (2, 300), (3, 45)])
+        with unittest.mock.patch('arm.ripper.utils.put_track') as mock_put:
+            music_brainz._create_toc_tracks(music_job, fake_disc)
+        lengths = [c[0][2] for c in mock_put.call_args_list]
+        assert lengths == [120, 300, 45]
+
+    def test_exception_does_not_propagate(self, music_job):
+        """Exceptions are caught and logged, not raised."""
+        fake_disc = self._make_fake_discid([(1, 100)])
+        with unittest.mock.patch('arm.ripper.utils.put_track',
+                                 side_effect=Exception("DB error")):
+            # Should not raise
+            music_brainz._create_toc_tracks(music_job, fake_disc)
+
+    def test_music_brainz_calls_toc_fallback_on_mb_failure(self, music_job):
+        """music_brainz() creates TOC tracks when get_disc_info fails."""
+        fake_disc = self._make_fake_discid([(1, 100), (2, 200)])
+        with unittest.mock.patch.object(mb, 'set_useragent'), \
+             unittest.mock.patch.object(mb, 'get_releases_by_discid',
+                                        side_effect=mb.WebServiceError("404")), \
+             unittest.mock.patch('arm.ripper.utils.database_updater'), \
+             unittest.mock.patch('arm.ripper.utils.put_track') as mock_put:
+            result = music_brainz.music_brainz(fake_disc, music_job)
+        assert result == ""
+        assert mock_put.call_count == 2
+        # Verify source is "TOC"
+        assert mock_put.call_args_list[0][0][6] == "TOC"
+
+    def test_music_brainz_calls_toc_fallback_on_empty_response(self, music_job, mb_empty_response):
+        """music_brainz() creates TOC tracks when MB returns no disc/cdstub."""
+        fake_disc = self._make_fake_discid([(1, 60), (2, 120), (3, 180)])
+        with unittest.mock.patch.object(mb, 'set_useragent'), \
+             unittest.mock.patch.object(mb, 'get_releases_by_discid',
+                                        return_value=mb_empty_response), \
+             unittest.mock.patch('arm.ripper.utils.put_track') as mock_put:
+            result = music_brainz.music_brainz(fake_disc, music_job)
+        assert result == ""
+        assert mock_put.call_count == 3
+
+    def test_no_toc_fallback_on_mb_success(self, music_job, mb_disc_response):
+        """music_brainz() does NOT create TOC tracks when MB lookup succeeds."""
+        fake_disc = self._make_fake_discid([(1, 68), (2, 169)])
+        with unittest.mock.patch.object(mb, 'set_useragent'), \
+             unittest.mock.patch.object(mb, 'get_releases_by_discid',
+                                        return_value=mb_disc_response), \
+             unittest.mock.patch('arm.ripper.utils.database_updater'), \
+             unittest.mock.patch('arm.ripper.music_brainz.get_cd_art', return_value=False), \
+             unittest.mock.patch('arm.ripper.utils.put_track') as mock_put:
+            result = music_brainz.music_brainz(fake_disc, music_job)
+        assert result != ""
+        # put_track called by process_tracks (source=ABCDE), not _create_toc_tracks
+        for call in mock_put.call_args_list:
+            assert call[0][6] == "ABCDE"

@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 import arm.config.config as cfg
 from arm.database import db
 from arm.models.job import Job, JobState
+from arm.models.track import Track
 from arm.models.notifications import Notifications
 from arm.services import jobs as svc_jobs
 from arm.services import files as svc_files
@@ -172,11 +173,16 @@ async def update_job_title(job_id: int, request: Request):
         'video_type': ('video_type', 'video_type_manual'),
         'imdb_id': ('imdb_id', 'imdb_id_manual'),
         'poster_url': ('poster_url', 'poster_url_manual'),
+        'artist': ('artist', 'artist_manual'),
+        'album': ('album', 'album_manual'),
+        'season': ('season', 'season_manual'),
+        'episode': ('episode', 'episode_manual'),
     }
 
-    direct_fields = ('path',)
+    direct_fields = ('path', 'label', 'disctype')
 
     args = {}
+    structured_changed = False
     for key, (eff, manual) in field_map.items():
         if key in body and body[key] is not None:
             value = str(body[key]).strip()
@@ -185,10 +191,21 @@ async def update_job_title(job_id: int, request: Request):
             args[eff] = value
             args[manual] = value
             updated[key] = value
+            if key in ('artist', 'album', 'season', 'episode'):
+                structured_changed = True
+
+    valid_disctypes = ('dvd', 'bluray', 'bluray4k', 'music', 'data')
 
     for key in direct_fields:
         if key in body and body[key] is not None:
             value = str(body[key]).strip()
+            if key == 'disctype':
+                value = value.lower()
+                if value not in valid_disctypes:
+                    return JSONResponse(
+                        {"success": False, "error": f"disctype must be one of {valid_disctypes}"},
+                        status_code=400,
+                    )
             args[key] = value
             updated[key] = value
 
@@ -205,11 +222,75 @@ async def update_job_title(job_id: int, request: Request):
     db.session.add(notification)
     svc_files.database_updater(args, job)
 
+    # If structured fields changed and title wasn't explicitly set,
+    # re-render the display title from the pattern engine
+    if structured_changed and 'title' not in updated:
+        try:
+            from arm.ripper.naming import render_title
+            db.session.flush()
+            rendered = render_title(job, cfg.arm_config)
+            if rendered:
+                svc_files.database_updater({
+                    'title': rendered,
+                    'title_manual': rendered,
+                }, job)
+                updated['title'] = rendered
+        except Exception:
+            pass
+
     return {
         "success": True,
         "job_id": job.job_id,
         "updated": updated,
     }
+
+
+@router.put('/jobs/{job_id}/tracks')
+async def set_job_tracks(job_id: int, request: Request):
+    """Replace a job's tracks with MusicBrainz track data."""
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
+
+    body = await request.json()
+    tracks = body.get('tracks', [])
+    if not isinstance(tracks, list):
+        return JSONResponse({"success": False, "error": "tracks must be a list"}, status_code=400)
+
+    # Delete existing tracks
+    Track.query.filter_by(job_id=job_id).delete()
+
+    # Create new tracks from provided data
+    for t in tracks:
+        track = Track(
+            job_id=job_id,
+            track_number=str(t.get('track_number', '')),
+            length=int(t['length_ms'] / 1000) if t.get('length_ms') else 0,
+            aspect_ratio='n/a',
+            fps=0.1,
+            main_feature=False,
+            source='MusicBrainz',
+            basename=job.title or '',
+            filename=t.get('title', ''),
+        )
+        db.session.add(track)
+
+    db.session.commit()
+
+    return {"success": True, "job_id": job_id, "tracks_count": len(tracks)}
+
+
+@router.post('/naming/preview')
+async def naming_preview(request: Request):
+    """Preview a naming pattern with given variables."""
+    from arm.ripper.naming import render_preview
+    body = await request.json()
+    pattern = body.get('pattern', '')
+    variables = body.get('variables', {})
+    if not pattern:
+        return JSONResponse({"success": False, "error": "pattern is required"}, status_code=400)
+    rendered = render_preview(pattern, variables)
+    return {"success": True, "rendered": rendered}
 
 
 def _clean_for_filename(string):

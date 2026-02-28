@@ -57,20 +57,41 @@ def music_brainz(discid: str, job) -> str:
     -----
     - Calls `get_disc_info()` to retrieve disc metadata from MusicBrainz.
     - Uses `check_musicbrainz_data()` to parse and store release data.
+    - Falls back to creating tracks from the disc TOC if the lookup fails.
     - Returns early with an empty string on error.
     """
 
     disc_info = get_disc_info(job, discid)
     if disc_info == "":
         logging.error("ARM has encountered an error and stopping")
+        _create_toc_tracks(job, discid)
         return ""
 
     artist_title = check_musicbrainz_data(job, disc_info)
     if artist_title == "":
         logging.error("ARM has encountered an error and stopping")
+        _create_toc_tracks(job, discid)
         return ""
 
     return artist_title
+
+
+def _create_toc_tracks(job, discid):
+    """Create Track records from the disc TOC when MusicBrainz lookup fails.
+
+    Even without a MusicBrainz match, the physical CD TOC provides track
+    count and lengths. This creates placeholder tracks so the UI can display
+    track durations while the user searches for metadata manually.
+    """
+    try:
+        for toc_track in discid.tracks:
+            u.put_track(
+                job, toc_track.number, toc_track.seconds,
+                "n/a", 0.1, False, "TOC", ""
+            )
+        logging.info("Created %d tracks from disc TOC", len(discid.tracks))
+    except Exception as exc:
+        logging.debug("Could not create TOC tracks: %s", exc)
 
 
 def get_disc_info(job, discid: str) -> str:
@@ -193,7 +214,11 @@ def check_musicbrainz_data(job, disc_info: dict) -> str:
                         'year_auto': str(new_year),
                         'title': artist_title,
                         'title_auto': artist_title,
-                        'no_of_titles': no_of_titles
+                        'no_of_titles': no_of_titles,
+                        'artist': artist,
+                        'artist_auto': artist,
+                        'album': title,
+                        'album_auto': title,
                     }
                     logging.info(f"CD args: {args}")
                     u.database_updater(args, job)
@@ -229,7 +254,11 @@ def check_musicbrainz_data(job, disc_info: dict) -> str:
             'year_auto': new_year,
             'title': artist_title,
             'title_auto': artist_title,
-            'no_of_titles': no_of_titles
+            'no_of_titles': no_of_titles,
+            'artist': artist,
+            'artist_auto': artist,
+            'album': title,
+            'album_auto': title,
         }
         logging.info(f"cdstub args: {args}")
         u.database_updater(args, job)
@@ -325,7 +354,11 @@ def get_title(discid: str, job) -> str:
             'crc_id': crc_id,
             'title': str(artist + " " + title),
             'title_auto': str(artist + " " + title),
-            'video_type': "music"
+            'video_type': "music",
+            'artist': artist,
+            'artist_auto': artist,
+            'album': title,
+            'album_auto': title,
         }
         u.database_updater(args, job)
         return clean_title

@@ -124,6 +124,20 @@ class Job(db.Model):
     path = db.Column(db.String(256))
     raw_path = db.Column(db.String(256))
     transcode_path = db.Column(db.String(256))
+    # Music structured fields
+    artist = db.Column(db.String(256))
+    artist_auto = db.Column(db.String(256))
+    artist_manual = db.Column(db.String(256))
+    album = db.Column(db.String(256))
+    album_auto = db.Column(db.String(256))
+    album_manual = db.Column(db.String(256))
+    # TV structured fields
+    season = db.Column(db.String(10))
+    season_auto = db.Column(db.String(10))
+    season_manual = db.Column(db.String(10))
+    episode = db.Column(db.String(10))
+    episode_auto = db.Column(db.String(10))
+    episode_manual = db.Column(db.String(10))
     ejected = db.Column(db.Boolean)
     updated = db.Column(db.Boolean)
     pid = db.Column(db.Integer)
@@ -345,10 +359,36 @@ class Job(db.Model):
             return "music"
         return "unidentified"
 
+    def _pattern_fields_available(self):
+        """Check if the structured fields needed for pattern rendering are populated.
+        Movies: always available (just need title).
+        Music: need artist or album.
+        Series: need season or episode.
+        """
+        if self.video_type == 'music':
+            return bool(
+                getattr(self, 'artist', None) or getattr(self, 'artist_manual', None)
+                or getattr(self, 'album', None) or getattr(self, 'album_manual', None)
+            )
+        elif self.video_type == 'series':
+            return bool(
+                getattr(self, 'season', None) or getattr(self, 'season_manual', None)
+                or getattr(self, 'episode', None) or getattr(self, 'episode_manual', None)
+            )
+        return True
+
     @property
     def formatted_title(self):
-        """Title formatted for filesystem paths: 'Title (Year)' or 'Title'.
-        Prefers manual title if set."""
+        """Title formatted for filesystem paths, using pattern engine if available.
+        Falls back to 'Title (Year)' or 'Title'."""
+        if self._pattern_fields_available():
+            try:
+                from arm.ripper.naming import render_title
+                result = render_title(self, cfg.arm_config)
+                if result:
+                    return result
+            except Exception:
+                pass
         title = self.title_manual if self.title_manual else self.title
         if self.year and self.year != "0000" and self.year != "":
             return f"{title} ({self.year})"
@@ -361,9 +401,25 @@ class Job(db.Model):
         return os.path.join(str(self.config.RAW_PATH), str(self.title_auto or self.title))
 
     def build_transcode_path(self):
-        """Compute the transcode output directory path."""
+        """Compute the transcode output directory path, using folder pattern."""
+        if self._pattern_fields_available():
+            try:
+                from arm.ripper.naming import render_folder
+                folder = render_folder(self, cfg.arm_config)
+                if folder:
+                    return os.path.join(self.config.TRANSCODE_PATH, self.type_subfolder, folder)
+            except Exception:
+                pass
         return os.path.join(self.config.TRANSCODE_PATH, self.type_subfolder, self.formatted_title)
 
     def build_final_path(self):
-        """Compute the final completed media directory path."""
+        """Compute the final completed media directory path, using folder pattern."""
+        if self._pattern_fields_available():
+            try:
+                from arm.ripper.naming import render_folder
+                folder = render_folder(self, cfg.arm_config)
+                if folder:
+                    return os.path.join(self.config.COMPLETED_PATH, self.type_subfolder, folder)
+            except Exception:
+                pass
         return os.path.join(self.config.COMPLETED_PATH, self.type_subfolder, self.formatted_title)

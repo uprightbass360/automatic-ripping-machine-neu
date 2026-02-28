@@ -96,6 +96,27 @@ GET_AUDIO_TITLE: "musicbrainz"
 # Requires FFmpeg
 RIP_POSTER: false
 
+
+########################
+## Naming Patterns    ##
+########################
+
+# Patterns for display titles and folder names.
+# Available variables: {title}, {year}, {artist}, {album}, {season}, {episode}, {label}
+# Use / in folder patterns to create nested directories.
+
+# Movie naming
+MOVIE_TITLE_PATTERN: "{title} ({year})"
+MOVIE_FOLDER_PATTERN: "{title} ({year})"
+
+# TV series naming
+TV_TITLE_PATTERN: "{title} S{season}E{episode}"
+TV_FOLDER_PATTERN: "{title}/Season {season}"
+
+# Music naming
+MUSIC_TITLE_PATTERN: "{artist} - {album}"
+MUSIC_FOLDER_PATTERN: "{artist}/{album} ({year})"
+
 # Auto-ejects disks
 # Auto-ejects disks when complete etc
 # Set to false to disable auto-ejection

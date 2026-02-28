@@ -24,6 +24,8 @@ def get_notify_timeout():
 @router.get('/settings/config')
 def get_config():
     """Return live arm.yaml config with sensitive fields masked."""
+    from arm.ripper.naming import PATTERN_VARIABLES
+
     raw_config = dict(cfg.arm_config)
     config = {}
     for key in list(raw_config.keys()):
@@ -33,7 +35,11 @@ def get_config():
             config[str(key)] = str(raw_config[key]) if raw_config[key] is not None else None
 
     comments = generate_comments()
-    return {"config": config, "comments": comments}
+    return {
+        "config": config,
+        "comments": comments,
+        "naming_variables": PATTERN_VARIABLES,
+    }
 
 
 @router.put('/settings/config')

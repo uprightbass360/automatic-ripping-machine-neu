@@ -81,7 +81,7 @@ RUN apt clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # Healthcheck
 COPY scripts/healthcheck.sh /healthcheck.sh
 RUN chmod +x /healthcheck.sh
-HEALTHCHECK --interval=5m --timeout=15s --start-period=30s CMD /healthcheck.sh
+HEALTHCHECK --interval=30s --timeout=15s --start-period=60s CMD /healthcheck.sh
 
 # Timezone
 ARG DEBIAN_FRONTEND=noninteractive
