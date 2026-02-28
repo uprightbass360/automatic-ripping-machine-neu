@@ -1,5 +1,19 @@
 # Changelog
 
+## [10.3.0-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.2.2-alpha.1...v10.3.0-alpha.1) (2026-02-28)
+
+
+### Features
+
+* add seed log files for all dev-data jobs ([ae774ee](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ae774ee39644cab272020c376faa46f5774839b4))
+* per-job pause support in manual wait loop ([aaa66b4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/aaa66b48bb0bdb76dcf7063613f97346d1968ec0))
+
+
+### Bug Fixes
+
+* auto-migrate database schema on ripper startup ([894dc1f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/894dc1f135c0793e2f3372d5933702f6a0f92b48))
+* extract 4-digit year from OMDb/CRC date ranges in ARM ripper ([3b0703a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3b0703afb1e03ccb3245ff1cc388b2be4d9cdaee))
+
 ## [10.2.2-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.2.1-alpha.1...v10.2.2-alpha.1) (2026-02-28)
 
 
