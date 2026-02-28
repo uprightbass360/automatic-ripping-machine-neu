@@ -3,7 +3,7 @@ set -eo pipefail
 
 RED='\033[1;31m'
 NC='\033[0m' # No Color
-FORK=automaticrippingmachine
+FORK=uprightbass360
 TAG=latest
 function usage() {
     echo -e "\nUsage: docker_setup.sh [OPTIONS]"
@@ -78,16 +78,7 @@ function setup_mountpoints() {
 }
 
 function save_start_command() {
-    url="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/main/scripts/docker/start_arm_container.sh"
-    cd ~arm
-    if [ -e start_arm_container.sh ]
-    then
-        echo -e "'start_arm_container.sh' already exists. Backing up..."
-        sudo mv ./start_arm_container.sh ./start_arm_container.sh.bak
-    fi
-    sudo -u arm curl -fsSL "$url" -o start_arm_container.sh
-    chmod +x start_arm_container.sh
-    sed -i "s|IMAGE_NAME|${IMAGE}|" start_arm_container.sh
+    echo -e "${RED}Use docker-compose for deployment. See: https://github.com/uprightbass360/automatic-ripping-machine-neu#quick-start${NC}"
 }
 
 

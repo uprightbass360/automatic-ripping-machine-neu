@@ -160,8 +160,8 @@ Once setup, ARM operates will operate with no changes to the default configurati
 Ripping media with additional hardware configuration allows for faster transcoding and depending on the host system, should improve ripping times.
 Supported Hardware Acceleration:
 - Optional extras. None of these are required for ARM to run.
-  - For [Intel QuickSync Video support](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/intel-qsv) you need 6th Gen CPU (Skylake) or newer with QuickSync feature set
-  - For [AMD VCE support](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/amd-vce) you need RX400, 500, Vega/II, Navi series GPU or better
-  - For [NVIDIA NVENC support](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/nvidia) you need GeForce GTX Pascal (1050+) and RTX Turing (1650+, 2060+) series GPU or better
+  - For [Intel QuickSync Video support](Hardware-Transcode-Intel-QSV) you need 6th Gen CPU (Skylake) or newer with QuickSync feature set
+  - For [AMD VCE support](Hardware-Transcode-AMD-VCE) you need RX400, 500, Vega/II, Navi series GPU or better
+  - For [NVIDIA NVENC support](Hardware-Transcode-Nvidia-NVENC) you need GeForce GTX Pascal (1050+) and RTX Turing (1650+, 2060+) series GPU or better
 
 **A small warning, using Intel QuickSync/AMD VCE/NVIDIA NVENC will decrease video quality, but it increases the speed of encoding significantly!**

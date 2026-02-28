@@ -10,7 +10,7 @@
 3. Install the docker plugin for your IDE (You can skip this step if you IDE comes with Dockerfile support)
 
 4. Clone the docker branch to your filesystem
-    - `git clone --recurse-submodule https://github.com/1337-server/automatic-ripping-machine.git` (This will clone to the current directory)
+    - `git clone --recurse-submodule https://github.com/uprightbass360/automatic-ripping-machine-neu.git` (This will clone to the current directory)
 
 5. Open the cloned directory with your IDE
 
@@ -39,7 +39,7 @@
     - Server: This can vary depending on your use case (Use the server you setup from the previous step)
     - Build
       - Dockerfile: Select the Dockerfile using the built in Browser or enter the path to the Dockerfile
-      - Image tag: `1337-server/automatic-ripping-machine` (Your preference if you change this)
+      - Image tag: `uprightbass360/automatic-ripping-machine` (Your preference if you change this)
     - Run
       - Click [Modify]() and enable/tick
         - Run built image
