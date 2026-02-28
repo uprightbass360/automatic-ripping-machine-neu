@@ -12,6 +12,13 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [10.2.1-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.2.0-alpha.1...v10.2.1-alpha.1) (2026-02-28)
+
+
+### Bug Fixes
+
+* add timeouts to MakeMKV keydb download to prevent startup hangs ([d4ac27b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d4ac27bfac21bcdd08afb951b090cca9101017be))
+
 ## [10.2.0-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.4-alpha.1...v10.2.0-alpha.1) (2026-02-28)
 
 
