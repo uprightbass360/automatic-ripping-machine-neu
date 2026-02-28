@@ -180,6 +180,25 @@ def setup():
     arm_log = logger.create_early_logger(syslog=args.syslog)
     # Make sure all directories are fully setup
     utils.arm_setup(arm_log)
+
+    # Auto-migrate database schema if out of date (before any DB queries)
+    from arm.services.config import check_db_version
+    try:
+        check_db_version(cfg.arm_config['INSTALLPATH'], cfg.arm_config['DBFILE'])
+    except Exception as e:
+        # Migration may fail if another ripper process is migrating concurrently.
+        # Re-check: if DB is now current (other process succeeded), continue.
+        from arm.services.config import arm_alembic_get, arm_db_get
+        head = arm_alembic_get()
+        current = arm_db_get()
+        if current and current.version_num == head:
+            logging.info("Migration failed but DB is current (migrated by another process).")
+        else:
+            raise utils.RipperException(
+                f"Database migration failed and schema is still outdated "
+                f"(head={head}, db={current.version_num if current else 'unknown'}): {e}"
+            ) from e
+
     drive = SystemDrives.query.filter_by(mount=devpath).one()  # unique mounts
 
     # With some drives and some disks, there is a race condition between creating the Job()

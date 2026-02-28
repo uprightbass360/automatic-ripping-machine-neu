@@ -57,59 +57,60 @@ def check_db_version(install_path, db_file):
     config.set_main_option("script_location", mig_dir)
     script = ScriptDirectory.from_config(config)
 
-    # create db file if it doesn't exist
+    # Create db file if it doesn't exist
     if not os.path.isfile(db_file):
         log.info("No database found.  Initializing arm.db...")
         make_dir(os.path.dirname(db_file))
         _alembic_upgrade(mig_dir, db_uri)
-
         if not os.path.isfile(db_file):
-            log.debug("Can't create database file.  This could be a permissions issue.  Exiting...")
+            log.error("Can't create database file.  This could be a permissions issue.")
             return
-        # Only run the below if the db exists
-        # Check to see if db is at current revision
-        head_revision = script.get_current_head()
-        log.debug("Alembic Head is: " + head_revision)
 
-        conn = sqlite3.connect(db_file)
-        c = conn.cursor()
+    # Check to see if db is at current revision
+    head_revision = script.get_current_head()
+    log.debug("Alembic Head is: " + head_revision)
+
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+
+    try:
+        c.execute('SELECT version_num FROM alembic_version')
+        db_version = c.fetchone()[0]
+    except sqlite3.OperationalError:
+        log.warning("alembic_version table missing — database may need migration.")
+        conn.close()
+        return
+
+    log.debug(f"Database version is: {db_version}")
+    if head_revision == db_version:
+        log.info("Database is up to date")
+    else:
+        log.info(
+            f"Database out of date. Head is {head_revision} and database is {db_version}.  Upgrading database...")
+        dt = datetime.now()
+        timestamp = dt.strftime("%Y-%m-%d_%H%M%S")
+        backup_path = f"{db_file}_migration_{timestamp}"
+        log.info(f"Backing up database '{db_file}' to '{backup_path}'.")
+        shutil.copy(db_file, backup_path)
+        _alembic_upgrade(mig_dir, db_uri)
+        log.info("Upgrade complete.  Validating version level...")
 
         try:
-            c.execute('SELECT version_num FROM alembic_version')
+            c.execute("SELECT version_num FROM alembic_version")
             db_version = c.fetchone()[0]
         except sqlite3.OperationalError:
-            log.warning("alembic_version table missing — database may need migration.")
+            log.error("alembic_version table still missing after upgrade.")
             conn.close()
             return
 
         log.debug(f"Database version is: {db_version}")
         if head_revision == db_version:
-            log.info("Database is up to date")
+            log.info("Database is now up to date")
         else:
-            log.info(
-                f"Database out of date. Head is {head_revision} and database is {db_version}.  Upgrading database...")
-            unique_stamp = round(time() * 100)
-            log.info(f"Backing up database '{db_file}' to '{db_file}{unique_stamp}'.")
-            shutil.copy(db_file, db_file + "_" + str(unique_stamp))
-            _alembic_upgrade(mig_dir, db_uri)
-            log.info("Upgrade complete.  Validating version level...")
+            log.error(f"Database is still out of date. "
+                      f"Head is {head_revision} and database is {db_version}.  Exiting arm.")
 
-            try:
-                c.execute("SELECT version_num FROM alembic_version")
-                db_version = c.fetchone()[0]
-            except sqlite3.OperationalError:
-                log.error("alembic_version table still missing after upgrade.")
-                conn.close()
-                return
-
-            log.debug(f"Database version is: {db_version}")
-            if head_revision == db_version:
-                log.info("Database is now up to date")
-            else:
-                log.error(f"Database is still out of date. "
-                          f"Head is {head_revision} and database is {db_version}.  Exiting arm.")
-
-        conn.close()
+    conn.close()
 
 
 def arm_alembic_get():
