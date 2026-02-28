@@ -2,7 +2,7 @@
 """
 The main runner for Automatic Ripping Machine
 
-For help please visit https://github.com/automatic-ripping-machine/automatic-ripping-machine
+For help please visit https://github.com/uprightbass360/automatic-ripping-machine-neu
 """
 import argparse  # noqa: E402
 import logging  # noqa: E402
