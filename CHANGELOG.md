@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.3.1-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.3.0-alpha.1...v10.3.1-alpha.1) (2026-02-28)
+
+
+### Bug Fixes
+
+* retry push with rebase in update-submodules workflow ([5fa8f69](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5fa8f695a27c156b27e85254874e640804007d45))
+
 ## [10.3.0-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.2.2-alpha.1...v10.3.0-alpha.1) (2026-02-28)
 
 
