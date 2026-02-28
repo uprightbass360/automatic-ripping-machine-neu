@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.4.0-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.3.1-alpha.1...v10.4.0-alpha.1) (2026-02-28)
+
+
+### Features
+
+* add poster_url to transcoder webhook payload ([8c1ba04](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8c1ba0438e06c05c31582b3cd456e04462093738))
+
 ## [10.3.1-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.3.0-alpha.1...v10.3.1-alpha.1) (2026-02-28)
 
 
