@@ -12,6 +12,19 @@
     - Added method to let users send/submit their correctly identified movies to a new crc64 API (an api key required)
     - Added check for crc64 from remote database
 
+## [10.2.0-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.4-alpha.1...v10.2.0-alpha.1) (2026-02-28)
+
+
+### Features
+
+* add structured fields, naming engine, and music metadata enhancements ([08c1b2e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/08c1b2e6c8ace117fd1ffaa23db744cc37aea485))
+* normalize video_type to 'music' for audio CD pipeline ([3e4e597](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3e4e5971af1e5f3c4486b2b82bb74677ff764a81))
+
+
+### Bug Fixes
+
+* restore HandBrake preset list (accidentally emptied) ([feb89ec](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/feb89ecb76644a3854ce759acfbbff95a9616aca))
+
 ## [10.1.4-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.1.3-alpha.1...v10.1.4-alpha.1) (2026-02-26)
 
 
