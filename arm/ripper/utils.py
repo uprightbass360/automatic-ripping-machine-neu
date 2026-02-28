@@ -787,13 +787,23 @@ def check_for_wait(job):
             sleep_time += 5
             db.session.refresh(job)
 
-            # Re-check global pause each iteration
+            # Check if job was cancelled externally
+            if job.status != JobState.MANUAL_WAIT_STARTED.value:
+                logging.info("Job status changed externally (cancelled). Aborting wait.")
+                raise RipperException("Job was cancelled during manual wait.")
+
+            # Re-check global pause and per-job pause each iteration
             paused_now = is_ripping_paused()
+            job_paused = getattr(job, 'manual_pause', False) or False
 
             # User clicked "Start Ripping" — always honour, even when paused
             if job.manual_start:
                 logging.info("Manual start triggered by user.")
                 break
+
+            # Per-job pause — hold this job indefinitely
+            if job_paused:
+                continue
 
             # User changed title — only proceed if not globally paused
             if job.title_manual and not paused_now:

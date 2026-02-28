@@ -59,6 +59,45 @@ class TestApiJobAbandon:
             assert response.status_code == 200
 
 
+class TestApiJobPause:
+    """Test POST /api/v1/jobs/<id>/pause endpoint."""
+
+    def test_pause_nonexistent_job(self, client):
+        response = client.post('/api/v1/jobs/99999/pause')
+        assert response.status_code == 404
+        assert response.json()["success"] is False
+
+    def test_pause_job_not_waiting(self, client, sample_job, app_context):
+        """Can only pause jobs in MANUAL_WAIT_STARTED status."""
+        from arm.ripper.utils import database_updater
+        database_updater({"status": "active"}, sample_job)
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/pause')
+        assert response.status_code == 409
+
+    def test_pause_toggles_on(self, client, sample_job, app_context):
+        from arm.ripper.utils import database_updater
+        from arm.database import db
+        database_updater({"status": "waiting"}, sample_job)
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/pause')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["paused"] is True
+        db.session.refresh(sample_job)
+        assert sample_job.manual_pause is True
+
+    def test_pause_toggles_off(self, client, sample_job, app_context):
+        from arm.ripper.utils import database_updater
+        from arm.database import db
+        database_updater({"status": "waiting", "manual_pause": True}, sample_job)
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/pause')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["paused"] is False
+        db.session.refresh(sample_job)
+        assert sample_job.manual_pause is False
+
+
 class TestApiJobConfig:
     """Test PATCH /api/v1/jobs/<id>/config endpoint."""
 

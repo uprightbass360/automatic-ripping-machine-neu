@@ -5,6 +5,103 @@ import unittest.mock
 import pytest
 
 
+class TestCheckForWait:
+    """Test check_for_wait() wait loop behavior.
+
+    Key enum values: MANUAL_WAIT_STARTED="waiting", IDLE="active".
+    check_for_wait() enters the loop when job.config.MANUAL_WAIT or is_ripping_paused().
+    """
+
+    def test_manual_start_breaks_immediately(self, app_context, sample_job):
+        """manual_start=True breaks the wait loop even when globally paused."""
+        from arm.ripper.utils import check_for_wait, database_updater
+        from arm.database import db
+
+        call_count = 0
+        original_refresh = db.session.refresh
+
+        def fake_refresh(obj):
+            nonlocal call_count
+            original_refresh(obj)
+            call_count += 1
+            if call_count >= 1:
+                obj.manual_start = True
+                db.session.commit()
+
+        with unittest.mock.patch('arm.ripper.utils.time.sleep'), \
+             unittest.mock.patch('arm.ripper.utils.is_ripping_paused', return_value=True), \
+             unittest.mock.patch.object(db.session, 'refresh', side_effect=fake_refresh):
+            check_for_wait(sample_job)
+
+        assert sample_job.status == "active"  # IDLE = "active"
+
+    def test_manual_pause_holds_job(self, app_context, sample_job):
+        """manual_pause=True prevents timeout from proceeding."""
+        from arm.ripper.utils import check_for_wait, database_updater
+        from arm.database import db
+
+        # MANUAL_WAIT=True enters the wait loop even without global pause
+        sample_job.config.MANUAL_WAIT = True
+        sample_job.config.MANUAL_WAIT_TIME = 1  # Would expire instantly
+        sample_job.manual_pause = True
+        db.session.commit()
+
+        call_count = 0
+        original_refresh = db.session.refresh
+
+        def fake_refresh(obj):
+            nonlocal call_count
+            original_refresh(obj)
+            call_count += 1
+            # After 3 iterations with manual_pause, clear it and set manual_start
+            if call_count >= 3:
+                obj.manual_pause = False
+                obj.manual_start = True
+                db.session.commit()
+
+        with unittest.mock.patch('arm.ripper.utils.time.sleep'), \
+             unittest.mock.patch('arm.ripper.utils.is_ripping_paused', return_value=False), \
+             unittest.mock.patch.object(db.session, 'refresh', side_effect=fake_refresh):
+            check_for_wait(sample_job)
+
+        # Should have looped at least 3 times (held by manual_pause)
+        assert call_count >= 3
+
+    def test_cancelled_job_raises(self, app_context, sample_job):
+        """Status changed externally raises RipperException."""
+        from arm.ripper.utils import check_for_wait, RipperException
+        from arm.database import db
+
+        original_refresh = db.session.refresh
+
+        def fake_refresh(obj):
+            original_refresh(obj)
+            obj.status = "fail"
+
+        # is_ripping_paused=True enters the wait loop
+        with unittest.mock.patch('arm.ripper.utils.time.sleep'), \
+             unittest.mock.patch('arm.ripper.utils.is_ripping_paused', return_value=True), \
+             unittest.mock.patch.object(db.session, 'refresh', side_effect=fake_refresh):
+            with pytest.raises(RipperException, match="cancelled"):
+                check_for_wait(sample_job)
+
+    def test_timeout_proceeds_when_not_paused(self, app_context, sample_job):
+        """Timeout fires when neither globally nor per-job paused."""
+        from arm.ripper.utils import check_for_wait
+        from arm.database import db
+
+        # MANUAL_WAIT=True enters the loop; is_ripping_paused=False allows timeout
+        sample_job.config.MANUAL_WAIT = True
+        sample_job.config.MANUAL_WAIT_TIME = 5  # 5 seconds
+        db.session.commit()
+
+        with unittest.mock.patch('arm.ripper.utils.time.sleep'), \
+             unittest.mock.patch('arm.ripper.utils.is_ripping_paused', return_value=False):
+            check_for_wait(sample_job)
+
+        assert sample_job.status == "active"  # IDLE = "active"
+
+
 class TestCleanForFilename:
     """Test clean_for_filename() string sanitization."""
 

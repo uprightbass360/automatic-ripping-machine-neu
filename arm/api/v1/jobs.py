@@ -54,6 +54,21 @@ def start_waiting_job(job_id: int):
     return {"success": True, "job_id": job.job_id}
 
 
+@router.post('/jobs/{job_id}/pause')
+def pause_waiting_job(job_id: int):
+    """Toggle per-job pause for a job in 'waiting' status."""
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
+
+    if job.status != JobState.MANUAL_WAIT_STARTED.value:
+        return JSONResponse({"success": False, "error": "Job is not in waiting state"}, status_code=409)
+
+    new_val = not (getattr(job, 'manual_pause', False) or False)
+    svc_files.database_updater({"manual_pause": new_val}, job)
+    return {"success": True, "job_id": job.job_id, "paused": new_val}
+
+
 @router.post('/jobs/{job_id}/cancel')
 def cancel_waiting_job(job_id: int):
     """Cancel a job that is in 'waiting' status."""
