@@ -58,9 +58,9 @@ ZIP_FILE="$TMPDIR/keydb.zip"
 RAW_KEYDB="$TMPDIR/keydb_raw.cfg"
 FILTERED_KEYDB="$TMPDIR/keydb.cfg"
 
-# Download the ZIP
+# Download the ZIP (30s connect timeout, 120s max total)
 echo "Downloading keydb from FindVUK..."
-if ! curl -fsSL -o "$ZIP_FILE" "$KEYDB_URL"; then
+if ! curl -fsSL --connect-timeout 30 --max-time 120 -o "$ZIP_FILE" "$KEYDB_URL"; then
     echo "[WARN] Failed to download keydb — network error or site unavailable"
     exit 0
 fi
