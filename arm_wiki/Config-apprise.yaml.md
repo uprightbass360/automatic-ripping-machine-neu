@@ -10,7 +10,7 @@ Its **strongly** advised to set at least one of these up when first setting up A
 
 The default location for the apprise configuration when using docker is `/etc/arm/config/apprise.yaml`.
 On installation ARM will copy the default (blank) configuration from the ARM setup
-[apprise.yaml](https://github.com/automatic-ripping-machine/automatic-ripping-machine/blob/main/setup/apprise.yaml) into the docker container configuration.
+[apprise.yaml](https://github.com/uprightbass360/automatic-ripping-machine-neu/blob/main/setup/apprise.yaml) into the docker container configuration.
 
 1. From the ARM Settings / Ripper Settings page, set the apprise.yml location
 

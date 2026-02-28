@@ -99,21 +99,21 @@ On ejecting the drive, ARM reports the drive as being open, as shown below.
 
 Click this button to close the drive.
 
-<img title="Drive Open" alt="drive open image" src="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/refs/heads/main/arm/ui/static/img/drive-optical_open.svg" width="100px" height=""/>
+<img title="Drive Open" alt="drive open image" src="https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/refs/heads/main/arm/ui/static/img/drive-optical_open.svg" width="100px" height=""/>
 
 **Drive Closed** _Default_
 
 Click this button to open the drive. Hover over it to see the kernel status
 which gives you the information whether the drive contains a disc or not.
 
-<img title="Drive Closed" alt="drive closed image" src="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/refs/heads/main/arm/ui/static/img/drive-optical_closed.svg" width="100px" height=""/>
+<img title="Drive Closed" alt="drive closed image" src="https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/refs/heads/main/arm/ui/static/img/drive-optical_closed.svg" width="100px" height=""/>
 
 **Drive Processing**
 
 A drive with a running job is indicated with a green cycle emblem. You cannot
 eject such a drive unless you abandon the associated job.
 
-<img title="Drive Processing" alt="drive processing image" src="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/refs/heads/main/arm/ui/static/img/drive-optical_closed_processing.svg" width="100px" height=""/>
+<img title="Drive Processing" alt="drive processing image" src="https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/refs/heads/main/arm/ui/static/img/drive-optical_closed_processing.svg" width="100px" height=""/>
 
 **Drive Stale**
 
@@ -123,7 +123,7 @@ as long as you delete it. If a drive has an associated MakeMKV job, its status
 update is likely blocked. It will keep the current state until the job is
 released and the drive is visible again to the system.
 
-<img title="Drive Open" alt="drive open image" src="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/refs/heads/main/arm/ui/static/img/drive-optical_stale.svg" width="100px" height=""/>
+<img title="Drive Open" alt="drive open image" src="https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/refs/heads/main/arm/ui/static/img/drive-optical_stale.svg" width="100px" height=""/>
 
 ### 4. Drive Options
 

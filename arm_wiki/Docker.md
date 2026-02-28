@@ -16,7 +16,7 @@ If running in a VM, make sure all disks are available to your distro via hardwar
 ```
 sudo apt install wget lsscsi
 lsscsi -g
-wget https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/main/scripts/installers/docker-setup.sh
+wget https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/main/scripts/installers/docker-setup.sh
 sudo chmod +x docker-setup.sh
 ```
 
@@ -189,4 +189,4 @@ If using network shares, be aware that the performance of your A.R.M. installati
 *    `{media_volume_local_path}` is a location on the local machine running on Fast SSD and plenty of space (20+ gigabytes for each concurrent Dual Layer DVDs or 100 gigabytes for each concurrent 4k blu-rays)
 *    `{media_volume_local_path}/completed` is a mounted network share (for example, pointing to a Plex, Emby or Jellyfin media library folder)
 
-If using a network share for the `/home/arm` volume, read this [section](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting#my-volume-paths-point-to-a-cifs-mount---but-now-the-database-is-locked) from [Docker Troubleshooting](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting) 
+If using a network share for the `/home/arm` volume, read this [section](Docker-Troubleshooting#my-volume-paths-point-to-a-cifs-mount---but-now-the-database-is-locked) from [Docker Troubleshooting](Docker-Troubleshooting) 

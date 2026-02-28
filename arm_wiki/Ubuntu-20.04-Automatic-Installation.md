@@ -1,4 +1,4 @@
-# IMPORTANT: This installation method is no longer supported. Please install ARM as a [Docker Container](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker) instead
+# IMPORTANT: This installation method is no longer supported. Please install ARM as a [Docker Container](docker) instead
 
 # Automatically Install ARM on Ubuntu 20.04
 The ARM installation script supports both Ubuntu Desktop 20.04 and Ubuntu Server 20.04
@@ -14,7 +14,7 @@ If running Ubuntu in a VM, make sure all disks are available to Ubuntu via hardw
 ```
 sudo apt install wget lsscsi
 lsscsi -g
-wget https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/main/scripts/installers/DebianInstaller.sh
+wget https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/main/scripts/installers/DebianInstaller.sh
 chmod +x installers/DebianInstaller.sh
 ```
 

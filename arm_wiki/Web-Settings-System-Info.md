@@ -106,9 +106,9 @@ For more information, refer to the specific section of the wiki below.
 
 The page reports transcoding status as either success or fail
 - Transcoding supported
-  <img src="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/refs/heads/main/arm/ui/static/img/success.png" width="20px">
+  <img src="https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/refs/heads/main/arm/ui/static/img/success.png" width="20px">
 - Transcoding not Supported
-  <img src="https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/refs/heads/main/arm/ui/static/img/fail.png" width="20px">
+  <img src="https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/refs/heads/main/arm/ui/static/img/fail.png" width="20px">
 
 ### Warnings and Alerts
 

@@ -3,7 +3,7 @@
 > > [!CAUTION]
 > This installation method is not supported or maintained by the ARM Developers.
 > For full support and continued maintenance,
-> we recommend installing ARM via the supported [Docker Container](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker).
+> we recommend installing ARM via the supported [Docker Container](docker).
 > This installation method was developed for those that wish to use ARM without Docker.
 >
 > **Use at your own risk**
@@ -15,7 +15,7 @@ This is **not recommended** for first time installations. This was only really i
 ## For the attended install use:
  ```
 sudo apt install wget
-wget https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/main/scripts/installers/DebianInstaller.sh
+wget https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/main/scripts/installers/DebianInstaller.sh
 sudo chmod +x DebianInstaller.sh
 sudo ./DebianInstaller.sh
 sudo chmod +x /opt/arm/scripts/update_key.sh

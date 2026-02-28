@@ -3,7 +3,7 @@
 > [!CAUTION]
 > This installation method is not supported or maintained by the ARM Developers.
 > For full support and continued maintenance,
-> we recommend installing ARM via the supported [Docker Container](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker).
+> we recommend installing ARM via the supported [Docker Container](docker).
 > This installation method was developed for those that wish to use ARM without Docker.
 >
 > **Use at your own risk** 
@@ -64,7 +64,7 @@ cd /opt
 sudo mkdir arm
 sudo chown arm:arm arm
 sudo chmod 775 arm
-sudo git clone --recurse-submodules https://github.com/automatic-ripping-machine/automatic-ripping-machine.git arm
+sudo git clone --recurse-submodules https://github.com/uprightbass360/automatic-ripping-machine-neu.git arm
 sudo chown -R arm:arm arm
 cd arm
 sudo pip3 install -r requirements.txt 

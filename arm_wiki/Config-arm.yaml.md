@@ -19,8 +19,8 @@ They include
   - The ARM web-server ip and port
   - Emby notification/server details (allowing emby refresh after rips)
   - Notification settings (Pushbullet, IFTTT, Pushover)
-  - The location of your [apprise.yaml](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/apprise.yaml) (allows notifications to Discord, Slack, Telegram, Kodi, and lots of others)
+  - The location of your [apprise.yaml](Config-apprise.yaml) (allows notifications to Discord, Slack, Telegram, Kodi, and lots of others)
 
 
 
-You can view the full sample file here  [arm.yaml](https://github.com/automatic-ripping-machine/automatic-ripping-machine/blob/main/setup/arm.yaml)
+You can view the full sample file here  [arm.yaml](https://github.com/uprightbass360/automatic-ripping-machine-neu/blob/main/setup/arm.yaml)

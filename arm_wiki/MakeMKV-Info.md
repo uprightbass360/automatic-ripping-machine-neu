@@ -3,7 +3,7 @@ A.R.M. uses MakeMKV under the hood to decrypt and copy the content of optical di
 more information about MakeMKV in the links below.
 
 * [MakeMKV Website](https://www.makemkv.com/)
-* [MakeMKV EULA (End User Licence Agreement)](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/MakeMKV-EULA)
+* [MakeMKV EULA (End User Licence Agreement)](MakeMKV-EULA)
 * [MakeMKV Forums](https://forum.makemkv.com/forum/)
 
 ## MakeMKV Licence

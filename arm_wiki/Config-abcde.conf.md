@@ -20,4 +20,4 @@ Here is some of the changes you can make with this file.
 
 
 
-You can view the full file here  [.abcde.conf](https://github.com/automatic-ripping-machine/automatic-ripping-machine/blob/main/setup/.abcde.conf)
+You can view the full file here  [.abcde.conf](https://github.com/uprightbass360/automatic-ripping-machine-neu/blob/main/setup/.abcde.conf)

@@ -7,7 +7,7 @@ See: https://b3n.org/automatic-ripping-machine for a more detailed breakdown of 
 
 ## Supported Operating Systems
 
-ARM is available as both a [Docker image](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker) as well as in a natively installed version. 
+ARM is available as both a [Docker image](docker) as well as in a natively installed version. 
 
 ### Docker image
 
@@ -30,7 +30,7 @@ If you use an unsupported operating system and can't or don't want to reimage, t
 
 
 ## Get Started
-[Getting Started](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started) on your journey with ARM
+[Getting Started](Getting-Started) on your journey with ARM
 
 ## Current Features
 

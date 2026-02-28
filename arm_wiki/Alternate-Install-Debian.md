@@ -5,7 +5,7 @@
 > [!CAUTION]
 > This installation method is not supported or maintained by the ARM Developers.
 > For full support and continued maintenance,
-> we recommend installing ARM via the supported [Docker Container](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker).
+> we recommend installing ARM via the supported [Docker Container](docker).
 > This installation method was developed for those that wish to use ARM without Docker.
 >
 > **Use at your own risk** 
@@ -37,7 +37,7 @@ one must first make full and unrestricted access to the optical drives and optio
 ### Installation steps
 If running as a root user remove the sudo calls.
 1. Download the script.
-   * `wget https://raw.githubusercontent.com/automatic-ripping-machine/automatic-ripping-machine/main/scripts/installers/DebianInstaller.sh`
+   * `wget https://raw.githubusercontent.com/uprightbass360/automatic-ripping-machine-neu/main/scripts/installers/DebianInstaller.sh`
 2. Make the script executable
    * `sudo chmod +x DebianInstaller.sh`
 3. Execute the script

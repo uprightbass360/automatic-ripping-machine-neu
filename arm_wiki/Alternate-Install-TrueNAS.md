@@ -3,7 +3,7 @@
 > [!CAUTION]
 > This installation method is not supported or maintained by the ARM Developers.
 > For full support and continued maintenance,
-> we recommend installing ARM via the supported [Docker Container](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker).
+> we recommend installing ARM via the supported [Docker Container](docker).
 > This installation method was developed for those that wish to use ARM without Docker.
 >
 > **Use at your own risk** 
@@ -73,7 +73,7 @@ Prior versions of TrueNAS Scale have an issue with GPU Allocation, which Cobia f
     Note the *Host Paths* need to be created ahead of time to show up in the *Host Path* selector.
     Where you put these is your choice, but specifically for the `media` and `music` volumes,
     a path on your storage pools is highly recommended. For a reference what each of these directories are used for,
-    read our guide on [Understanding Docker Volumes for A.R.M.](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker#understanding-docker-volumes-for-arm).
+    read our guide on [Understanding Docker Volumes for A.R.M.](docker#understanding-docker-volumes-for-arm).
     
     Next to *Host Path Volumes* click *Add* and configure the following directories:
 

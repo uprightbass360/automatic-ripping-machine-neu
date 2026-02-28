@@ -28,7 +28,7 @@ usermod -aG cdrom,video arm
 ```
 
 ### Build the image:
-`git clone https://github.com/automatic-ripping-machine/automatic-ripping-machine.git arm`  
+`git clone https://github.com/uprightbass360/automatic-ripping-machine-neu.git arm`  
 
 `cd arm`
 
@@ -83,4 +83,4 @@ You should pass in
 This isn't required, arm will still work, but it will not perform as well as it can.
 
 ### Troubleshooting
-Please see the [docker troubleshooting page](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting)
+Please see the [docker troubleshooting page](Docker-Troubleshooting)

@@ -1,10 +1,10 @@
 ## Contents
-1. [Hardware Requirements](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started#Hardware-Requirements)
-2. [Installation](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started#Installation)
-3. [Docker Setup](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started#Docker-Setup)
-4. [Virtual Machine Setup](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started#Virtual-Machine-Setup)
-5. [ARM Configuration](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started#ARM-Configuration)
-6. [Additional Hardware Setup](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Getting-Started#Additional-Hardware-Setup)
+1. [Hardware Requirements](#Hardware-Requirements)
+2. [Installation](#Installation)
+3. [Docker Setup](#Docker-Setup)
+4. [Virtual Machine Setup](#Virtual-Machine-Setup)
+5. [ARM Configuration](#ARM-Configuration)
+6. [Additional Hardware Setup](#Additional-Hardware-Setup)
 
 ## Hardware Requirements
 
@@ -45,10 +45,10 @@ ARM can be installed in multiple ways:
 
 ### Docker Setup
 
-ARM has a prebuilt docker image ready to go with minimal steps required to start, this is the best option for new users of ARM as it requires less setup and configuration - [prebuilt image](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/docker).
+ARM has a prebuilt docker image ready to go with minimal steps required to start, this is the best option for new users of ARM as it requires less setup and configuration - [prebuilt image](docker).
 
 The alternative is to build the docker image from the ARM dockerfile on your system and
-       - [Build from Dockerfile](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Building-ARM-docker-image-from-source)
+       - [Build from Dockerfile](Building-ARM-docker-image-from-source)
 
 ### Virtual Machine Setup
 
@@ -152,7 +152,7 @@ lsscsi
 
 ## ARM Configuration
 
-Once setup, ARM operates will operate with no changes to the default configuration. However, to get the most of ARM review the configuration files and modify to suit the media being ripped. See ARM [Configuration](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Configuring-ARM) for more information.
+Once setup, ARM operates will operate with no changes to the default configuration. However, to get the most of ARM review the configuration files and modify to suit the media being ripped. See ARM [Configuration](Configuring-ARM) for more information.
 
 
 ## Additional Hardware Setup
