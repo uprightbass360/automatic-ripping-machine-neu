@@ -1,5 +1,18 @@
 # Changelog
 
+## [10.2.2-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.2.1-alpha.1...v10.2.2-alpha.1) (2026-02-28)
+
+
+### Bug Fixes
+
+* replace upstream URLs with fork URLs across wiki ([797bab9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/797bab942ec869a42a38ffd4e2fa715fa2389aa1))
+* restore submodule pointers (auto-managed by CI) ([af36ccf](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/af36ccf5ebd88648d65bd4b61dff1e66d867796b))
+* update Docker.md default fork from automaticrippingmachine to uprightbass360 ([93fdab7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/93fdab7c8749453ab79d8bc71566304a34733bdc))
+* update help URL in main.py to fork repo ([a4eb593](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a4eb5938f67f6bf5ae516dbfc6d3a1b09ad67fb1))
+* update issue templates with fork references ([a9a5bf8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a9a5bf8297408f4e674f3b2a98e47f53916c3931))
+* update stale wiki links and fork references ([974d638](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/974d638599159a99d4ef91587469468d3a3b3159))
+* update wiki sidebar, contributing docs for fork ([1d3a85f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1d3a85ff8d62b5ee0d8daa125f7598f04a1651ab))
+
 ## [10.2.1-alpha.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v10.2.0-alpha.1...v10.2.1-alpha.1) (2026-02-28)
 
 
