@@ -32,7 +32,7 @@ docker stop automatic-ripping-machine
 This container is updated nightly following any new code changes made to ARM via GitHub.
 
 ```bash
-docker pull automaticrippingmachine/automatic-ripping-machine
+docker pull uprightbass360/automatic-ripping-machine
 ```
 
 4. Docker prune, this removes any unused containers from taking up space.

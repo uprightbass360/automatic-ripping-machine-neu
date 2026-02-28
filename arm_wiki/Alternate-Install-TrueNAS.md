@@ -32,7 +32,7 @@ Prior versions of TrueNAS Scale have an issue with GPU Allocation, which Cobia f
 
 3. **Set the Repository**
 
-    Set the *Image Repository* to `automaticrippingmachine/automatic-ripping-machine`
+    Set the *Image Repository* to `uprightbass360/automatic-ripping-machine`
     and leave the _Image Tage_ on `latest`.
 
 

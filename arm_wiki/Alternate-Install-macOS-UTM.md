@@ -146,7 +146,7 @@ cd ~/arm
 cat > docker-compose.yml << 'EOF'
 services:
   arm:
-    image: automaticrippingmachine/automatic-ripping-machine:latest
+    image: uprightbass360/automatic-ripping-machine:latest
     container_name: arm
     restart: unless-stopped
     privileged: true
@@ -283,7 +283,7 @@ cd ~/arm && docker compose down
 |-----------|-------|
 | VM Software | UTM with QEMU backend |
 | Guest OS | Ubuntu Server 24.04 |
-| Container | `automaticrippingmachine/automatic-ripping-machine` |
+| Container | `uprightbass360/automatic-ripping-machine` |
 | Web Interface | `http://VM_IP:8080` |
 | Default Login | admin / password |
 | DVD Device | /dev/sr0 |

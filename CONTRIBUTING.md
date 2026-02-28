@@ -11,7 +11,7 @@ be able to see the exact call-out to each program.
 When submitting a bug, enhancement, or feature request please indicate if you are able/willing to make the changes yourself in a pull request.
 
 ## Pull Requests
-Please submit pull request for bug fixes against the v2_fixes branch and features against the v2.x_dev branch.
+Please submit pull requests against the main branch.
 
 To make a pull request fork this project into your own GitHub repository and after making changes create a PR.  Read https://help.github.com/articles/creating-a-pull-request/
 

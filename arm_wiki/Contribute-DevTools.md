@@ -92,7 +92,7 @@ INFO: ARM Docker container deleted      [Ok]
 INFO: -------------------------------------
 INFO: Executing: docker build -t automatic-ripping-machine /opt/arm
 Sending build context to Docker daemon   34.2MB
-Step 1/21 : FROM automaticrippingmachine/arm-dependencies:1.1.1 AS base
+Step 1/21 : FROM uprightbass360/arm-dependencies:1.1.1 AS base
  ---> 601d89529745
 ...
 steps removed to reduce wiki size
