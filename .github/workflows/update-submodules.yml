@@ -36,5 +36,9 @@ jobs:
             echo "Submodule already up to date"
           else
             git commit -m "chore: update ${COMPONENT} submodule (v${VERSION})"
-            git push
+            for i in 1 2 3; do
+              git push && break
+              echo "Push failed (attempt $i), rebasing and retrying..."
+              git pull --rebase
+            done
           fi
