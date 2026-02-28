@@ -21,12 +21,12 @@ sudo chmod +x docker-setup.sh
 ```
 
 ## Setup ARM Docker
-The script defaults to installing the `latest` tagged image from the `automaticrippingmachine` ARM from *DockerHub*.
+The script defaults to installing the `latest` tagged image from the `uprightbass360` ARM from *DockerHub*.
 - To specify a tag, add `-t <tag>`
 - To specify a fork, add `-f <fork>`
 
-To install default: `sudo ./docker-setup.sh`  
-To install from a different repo, tag: `sudo ./docker-setup.sh -f automaticrippingmachine -t dev_build`
+To install default: `sudo ./docker-setup.sh`
+To install from a different repo, tag: `sudo ./docker-setup.sh -f uprightbass360 -t dev_build`
 
 The script will now:
 1. Create an `arm` user and group if they don't exist on the host
