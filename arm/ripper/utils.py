@@ -167,6 +167,7 @@ def transcoder_notify(cfg, title, body, job=None):
         payload["year"] = str(job.year or '')
         payload["disctype"] = str(job.disctype or '')
         payload["status"] = str(job.status or '')
+        payload["poster_url"] = str(job.poster_url or '')
 
     # Send webhook
     headers = {"Content-Type": "application/json"}
