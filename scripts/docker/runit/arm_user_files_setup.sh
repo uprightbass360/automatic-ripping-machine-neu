@@ -14,25 +14,33 @@ DEFAULT_UID=1000
 DEFAULT_GID=1000
 
 
-# Function to check if the ARM user has ownership of the requested folder
+# Function to check if the ARM user can access the requested folder.
+# Prefers strict UID/GID ownership match, but falls back to an actual
+# read/write access test (covers NFS mounts where ownership can't be changed).
 check_folder_ownership() {
-    local check_dir="$1"  # Get the folder path from the first argument
-    local folder_uid
+    local check_dir="$1"
+    local folder_uid folder_gid
     folder_uid=$(stat -c "%u" "$check_dir")
-    local folder_gid
     folder_gid=$(stat -c "%g" "$check_dir")
 
     echo "Checking ownership of $check_dir"
 
-    if [ "$folder_uid" != "$ARM_UID" ] || [ "$folder_gid" != "$ARM_GID" ]; then
-        echo "---------------------------------------------"
-        echo "[ERROR]: ARM does not have permissions to $check_dir using $ARM_UID:$ARM_GID"
-        echo "Check your user permissions and restart ARM. Folder permissions--> $folder_uid:$folder_gid"
-        echo "---------------------------------------------"
-        exit 1
+    if [ "$folder_uid" = "$ARM_UID" ] && [ "$folder_gid" = "$ARM_GID" ]; then
+        echo "[OK]: ARM UID and GID set correctly, ARM has access to '$check_dir' using $ARM_UID:$ARM_GID"
+        return 0
     fi
 
-    echo "[OK]: ARM UID and GID set correctly, ARM has access to '$check_dir' using $ARM_UID:$ARM_GID"
+    # Ownership doesn't match — test actual read/write access (NFS, group perms, ACLs)
+    if sudo -u arm test -r "$check_dir" -a -w "$check_dir" 2>/dev/null; then
+        echo "[OK]: ARM can access '$check_dir' via group/ACL (owner $folder_uid:$folder_gid, ARM $ARM_UID:$ARM_GID)"
+        return 0
+    fi
+
+    echo "---------------------------------------------"
+    echo "[ERROR]: ARM does not have permissions to $check_dir using $ARM_UID:$ARM_GID"
+    echo "Check your user permissions and restart ARM. Folder permissions--> $folder_uid:$folder_gid"
+    echo "---------------------------------------------"
+    exit 1
 }
 
 ### Setup User
