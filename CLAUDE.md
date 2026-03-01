@@ -135,6 +135,8 @@ MakeMKV requires a beta key (free, updated monthly). The key is entered via the 
 
 Current beta key: check [makemkv.com/forum/viewtopic.php?t=1053](https://www.makemkv.com/forum/viewtopic.php?t=1053)
 
+**Note:** Our base image uses non-Russian MakeMKV download mirrors. The default Russian hosting (`makemkv.com`) is geoblocked in some regions, causing Docker builds to fail when fetching the MakeMKV source tarball. The `docker/base/` Dockerfile uses alternative mirrors to avoid this.
+
 ### 9. Verify everything works
 
 ```bash
