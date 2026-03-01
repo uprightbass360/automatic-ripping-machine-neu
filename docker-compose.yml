@@ -139,7 +139,7 @@ services:
       - MAX_RETRY_COUNT=${MAX_RETRY_COUNT:-3}
       - LOG_PATH=/data/logs
     volumes:
-      - ${ARM_MEDIA_PATH}/raw:/data/raw:ro
+      - ${ARM_MEDIA_PATH}/raw:/data/raw:rw
       - ${ARM_MEDIA_PATH}/completed:/data/completed:rw
       - ${TRANSCODER_WORK_PATH:-./work}:/data/work:rw
       - transcoder-db:/data/db:rw
