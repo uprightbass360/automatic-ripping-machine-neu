@@ -489,7 +489,7 @@ def put_track(job, t_no, seconds, aspect, fps, mainfeature, source, filename="")
         basename=job.title,
         filename=filename
     )
-    job_track.ripped = (seconds > int(job.config.MINLENGTH))
+    job_track.ripped = False
     database_adder(job_track)
 
 

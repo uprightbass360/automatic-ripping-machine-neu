@@ -711,6 +711,9 @@ def makemkv_mkv(job, rawpath):
         ]
         logging.info("Process all tracks from disc.")
         collections.deque(run(cmd, OutputType.MSG), maxlen=0)
+        for track in job.tracks:
+            track.ripped = True
+        db.session.commit()
     else:
         process_single_tracks(job, rawpath, 'auto')
 
@@ -887,8 +890,9 @@ def rip_mainfeature(job, track, rawpath):
         f"--minlength={job.config.MINLENGTH}",
     ]
     logging.info("Ripping main feature")
-    # Possibly update db to say track was ripped
     collections.deque(run(cmd, OutputType.MSG), maxlen=0)
+    track.ripped = True
+    db.session.commit()
 
 
 def process_single_tracks(job, rawpath, mode: str):
@@ -940,6 +944,8 @@ def process_single_tracks(job, rawpath, mode: str):
             ]
             logging.debug("Starting to rip single track.")
             collections.deque(run(cmd, OutputType.MSG), maxlen=0)
+            track.ripped = True
+            db.session.commit()
 
 
 def setup_rawpath(job, raw_path):
