@@ -98,4 +98,5 @@ services:
 
 volumes:
   arm-db:
+  makemkv-settings:
   hb-presets:

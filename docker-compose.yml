@@ -153,6 +153,7 @@ services:
 
 volumes:
   arm-db:
+  makemkv-settings:
   transcoder-db:
   transcoder-logs:
   hb-presets:
