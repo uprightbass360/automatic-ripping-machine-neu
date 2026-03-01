@@ -1,33 +1,101 @@
 #!/usr/bin/env python3
 """
-Main code for setting up the logging for all of A.R.M
-Also triggers CD identification
+Structured logging setup for A.R.M using structlog.
+
+Uses structlog's ProcessorFormatter to intercept stdlib LogRecord objects
+at the handler/formatter level. All existing logging.info()/error()/etc.
+calls automatically produce structured output — zero changes needed in
+the 200+ call sites across ARM source files.
+
+Output targets:
+  - FileHandler (per-job .log): JSON lines (machine-parseable)
+  - StreamHandler (stdout):     colored human-readable (for docker logs)
+  - SysLogHandler (/dev/log):   key=value pairs (compact text)
 """
-# set up logging
 
 import os
 import logging
 import logging.handlers
 import time
 
+import structlog
+
 import arm.config.config as cfg
 
+# Shared pre-processing chain for stdlib LogRecords.
+# These run on every stdlib log record before the final renderer.
+_foreign_pre_chain = [
+    structlog.contextvars.merge_contextvars,
+    structlog.stdlib.add_log_level,
+    structlog.stdlib.add_logger_name,
+    structlog.processors.TimeStamper(fmt="iso"),
+]
 
-short_format = (
-    "%(levelname)s:"
-    + (" %(module)s.%(funcName)s:" if cfg.arm_config["LOGLEVEL"] == "DEBUG" else "")
-    + " %(message)s"
-)
-long_format = f"%(asctime)s ARM: {short_format}"
 
-short_formatter = logging.Formatter(short_format, datefmt=cfg.arm_config["DATE_FORMAT"])
-long_formatter = logging.Formatter(long_format, datefmt=cfg.arm_config["DATE_FORMAT"])
+def _configure_structlog():
+    """One-time structlog configuration (idempotent)."""
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.add_logger_name,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+    )
+
+
+def _json_formatter():
+    """ProcessorFormatter that renders JSON lines for file output."""
+    return structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=_foreign_pre_chain,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ],
+    )
+
+
+def _console_formatter():
+    """ProcessorFormatter that renders colored human-readable output."""
+    return structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=_foreign_pre_chain,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.dev.ConsoleRenderer(colors=True),
+        ],
+    )
+
+
+def _syslog_formatter():
+    """ProcessorFormatter that renders compact key=value text for syslog."""
+    return structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=_foreign_pre_chain,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.KeyValueRenderer(),
+        ],
+    )
+
+
+def _create_file_handler(filename):
+    """Create a FileHandler with JSON formatting."""
+    file_handler = logging.FileHandler(
+        os.path.join(cfg.arm_config["LOGPATH"], filename)
+    )
+    file_handler.setFormatter(_json_formatter())
+    return file_handler
 
 
 def setup_job_log(job):
     """
-    Setup logging and return the path to the logfile for redirection of external calls\n
-    We need to return the full logfile path but set the job.logfile to just the filename
+    Setup logging and return the path to the logfile for redirection of external calls.
+
+    We need to return the full logfile path but set the job.logfile to just the filename.
+    Binds job context (job_id, label, devpath) into structlog contextvars so every
+    subsequent log call automatically includes these fields.
     """
     # This isn't catching all of them
     if job.label == "" or job.label is None:
@@ -46,8 +114,8 @@ def setup_job_log(job):
 
     job.logfile = log_file
 
-    # If a more specific log file is created, the messages are not also logged to
-    # arm.log, but they are still logged to stdout and syslog
+    # Swap the file handler to the per-job log file.
+    # Operate on root logger so all logging.info() calls are captured.
     logger = logging.getLogger()
     logger.setLevel(cfg.arm_config["LOGLEVEL"])
     for handler in logger.handlers:
@@ -55,6 +123,15 @@ def setup_job_log(job):
             logger.removeHandler(handler)
 
     logger.addHandler(_create_file_handler(log_file))
+
+    # Bind job context into structlog contextvars — all subsequent log calls
+    # from any module will include these fields automatically
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(
+        job_id=job.job_id,
+        label=job.label,
+        devpath=job.devpath,
+    )
 
     # These stop apprise and others spitting our secret keys if users post log online
     logging.getLogger("apprise").setLevel(logging.WARN)
@@ -67,11 +144,9 @@ def setup_job_log(job):
 
 def clean_up_logs(logpath, loglife):
     """
-    Delete all log files older than {loglife} days\n
-    if {loglife} is 0 don't delete anything\n
-    :param logpath: path of log files\n
-    :param loglife: days to let logs live\n
-    :return:
+    Delete all log files older than {loglife} days.
+
+    If {loglife} is 0 don't delete anything.
     """
     if loglife < 1:
         logging.info("loglife is set to 0. Removal of logs is disabled")
@@ -80,10 +155,8 @@ def clean_up_logs(logpath, loglife):
     logging.info(f"Looking for log files older than {loglife} days old.")
 
     logs_folders = [logpath, os.path.join(logpath, 'progress')]
-    # Loop through each log path
     for log_dir in logs_folders:
         logging.info(f"Checking path {log_dir} for old log files...")
-        # Loop through each file in current folder and remove files older than set in arm.yaml
         if not os.path.isdir(log_dir):
             logging.info(f"{log_dir} is not a directory or doesn't exist. Skipping.")
             continue
@@ -95,45 +168,44 @@ def clean_up_logs(logpath, loglife):
     return True
 
 
-def _create_file_handler(filename):
-    file_handler = logging.FileHandler(os.path.join(cfg.arm_config["LOGPATH"], filename))
-    file_handler.setFormatter(long_formatter)
-    return file_handler
-
-
 def create_early_logger(stdout=True, syslog=True, file=True):
     """
-    From: https://gist.github.com/danielkraic/a1657f19bad9c158cbf9532e1ed1503b\n
-    Create logging object with logging to syslog, file and stdout\n
-    Will log to `/var/log/arm.log`\n
-    :param app_name: app name
-    :param log_level: logging log level
-    :param stdout: log to stdout
-    :param syslog: log to syslog
-    :param file: log to file
-    :return: logging object
-    """
-    # disable requests logging
-    # logging.getLogger("requests").setLevel(logging.ERROR)
-    # logging.getLogger("urllib3").setLevel(logging.ERROR)
+    Create the root ARM logger with structured formatters.
 
-    # create logger
-    logger = logging.getLogger("ARM")
-    logger.setLevel(cfg.arm_config["LOGLEVEL"])
+    Configures structlog once, then sets up stdlib handlers with
+    ProcessorFormatter so all existing logging calls get structured output.
+
+    Handlers are added to BOTH the named 'ARM' logger and the root logger,
+    ensuring that direct logging.info() calls (used throughout ARM) and
+    named logger calls all produce structured output.
+    """
+    _configure_structlog()
+
+    arm_logger = logging.getLogger("ARM")
+    arm_logger.setLevel(cfg.arm_config["LOGLEVEL"])
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(cfg.arm_config["LOGLEVEL"])
 
     if file:
-        logger.addHandler(_create_file_handler("arm.log"))
+        handler = _create_file_handler("arm.log")
+        arm_logger.addHandler(handler)
+        root_logger.addHandler(handler)
 
     if syslog:
-        # create syslog logger handler
-        stream_handler = logging.handlers.SysLogHandler(address='/dev/log')
-        stream_handler.setFormatter(short_formatter)
-        logger.addHandler(stream_handler)
+        try:
+            syslog_handler = logging.handlers.SysLogHandler(address='/dev/log')
+            syslog_handler.setFormatter(_syslog_formatter())
+            arm_logger.addHandler(syslog_handler)
+            root_logger.addHandler(syslog_handler)
+        except (OSError, ConnectionError):
+            # /dev/log may not exist in Docker or test environments
+            pass
 
     if stdout:
-        # create stream logger handler
-        stream_print = logging.StreamHandler()
-        stream_print.setFormatter(short_formatter)
-        logger.addHandler(stream_print)
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(_console_formatter())
+        arm_logger.addHandler(stream_handler)
+        root_logger.addHandler(stream_handler)
 
-    return logger
+    return arm_logger
