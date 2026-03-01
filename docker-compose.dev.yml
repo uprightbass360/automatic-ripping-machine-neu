@@ -1,4 +1,12 @@
-# Dev override: local paths, debug logging, Dockerfile.dev for transcoder.
+# Dev overlay: build from local working copies with hot-reload.
+#
+# Repos must be siblings (default layout):
+#   ~/src/automatic-ripping-machine-neu/        (this repo)
+#   ~/src/automatic-ripping-machine-ui/          (UI)
+#   ~/src/automatic-ripping-machine-transcoder/  (transcoder)
+#
+# Override paths: UI_SRC_PATH=../my-ui  TRANSCODER_SRC_PATH=../my-transcoder
+#
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 services:
@@ -10,17 +18,14 @@ services:
       - ./dev-data/logs:/home/arm/logs
       - ./dev-data/media:/home/arm/media
       - ./dev-data/config:/etc/arm/config
+      - ./dev-data/makemkv:/home/arm/.MakeMKV
 
   arm-hb-presets:
     volumes:
       - ./dev-data/hb-presets:/data/hb-presets
 
   arm-ui:
-    # Build from submodule instead of published image
-    build: ./components/ui
-    # Bind-mount source so code changes don't need a container rebuild.
-    # Backend: mounted read-only, uvicorn --reload picks up changes.
-    # Frontend: run `npm run build` locally, output is served directly.
+    build: ${UI_SRC_PATH:-../automatic-ripping-machine-ui}
     command:
       - uvicorn
       - backend.main:app
@@ -33,17 +38,28 @@ services:
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/backend:/app/backend:ro
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/frontend/build:/app/frontend/build:ro
       - ./dev-data/logs:/data/logs:ro
-      - ./dev-data/config:/data/arm-config:ro
+      - ./dev-data/config:/data/arm-config:rw
       - ./dev-data/hb-presets:/data/hb-presets:ro
 
   arm-transcoder:
     build:
-      context: ./components/transcoder
+      context: ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}
       dockerfile: Dockerfile.dev
+    command:
+      - python
+      - -m
+      - uvicorn
+      - main:app
+      - --host=0.0.0.0
+      - --port=5000
+      - --reload
+      - --reload-dir=/app
     environment:
       - LOG_LEVEL=DEBUG
       - STABILIZE_SECONDS=10
       - DELETE_SOURCE=false
       - MINIMUM_FREE_SPACE_GB=1
     volumes:
+      - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/src:/app:ro
+      - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/presets:/config/presets:ro
       - ./dev-data/transcoder-logs:/data/logs:rw

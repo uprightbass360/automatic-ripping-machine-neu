@@ -178,3 +178,47 @@ Insert a disc — ARM should detect it automatically and start ripping.
 - **Transcoder fails to start with GPU**: Install `nvidia-container-toolkit`, check `nvidia-smi` works on host
 - **UI shows "ARM Offline"**: Check `arm-rippers` is healthy (`docker compose ps`); the UI waits for ARM's healthcheck
 - **Movies not identified**: Set `OMDB_API_KEY` in `arm.yaml` — without it, discs rip but use the disc label as the title
+
+## Development Workflow
+
+### Three Sibling Repos
+
+Development uses three git repositories cloned as siblings:
+
+```
+~/src/
+  automatic-ripping-machine-neu/        # ARM ripper (this repo)
+  automatic-ripping-machine-ui/          # UI dashboard (SvelteKit + FastAPI)
+  automatic-ripping-machine-transcoder/  # GPU transcoding service
+```
+
+**The `components/ui/` and `components/transcoder/` directories are git submodules auto-updated by CI. They are always behind the working copies. NEVER build from submodules. NEVER manually update submodule pointers.**
+
+### Starting the Dev Stack
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Builds from sibling repos (not submodules) and enables hot-reload:
+
+| Service | Build From | Hot-Reload | Rebuild When |
+|---------|-----------|------------|-------------|
+| arm-rippers | This repo (`.`) | No | Any change |
+| arm-ui | `../automatic-ripping-machine-ui/` | Yes (backend) | `requirements.txt` |
+| arm-transcoder | `../automatic-ripping-machine-transcoder/` | Yes | `requirements.txt` |
+
+### Hot-Reload
+
+- **UI backend**: Edit `~/src/automatic-ripping-machine-ui/backend/` — uvicorn picks up changes automatically
+- **UI frontend**: Run `npm run build` in `~/src/automatic-ripping-machine-ui/frontend/`, then `docker restart arm-ui`
+- **Transcoder**: Edit `~/src/automatic-ripping-machine-transcoder/src/` — uvicorn picks up changes automatically
+- **ARM ripper**: Requires rebuild: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build arm-rippers`
+
+### Source Path Overrides
+
+If repos aren't siblings, set in `.env`:
+```bash
+UI_SRC_PATH=/path/to/ui/repo
+TRANSCODER_SRC_PATH=/path/to/transcoder/repo
+```

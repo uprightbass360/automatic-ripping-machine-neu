@@ -1,6 +1,6 @@
 [![CI](https://github.com/uprightbass360/automatic-ripping-machine-neu/actions/workflows/test.yml/badge.svg)](https://github.com/uprightbass360/automatic-ripping-machine-neu/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/uprightbass360/automatic-ripping-machine-neu/graph/badge.svg)](https://codecov.io/gh/uprightbass360/automatic-ripping-machine-neu)
-[![GitHub release](https://img.shields.io/github/v/release/uprightbass360/automatic-ripping-machine-neu)](https://github.com/uprightbass360/automatic-ripping-machine-neu/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/uprightbass360/automatic-ripping-machine-neu?include_prereleases)](https://github.com/uprightbass360/automatic-ripping-machine-neu/releases)
 [![Docker Image](https://img.shields.io/docker/v/uprightbass360/automatic-ripping-machine?label=docker)](https://hub.docker.com/r/uprightbass360/automatic-ripping-machine)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -105,14 +105,22 @@ See the [transcoder README](https://github.com/uprightbass360/automatic-ripping-
 
 ### Development
 
-For local development with source code hot-reload:
+Clone all three repos as siblings and start the dev stack:
 
 ```bash
-git submodule update --init --recursive
+cd ~/src
+git clone https://github.com/uprightbass360/automatic-ripping-machine-neu.git
+git clone https://github.com/uprightbass360/automatic-ripping-machine-ui.git
+git clone https://github.com/uprightbass360/automatic-ripping-machine-transcoder.git
+
+cd automatic-ripping-machine-neu
+cp .env.example .env  # edit as needed
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-This builds from the submodules under `components/` instead of pulling published images.
+The dev overlay builds from sibling repos and bind-mounts source for hot-reload. See `CLAUDE.md` for details.
+
+> **Note:** `components/ui/` and `components/transcoder/` are git submodules managed by CI. Do not build from them during development.
 
 ## Docker Images
 
