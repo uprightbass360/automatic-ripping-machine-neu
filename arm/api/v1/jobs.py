@@ -1,4 +1,5 @@
 """API v1 — Job endpoints."""
+import json
 import re
 
 from fastapi import APIRouter, Request
@@ -306,6 +307,60 @@ async def naming_preview(request: Request):
         return JSONResponse({"success": False, "error": "pattern is required"}, status_code=400)
     rendered = render_preview(pattern, variables)
     return {"success": True, "rendered": rendered}
+
+
+TRANSCODE_OVERRIDE_KEYS = {
+    'video_encoder', 'video_quality', 'audio_encoder', 'subtitle_mode',
+    'handbrake_preset', 'handbrake_preset_4k', 'handbrake_preset_dvd',
+    'handbrake_preset_file', 'delete_source', 'output_extension',
+}
+
+# Type validation: int-valued, bool-valued, rest are strings
+_INT_KEYS = {'video_quality'}
+_BOOL_KEYS = {'delete_source'}
+
+
+@router.patch('/jobs/{job_id}/transcode-config')
+async def update_transcode_config(job_id: int, request: Request):
+    """Set per-job transcode override settings."""
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
+
+    body = await request.json()
+    if not body or not isinstance(body, dict):
+        return JSONResponse({"success": False, "error": "Request body must be a JSON object"}, status_code=400)
+
+    overrides = {}
+    errors = []
+    for key, value in body.items():
+        if key not in TRANSCODE_OVERRIDE_KEYS:
+            errors.append(f"Unknown key: {key}")
+            continue
+        if value is None or value == '':
+            continue  # skip empty — means "use global default"
+        if key in _INT_KEYS:
+            try:
+                overrides[key] = int(value)
+            except (ValueError, TypeError):
+                errors.append(f"{key} must be an integer")
+        elif key in _BOOL_KEYS:
+            if isinstance(value, bool):
+                overrides[key] = value
+            elif isinstance(value, str):
+                overrides[key] = value.lower() in ('true', '1', 'yes')
+            else:
+                overrides[key] = bool(value)
+        else:
+            overrides[key] = str(value)
+
+    if errors:
+        return JSONResponse({"success": False, "errors": errors}, status_code=400)
+
+    job.transcode_overrides = json.dumps(overrides) if overrides else None
+    db.session.commit()
+
+    return {"success": True, "overrides": overrides}
 
 
 def _clean_for_filename(string):

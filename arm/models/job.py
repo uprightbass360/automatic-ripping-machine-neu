@@ -138,6 +138,7 @@ class Job(db.Model):
     episode = db.Column(db.String(10))
     episode_auto = db.Column(db.String(10))
     episode_manual = db.Column(db.String(10))
+    transcode_overrides = db.Column(db.Text, nullable=True)  # JSON dict of per-job transcode settings
     ejected = db.Column(db.Boolean)
     updated = db.Column(db.Boolean)
     pid = db.Column(db.Integer)

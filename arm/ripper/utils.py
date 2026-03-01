@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Collection of utility functions"""
 import datetime
+import json
 import os
 import logging
 import subprocess
@@ -168,6 +169,11 @@ def transcoder_notify(cfg, title, body, job=None):
         payload["disctype"] = str(job.disctype or '')
         payload["status"] = str(job.status or '')
         payload["poster_url"] = str(job.poster_url or '')
+        if job.transcode_overrides:
+            try:
+                payload["config_overrides"] = json.loads(job.transcode_overrides)
+            except (json.JSONDecodeError, TypeError):
+                pass
 
     # Send webhook
     headers = {"Content-Type": "application/json"}
