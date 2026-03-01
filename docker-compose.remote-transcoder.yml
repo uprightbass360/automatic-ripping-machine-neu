@@ -59,7 +59,7 @@ services:
       - ${ARM_MEDIA_PATH}:/home/arm/media
       - ${ARM_CONFIG_PATH}:/etc/arm/config
       - arm-db:/home/arm/db
-      - makemkv-settings:/home/arm/.MakeMKV
+      - ${ARM_MAKEMKV_PATH:-makemkv-settings}:/home/arm/.MakeMKV
     devices:
       - ${ARM_DEVICE_0:-/dev/sr0}:/dev/sr0
       - ${ARM_DEVICE_1:-/dev/sr1}:/dev/sr1
@@ -98,5 +98,4 @@ services:
 
 volumes:
   arm-db:
-  makemkv-settings:
   hb-presets:

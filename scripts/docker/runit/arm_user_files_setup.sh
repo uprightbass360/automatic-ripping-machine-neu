@@ -72,9 +72,22 @@ for dir in $SUBDIRS ; do
   chown arm:arm "$thisDir"
 done
 
-# Download/update MakeMKV community keydb (non-fatal on failure)
-echo "Updating MakeMKV keydb..."
-/opt/arm/scripts/update_keydb.sh || echo "[WARN] keydb update failed — MakeMKV may not decrypt some discs"
+# Download/update MakeMKV community keydb in background.
+# This must NEVER block container startup — the health check and udev listener
+# need to come up promptly. The keydb is important for Blu-ray decryption but
+# can finish after the container is healthy.
+# Controlled by ARM_COMMUNITY_KEYDB env var (default: true).
+# Hard 15-minute timeout as backstop (the ZIP is ~22 MB from a slow free host).
+if [[ "${ARM_COMMUNITY_KEYDB:-true}" == "true" ]]; then
+  echo "Starting MakeMKV keydb update in background..."
+  (
+    timeout 900 /opt/arm/scripts/update_keydb.sh 2>&1 \
+      | while IFS= read -r line; do echo "[keydb] $line"; done \
+      || echo "[keydb] [WARN] keydb update failed — MakeMKV may not decrypt some discs"
+  ) &
+else
+  echo "FindVUK community keydb download disabled (ARM_COMMUNITY_KEYDB=false)"
+fi
 
 echo "Removing any link between music and Music"
 if [ -h /home/arm/Music ]; then

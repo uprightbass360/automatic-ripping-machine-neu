@@ -50,6 +50,8 @@ services:
       - ARM_UID=${ARM_UID}
       - ARM_GID=${ARM_GID}
       - TZ=${TZ}
+      # FindVUK community keydb for Blu-ray decryption (true/false, default: true)
+      - ARM_COMMUNITY_KEYDB=${ARM_COMMUNITY_KEYDB:-true}
       # Transcoder integration (written to arm.yaml at startup)
       - ARM_TRANSCODER_URL=${ARM_TRANSCODER_URL:-http://arm-transcoder:5000/webhook/arm}
       - ARM_TRANSCODER_WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
@@ -59,7 +61,7 @@ services:
       - ${ARM_MEDIA_PATH}:/home/arm/media
       - ${ARM_CONFIG_PATH}:/etc/arm/config
       - arm-db:/home/arm/db
-      - makemkv-settings:/home/arm/.MakeMKV
+      - ${ARM_MAKEMKV_PATH:-makemkv-settings}:/home/arm/.MakeMKV
     # devices:
     #   - ${ARM_DEVICE_0:-/dev/sr0}:/dev/sr0
     #   - ${ARM_DEVICE_1:-/dev/sr1}:/dev/sr1
@@ -86,7 +88,7 @@ services:
       - ARM_UI_ARM_HB_PRESETS_PATH=/data/hb-presets/presets.json
       - ARM_UI_TRANSCODER_API_KEY=${TRANSCODER_API_KEY:-}
     volumes:
-      - arm-db:/data/db:ro
+      - arm-db:/data/db:rw
       - ${ARM_LOGS_PATH}:/data/logs:ro
       - ${ARM_CONFIG_PATH}:/data/arm-config:rw
       - hb-presets:/data/hb-presets:ro
@@ -151,7 +153,6 @@ services:
 
 volumes:
   arm-db:
-  makemkv-settings:
   transcoder-db:
   transcoder-logs:
   hb-presets:
