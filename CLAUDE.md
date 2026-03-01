@@ -135,7 +135,7 @@ MakeMKV requires a beta key (free, updated monthly). The key is entered via the 
 
 Current beta key: check [makemkv.com/forum/viewtopic.php?t=1053](https://www.makemkv.com/forum/viewtopic.php?t=1053)
 
-**Note:** Our base image uses non-Russian MakeMKV download mirrors. The default Russian hosting (`makemkv.com`) is geoblocked in some regions, causing Docker builds to fail when fetching the MakeMKV source tarball. The `docker/base/` Dockerfile uses alternative mirrors to avoid this.
+**Blu-ray decryption keys:** ARM auto-downloads the community `keydb.cfg` from the FindVUK Online Database (`fvonline-db.bplaced.net`) at container startup. This provides Volume Unique Keys (VUKs) needed for Blu-ray disc decryption. The script (`scripts/update_keydb.sh`) uses the non-Russian `bplaced.net` mirror instead of the original Russian-hosted FindVUK site, which is geoblocked in some regions. The keydb is cached for 7 days and can be disabled via `MAKEMKV_COMMUNITY_KEYDB: false` in `arm.yaml`.
 
 ### 9. Verify everything works
 
