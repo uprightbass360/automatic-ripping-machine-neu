@@ -31,7 +31,7 @@ check_folder_ownership() {
     fi
 
     # Ownership doesn't match — test actual read/write access (NFS, group perms, ACLs)
-    if sudo -u arm test -r "$check_dir" -a -w "$check_dir" 2>/dev/null; then
+    if su -s /bin/sh arm -c "test -r '${check_dir}' && test -w '${check_dir}'" 2>/dev/null; then
         echo "[OK]: ARM can access '$check_dir' via group/ACL (owner $folder_uid:$folder_gid, ARM $ARM_UID:$ARM_GID)"
         return 0
     fi
