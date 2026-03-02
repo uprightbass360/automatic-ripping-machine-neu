@@ -64,9 +64,7 @@ async def get_music_detail(release_id: str):
 @router.get("/test-key")
 async def test_metadata_key():
     """Test the currently configured metadata API key by making a real API call."""
-    result = await test_configured_key()
-    log.debug("Metadata key test completed: success=%s", result.get("success"))
-    return result
+    return await test_configured_key()
 
 
 # --- CRC route before {imdb_id} catch-all ---

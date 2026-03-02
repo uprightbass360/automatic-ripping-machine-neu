@@ -69,7 +69,6 @@ async def test_configured_key() -> dict[str, Any]:
     """Test the currently configured metadata API key. Returns {success, message, provider}."""
     keys = _get_keys()
     provider = keys["provider"]
-    log.debug("Testing metadata provider: %s", provider)
     key = keys["tmdb_key"] if provider == "tmdb" else keys["omdb_key"]
     if not key or not key.strip():
         return {"success": False, "message": f"No API key configured for {provider.upper()}", "provider": provider}
