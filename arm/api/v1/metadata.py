@@ -64,9 +64,8 @@ async def get_music_detail(release_id: str):
 @router.get("/test-key")
 async def test_metadata_key():
     """Test the currently configured metadata API key by making a real API call."""
-    log.debug("GET /metadata/test-key")
     result = await test_configured_key()
-    log.info("Metadata key test: provider=%s success=%s", result.get("provider"), result.get("success"))
+    log.debug("Metadata key test completed: success=%s", result.get("success"))
     return result
 
 
