@@ -92,14 +92,21 @@ def rip_folder(job):
         # sequential output index to original title ID, since MakeMKV
         # may skip short titles and renumber output files.
         import shlex
+        import shlex
         from arm.ripper.makemkv import (
             run, OutputType, ProgressBarCurrent, build_title_map, progress_log,
         )
 
+        # For folder imports, omit --progress so PRGC messages go to stdout
+        # where run() can capture them. The PRGC name field contains the
+        # output filename stem (with original title number in _tNN suffix),
+        # enabling deterministic track-to-file mapping.
+        # The progress file is still created for the UI progress bar but
+        # with --messages=-stdout (default), only MSG goes to stdout.
+        # Without --progress, ALL robot output goes to stdout.
         cmd = ["mkv"]
         cmd += shlex.split(job.config.MKV_ARGS or "")
         cmd += [
-            f"--progress={progress_log(job)}",
             job.makemkv_source,
             "all",
             rawpath,
@@ -117,6 +124,9 @@ def rip_folder(job):
         title_map = build_title_map(prgc_messages, label)
         if title_map:
             log.info("Title map from PRGC: %s", title_map)
+        elif prgc_messages:
+            log.warning("PRGC messages received but no title map extracted: %s",
+                        [(m.oid, m.name) for m in prgc_messages[:5]])
 
         # 6. Reconcile filenames using deterministic title_map when available,
         # falling back to heuristic matching for disc rips without PRGC data.
