@@ -121,6 +121,39 @@ class TestReconcileWithTitleMap:
             assert track5.filename == "Show_t04.mkv", \
                 f"Track 5 should map to Show_t04.mkv via title_map, got {track5.filename}"
 
+    def test_skipped_track_not_matched_to_claimed_file(self):
+        """A skipped track whose original filename collides with a file
+        claimed by another track via title_map should NOT be matched."""
+        from unittest.mock import patch
+        from arm.ripper.makemkv import _reconcile_filenames
+
+        job = MagicMock()
+        # Prescan: track 3 (skipped, 22s) and tracks 4,5 (episodes)
+        # MakeMKV output: _t00.mkv (=title 4), _t01.mkv (=title 5)
+        track3 = MagicMock(track_number="3", filename="Show_t03.mkv", track_id=103)
+        track4 = MagicMock(track_number="4", filename="Show_t04.mkv", track_id=104)
+        track5 = MagicMock(track_number="5", filename="Show_t05.mkv", track_id=105)
+        all_tracks = [track3, track4, track5]
+        job.tracks.filter_by.return_value.order_by.return_value = all_tracks
+
+        import tempfile
+        with tempfile.TemporaryDirectory() as rawpath:
+            Path(rawpath, "Show_t00.mkv").touch()
+            Path(rawpath, "Show_t01.mkv").touch()
+
+            # title_map: output 0 (_t00) -> title 4, output 1 (_t01) -> title 5
+            title_map = {0: 4, 1: 5}
+
+            with patch("arm.ripper.makemkv.db"):
+                _reconcile_filenames(job, rawpath, title_map=title_map)
+
+            # Track 4 mapped to _t00.mkv, track 5 mapped to _t01.mkv
+            assert track4.filename == "Show_t00.mkv"
+            assert track5.filename == "Show_t01.mkv"
+            # Track 3 was skipped - its original filename Show_t03.mkv
+            # doesn't exist on disk, so it won't match in Pass 1 either
+            assert track3.filename == "Show_t03.mkv"  # unchanged
+
     def test_reconcile_without_title_map_unchanged(self):
         """Without title_map, existing pattern matching still works (backwards compat)."""
         from arm.ripper.makemkv import _reconcile_filenames

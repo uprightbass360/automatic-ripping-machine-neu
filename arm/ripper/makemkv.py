@@ -979,7 +979,7 @@ def _reconcile_filenames(job, rawpath, title_map=None):
     for track in tracks:
         if track.track_id in matched_ids:
             continue
-        if track.filename in actual_files:
+        if track.filename in actual_files and track.filename not in claimed:
             claimed.add(track.filename)
             matched_ids.add(track.track_id)
 
