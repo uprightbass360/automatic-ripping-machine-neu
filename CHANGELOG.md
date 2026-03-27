@@ -1,5 +1,29 @@
 # Changelog
 
+## [14.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.0.1...v14.1.0) (2026-03-27)
+
+
+### Features
+
+* add rsync to Docker image for NFS-safe file transfer ([bc6aa52](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bc6aa524ffda67d526cb0e36bcaf5f92973f6f7b))
+* auto-disable tracks shorter than MINLENGTH after prescan ([#152](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/152)) ([160eba5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/160eba5906e004023f83ea14cae3012c5d4b0ac8))
+* cached disk usage and rsync copy to prevent NFS stalls ([6a4b6e6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6a4b6e6fd5d86f8aec9768595dd7effa162020a2))
+* deterministic track-to-file reconciliation via PRGC messages ([#149](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/149)) ([dfd84d8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/dfd84d8068a663e506f1ae8127f25271de3f11f7))
+
+
+### Bug Fixes
+
+* convert async def handlers to sync to prevent event loop blocking ([125904a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/125904abf5bd277c09de90622d2d2294a240b0af))
+* convert file browser handlers from async to sync to prevent event loop blocking ([6631fb1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6631fb121e0128382126a13577a2e9ee0bf2db43))
+* cross-disc filter excludes re-runs of the same disc number ([#153](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/153)) ([696e720](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/696e7201ecb2155f9fb0a34b04ed1200df4afd56))
+* deterministic track reconciliation via prescan track lengths ([#151](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/151)) ([804e3e5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/804e3e53c09084bd7842734ad449ad8e9b12e8eb))
+* expect 422 for invalid body (Pydantic validation) ([87405ac](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/87405acd3343b71f2dc08def0226b9a750576c72))
+* prevent file loss during scratch-to-shared NFS copy ([#147](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/147)) ([dc35f49](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/dc35f49117b8a2da0144eb983a76c11bed72cfc3))
+* remove --minlength from folder imports to preserve track numbering ([#148](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/148)) ([b610625](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b6106259d19735236e92c92f3c7c659413e56e23))
+* replace polynomial regex in arm_matcher.py (CodeQL) ([84b9ec4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/84b9ec4d5b9a60b08c059133dd8b6593a1d56f23))
+* replace polynomial regex with literal space to satisfy CodeQL ([70aee04](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/70aee0482f1bc17ebba3c5760157044e525103ae))
+* sync track.title when episode_name updated via PATCH ([#145](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/145)) ([1e0a9fc](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1e0a9fcecf423213f7fee8b3352e4a59ec20832b))
+
 ## [14.0.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.0.0...v14.0.1) (2026-03-26)
 
 
