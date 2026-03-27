@@ -23,18 +23,21 @@ from arm.ripper.makemkv import (
 
 log = logging.getLogger(__name__)
 
+# MakeMKV's default --minlength when not explicitly passed (120 seconds).
+# Titles shorter than this are skipped during rip.
+MAKEMKV_DEFAULT_MINLENGTH = 120
+
 
 def _build_title_map_from_tracks(job, rawpath):
     """Build output-index -> original-title-id map using prescan track data.
 
     MakeMKV processes titles in ascending order by title number and
-    skips very short ones internally.  The output files are numbered
-    sequentially (_t00, _t01, ...).  We determine which prescan tracks
-    MakeMKV kept by finding the length threshold where the count of
-    qualifying tracks matches the number of output files.
+    skips those shorter than its minlength threshold (default 120s).
+    The output files are numbered sequentially (_t00, _t01, ...).
+    By filtering prescan tracks with the same threshold, we can pair
+    them positionally with the output files.
 
-    This works because MakeMKV's skip decision is based on title
-    length, and it processes titles in ascending order.
+    Falls back to threshold search if the default doesn't match.
 
     Returns dict mapping output_index -> original_track_number.
     """
@@ -61,22 +64,21 @@ def _build_title_map_from_tracks(job, rawpath):
     if len(tracks) == num_output:
         return {i: int(t.track_number) for i, t in enumerate(tracks)}
 
-    # Find the threshold: get unique track lengths sorted ascending,
-    # then find the cutoff where tracks above it == num_output.
-    # MakeMKV skips the shortest titles until the remaining count
-    # matches what it actually produced.
-    lengths = sorted(set(t.length for t in tracks if t.length is not None))
-    for cutoff in lengths:
-        qualifying = [t for t in tracks if t.length and t.length > cutoff]
-        if len(qualifying) == num_output:
-            title_map = {i: int(t.track_number) for i, t in enumerate(qualifying)}
-            log.info(
-                "Title map: %d output files matched %d tracks with length > %ds",
-                num_output, len(qualifying), cutoff,
-            )
-            return title_map
+    # Try MakeMKV's default minlength threshold first (120s).
+    # Tracks >= minlength are kept; shorter ones are skipped.
+    minlength = MAKEMKV_DEFAULT_MINLENGTH
+    qualifying = [t for t in tracks if t.length and t.length >= minlength]
+    if len(qualifying) == num_output:
+        title_map = {i: int(t.track_number) for i, t in enumerate(qualifying)}
+        log.info(
+            "Title map: %d output files matched %d tracks with length >= %ds (default minlength)",
+            num_output, len(qualifying), minlength,
+        )
+        return title_map
 
-    # Also try >= for each cutoff (MakeMKV may use >= not >)
+    # Fallback: search for the threshold that matches the output count.
+    # This handles cases where MakeMKV uses a different threshold.
+    lengths = sorted(set(t.length for t in tracks if t.length is not None))
     for cutoff in lengths:
         qualifying = [t for t in tracks if t.length and t.length >= cutoff]
         if len(qualifying) == num_output:

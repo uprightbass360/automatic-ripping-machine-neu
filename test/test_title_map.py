@@ -147,20 +147,18 @@ class TestBuildTitleMapFromTracks:
     """Test _build_title_map_from_tracks which uses prescan track data
     and output file count to build the deterministic mapping."""
 
-    def test_skipped_short_track(self, tmp_path):
-        """When MakeMKV skips a short track, the map correctly pairs
-        output files to the qualifying prescan tracks by finding the
-        length threshold that matches the output count."""
+    def test_skipped_short_track_default_threshold(self, tmp_path):
+        """Tracks below MakeMKV's default 120s threshold are skipped.
+        The Kolchak disc 4 scenario: tracks 3 (22s) and 6 (49s) are
+        below 120s, so 5 episode tracks map to 5 output files."""
         from arm.ripper.folder_ripper import _build_title_map_from_tracks
 
         rawpath = tmp_path / "raw"
         rawpath.mkdir()
-        # MakeMKV produced 5 files (skipped track 3=22s and track 6=49s)
         for i in range(5):
             (rawpath / f"Show_t0{i}.mkv").write_bytes(b"x")
 
         job = MagicMock()
-        # Prescan: tracks 0-6, tracks 3 and 6 are short
         tracks = []
         for tn, length in [(0, 3012), (1, 3012), (2, 3015), (3, 22), (4, 3017), (5, 3011), (6, 49)]:
             t = MagicMock()
@@ -170,21 +168,22 @@ class TestBuildTitleMapFromTracks:
         job.tracks = tracks
 
         title_map = _build_title_map_from_tracks(job, str(rawpath))
-        # Threshold found at >49s: tracks 0,1,2,4,5 qualify = 5 files
+        # Default 120s threshold: tracks 0,1,2,4,5 qualify (>=120s)
         assert title_map == {0: 0, 1: 1, 2: 2, 3: 4, 4: 5}
 
-    def test_skipped_very_short_tracks(self, tmp_path):
-        """Multiple short tracks at different lengths are correctly excluded."""
+    def test_fallback_threshold_search(self, tmp_path):
+        """When default threshold doesn't match, searches for the right one."""
         from arm.ripper.folder_ripper import _build_title_map_from_tracks
 
         rawpath = tmp_path / "raw"
         rawpath.mkdir()
-        for i in range(5):
+        for i in range(3):
             (rawpath / f"Show_t0{i}.mkv").write_bytes(b"x")
 
         job = MagicMock()
+        # 5 tracks: 3 long + 2 medium (above 120s but MakeMKV still skipped them)
         tracks = []
-        for tn, length in [(0, 3012), (1, 3012), (2, 3015), (3, 1), (4, 3017), (5, 3011), (6, 0), (7, 5)]:
+        for tn, length in [(0, 3012), (1, 200), (2, 3015), (3, 150), (4, 3017)]:
             t = MagicMock()
             t.track_number = str(tn)
             t.length = length
@@ -192,8 +191,9 @@ class TestBuildTitleMapFromTracks:
         job.tracks = tracks
 
         title_map = _build_title_map_from_tracks(job, str(rawpath))
-        # Threshold at >5s: tracks 0,1,2,4,5 qualify = 5 files
-        assert title_map == {0: 0, 1: 1, 2: 2, 3: 4, 4: 5}
+        # Default 120s gives 5 qualifying (all >= 120) != 3 output
+        # Fallback search finds threshold >=200: tracks 0,2,4 = 3 files
+        assert title_map == {0: 0, 1: 2, 2: 4}
 
     def test_no_skip_identity_map(self, tmp_path):
         """When all tracks qualify, mapping is identity."""
