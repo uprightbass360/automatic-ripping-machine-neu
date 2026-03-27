@@ -24,6 +24,77 @@ from arm.ripper.makemkv import (
 log = logging.getLogger(__name__)
 
 
+def _build_title_map_from_tracks(job, rawpath):
+    """Build output-index -> original-title-id map using prescan track data.
+
+    MakeMKV processes titles in ascending order by title number and
+    skips very short ones internally.  The output files are numbered
+    sequentially (_t00, _t01, ...).  We determine which prescan tracks
+    MakeMKV kept by finding the length threshold where the count of
+    qualifying tracks matches the number of output files.
+
+    This works because MakeMKV's skip decision is based on title
+    length, and it processes titles in ascending order.
+
+    Returns dict mapping output_index -> original_track_number.
+    """
+    if not rawpath or not os.path.isdir(rawpath):
+        return {}
+
+    output_files = sorted(
+        f for f in os.listdir(rawpath)
+        if os.path.isfile(os.path.join(rawpath, f)) and f.endswith(".mkv")
+    )
+    if not output_files:
+        return {}
+
+    num_output = len(output_files)
+
+    # Get all prescan tracks sorted by track number (ascending)
+    tracks = sorted(job.tracks, key=lambda t: int(t.track_number)
+                    if t.track_number and str(t.track_number).isdigit() else 0)
+
+    if not tracks:
+        return {}
+
+    # If count matches directly, no titles were skipped - identity map
+    if len(tracks) == num_output:
+        return {i: int(t.track_number) for i, t in enumerate(tracks)}
+
+    # Find the threshold: get unique track lengths sorted ascending,
+    # then find the cutoff where tracks above it == num_output.
+    # MakeMKV skips the shortest titles until the remaining count
+    # matches what it actually produced.
+    lengths = sorted(set(t.length for t in tracks if t.length is not None))
+    for cutoff in lengths:
+        qualifying = [t for t in tracks if t.length and t.length > cutoff]
+        if len(qualifying) == num_output:
+            title_map = {i: int(t.track_number) for i, t in enumerate(qualifying)}
+            log.info(
+                "Title map: %d output files matched %d tracks with length > %ds",
+                num_output, len(qualifying), cutoff,
+            )
+            return title_map
+
+    # Also try >= for each cutoff (MakeMKV may use >= not >)
+    for cutoff in lengths:
+        qualifying = [t for t in tracks if t.length and t.length >= cutoff]
+        if len(qualifying) == num_output:
+            title_map = {i: int(t.track_number) for i, t in enumerate(qualifying)}
+            log.info(
+                "Title map: %d output files matched %d tracks with length >= %ds",
+                num_output, len(qualifying), cutoff,
+            )
+            return title_map
+
+    log.warning(
+        "Title map: could not find threshold matching %d output files "
+        "from %d prescan tracks - falling back to pattern matching",
+        num_output, len(tracks),
+    )
+    return {}
+
+
 def rip_folder(job):
     """Run the folder import rip pipeline.
 
@@ -88,48 +159,32 @@ def rip_folder(job):
         # 5. Rip — always use "all" mode for folder imports.
         # MakeMKV's per-track numbering from file: sources doesn't match
         # the prescan track numbers, so single-track extraction fails.
-        # Collect PRGC messages to build a deterministic mapping from
-        # sequential output index to original title ID, since MakeMKV
-        # may skip short titles and renumber output files.
+        import collections
         import shlex
-        import shlex
-        from arm.ripper.makemkv import (
-            run, OutputType, ProgressBarCurrent, build_title_map, progress_log,
-        )
+        from arm.ripper.makemkv import run, OutputType, progress_log
 
-        # For folder imports, omit --progress so PRGC messages go to stdout
-        # where run() can capture them. The PRGC name field contains the
-        # output filename stem (with original title number in _tNN suffix),
-        # enabling deterministic track-to-file mapping.
-        # The progress file is still created for the UI progress bar but
-        # with --messages=-stdout (default), only MSG goes to stdout.
-        # Without --progress, ALL robot output goes to stdout.
         cmd = ["mkv"]
         cmd += shlex.split(job.config.MKV_ARGS or "")
         cmd += [
+            f"--progress={progress_log(job)}",
             job.makemkv_source,
             "all",
             rawpath,
         ]
         log.info("Ripping all tracks from folder source: %s", job.source_path)
+        collections.deque(run(cmd, OutputType.MSG), maxlen=0)
 
-        # Consume run() output, collecting PRGC messages for title mapping
-        prgc_messages = []
-        for msg in run(cmd, OutputType.MSG | OutputType.PRGC):
-            if isinstance(msg, ProgressBarCurrent):
-                prgc_messages.append(msg)
-
-        # Build deterministic output-index -> original-title-id map
-        label = os.path.basename(rawpath)
-        title_map = build_title_map(prgc_messages, label)
+        # 6. Build deterministic title map from prescan track data.
+        # MakeMKV processes titles in ascending order and skips short ones.
+        # The output files _t00.._tNN map positionally to the prescan
+        # tracks that MakeMKV actually kept, sorted by track number.
+        # We know from the DB which tracks exist and their lengths, and
+        # from disk which output files were produced.
+        title_map = _build_title_map_from_tracks(job, rawpath)
         if title_map:
-            log.info("Title map from PRGC: %s", title_map)
-        elif prgc_messages:
-            log.warning("PRGC messages received but no title map extracted: %s",
-                        [(m.oid, m.name) for m in prgc_messages[:5]])
+            log.info("Title map from prescan: %s", title_map)
 
-        # 6. Reconcile filenames using deterministic title_map when available,
-        # falling back to heuristic matching for disc rips without PRGC data.
+        # 7. Reconcile filenames using deterministic title_map.
         _reconcile_filenames(job, rawpath, title_map=title_map)
 
         # Mark tracks as ripped only if their file actually exists on disk
