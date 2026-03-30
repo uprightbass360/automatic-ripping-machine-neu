@@ -173,14 +173,15 @@ def _move_to_shared_storage(cfg, raw_basename, job=None):
                 logging.error(f"rsync failed (exit {result.returncode}): {result.stderr}")
                 raise OSError(f"rsync failed: {result.stderr[:200]}")
 
-            # Log transferred files from rsync output
-            for line in result.stdout.strip().splitlines():
-                if line.strip():
-                    logging.info(f"rsync: {line.strip()}")
+            # Log individual transfer lines at DEBUG to avoid flooding
+            # the structured log with progress data
+            lines = [l.strip() for l in result.stdout.strip().splitlines() if l.strip()]
+            for line in lines:
+                logging.debug(f"rsync: {line}")
 
             # rsync --remove-source-files removes files but leaves empty dirs
             shutil.rmtree(src, ignore_errors=True)
-            logging.info(f"rsync complete: {src} -> {dst}")
+            logging.info(f"rsync complete: {src} -> {dst} ({len(lines)} files transferred)")
         except OSError as e:
             logging.error(f"Failed to move {src} -> {dst}: {e}")
             raise
