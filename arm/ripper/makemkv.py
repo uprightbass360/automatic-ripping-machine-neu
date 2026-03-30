@@ -1617,15 +1617,28 @@ def run(options, select):
         logging.debug(f"PID {proc.pid}: command: '{' '.join(cmd)}'")
         for line in proc.stdout:
             line = line.rstrip(os.linesep)
-            logging.debug(line)  # Maybe write the raw output to a separate log
+            logging.debug(line)
             if proc.returncode:
                 buffer.append(line)
                 continue
             try:
                 msg_type, data = parse_line(line)
             except MakeMkvParserError:
-                continue  # Skip unrecognized lines (already logged at debug)
-            logging.debug(data)
+                continue
+            # Log key events at INFO so they appear in production logs.
+            # PRGV/PRGC/PRGT/SINFO/DRV stay at DEBUG (progress goes to
+            # the separate progress file, stream/drive details are noisy).
+            if msg_type == OutputType.TCOUNT:
+                logging.info(f"Found {data.count} titles")
+            elif msg_type == OutputType.TINFO:
+                if hasattr(data, 'id') and data.id == TrackID.FILENAME:
+                    logging.info(f"Title {data.tid}: {data.value}")
+            elif msg_type == OutputType.MSG:
+                logging.info(f"MakeMKV: {data.message}")
+            elif msg_type == OutputType.CINFO:
+                logging.debug(data)
+            else:
+                logging.debug(data)
             if msg_type in select:
                 yield data
     if proc.returncode:
