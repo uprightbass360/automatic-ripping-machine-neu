@@ -356,6 +356,53 @@ def test_track_folder_all_tracks_same_folder():
     assert 'Show' in folders[0]
 
 
+def test_track_folder_movie_uses_track_title():
+    """Multi-title movie: each track gets its own folder based on its title."""
+    job = _make_job(title='The Sender And The Invader', year=None, video_type='movie')
+    track = _make_track(title='The Sender', video_type='movie', year='1998')
+    result = render_track_folder(track, job)
+    assert 'The Sender' in result
+    assert 'The Sender And The Invader' not in result
+
+
+def test_track_folder_movie_uses_track_year():
+    """Multi-title movie: folder uses the track's year, not the job's."""
+    job = _make_job(title='Double Feature', year='2000', video_type='movie')
+    track = _make_track(title='Movie A', video_type='movie', year='1999')
+    result = render_track_folder(track, job)
+    assert '1999' in result
+    assert '2000' not in result
+
+
+def test_track_folder_movie_without_track_title_uses_job_title():
+    """Multi-title movie: when track has no custom title, falls back to job title."""
+    job = _make_job(title='Double Feature', year='2000', video_type='movie')
+    track = _make_track(title=None, video_type='movie')
+    result = render_track_folder(track, job)
+    assert 'Double Feature' in result
+
+
+def test_track_folder_movie_each_track_gets_own_folder():
+    """Multi-title movie: different tracks get different folders."""
+    job = _make_job(title='Disc Label', year=None, video_type='movie')
+    track_a = _make_track(title='The Sender', video_type='movie', year='1998')
+    track_b = _make_track(title='The Invader', video_type='movie', year='1997')
+    folder_a = render_track_folder(track_a, job)
+    folder_b = render_track_folder(track_b, job)
+    assert folder_a != folder_b
+    assert 'The Sender' in folder_a
+    assert 'The Invader' in folder_b
+
+
+def test_track_folder_series_still_uses_job_title():
+    """Multi-title series: tracks still share the show folder (not per-track)."""
+    job = _make_job(title='Breaking Bad', year='2008', video_type='series', season='1')
+    track = _make_track(title='Pilot', video_type='series', episode_number='1')
+    result = render_track_folder(track, job)
+    assert 'Breaking Bad' in result
+    assert 'Pilot' not in result
+
+
 # ======================================================================
 # Per-job naming overrides and custom filenames
 # ======================================================================

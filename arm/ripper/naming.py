@@ -225,10 +225,13 @@ def render_track_title(track, job, config_dict=None):
 def render_track_folder(track, job, config_dict=None):
     """Render the folder path for a single track on a multi-title disc.
 
-    Uses the **job-level** title (show name) for the folder — NOT the
-    per-track episode title.  Only video_type, year, and season/episode
-    are taken from the track so that all episodes land under the same
-    show folder (e.g. "The-Mrs-Bradley-Mysteries/Season 01").
+    For **series**: uses the job-level title (show name) so all episodes
+    land under the same show folder (e.g. "Breaking Bad/Season 01").
+
+    For **movies**: uses the per-track title when available, since each
+    track is a separate movie that needs its own folder in Plex/Jellyfin
+    (e.g. "The Sender (2024)" and "The Invader (2024)" instead of
+    both landing in "The Sender And The Invader (None)").
     """
     import os
     # Start from job-level variables (keeps job title for {title})
@@ -239,6 +242,11 @@ def render_track_folder(track, job, config_dict=None):
         variables['video_type'] = track_video_type
     if getattr(track, 'year', None):
         variables['year'] = track.year
+    # For movie tracks with per-track metadata, use the track's own title
+    # for the folder so each movie gets its own directory in media libraries.
+    effective_type = variables.get('video_type', '') or 'movie'
+    if effective_type == 'movie' and getattr(track, 'title', None):
+        variables['title'] = track.title
     ep_num = getattr(track, 'episode_number', None)
     if ep_num:
         variables['episode'] = str(ep_num).zfill(2)
