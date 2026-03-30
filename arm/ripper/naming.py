@@ -83,9 +83,8 @@ def _clean_empty_parens(s):
 
 def _clean_for_filename(s):
     """Sanitize a single path segment for filesystem use."""
+    s = s.replace(':', ' - ')
     s = re.sub(r'\s+', ' ', s)
-    s = s.replace(' : ', ' - ')
-    s = s.replace(':', '-')
     s = s.replace('&', 'and')
     s = s.replace('\\', ' - ')
     s = re.sub(r'[^\w .()-]', '', s)

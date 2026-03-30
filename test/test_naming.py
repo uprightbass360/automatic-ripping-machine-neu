@@ -270,9 +270,10 @@ def test_track_title_with_custom_config():
 
 
 def test_clean_for_filename_colons():
-    # ' : ' → ' - ', but ':' without surrounding spaces → '-'
+    # All colon patterns produce ' - ' with normalized spacing
     assert _clean_for_filename('Star Wars : A New Hope') == 'Star Wars - A New Hope'
-    assert _clean_for_filename('Star Wars: A New Hope') == 'Star Wars- A New Hope'
+    assert _clean_for_filename('Star Wars: A New Hope') == 'Star Wars - A New Hope'
+    assert _clean_for_filename('Kolchak: The Night Stalker') == 'Kolchak - The Night Stalker'
 
 
 def test_clean_for_filename_ampersand():
@@ -498,7 +499,7 @@ class TestCustomFilename:
         result = render_track_title(track, job)
         assert ':' not in result
         assert '&' not in result
-        assert 'Bad- Name and Stuff' == result
+        assert 'Bad - Name and Stuff' == result
 
     def test_custom_filename_prevents_path_traversal(self):
         job = _make_job(title='Show')
