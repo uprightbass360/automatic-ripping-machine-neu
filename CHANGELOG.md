@@ -1,5 +1,14 @@
 # Changelog
 
+## [14.1.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.1.0...v14.1.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* colon sanitization produces clean spacing in filenames ([6767af3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6767af34f855ae9ffe1058734077c64bb6e4a233))
+* guard against None PID in clean_old_jobs ([1dfa36a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1dfa36a5db41037da634bd7ca0fea5274485c273))
+* multi-title movie tracks get per-track folders for Plex compatibility ([a8578dc](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a8578dc57f6dd3b47d50e62510cbc7a274644ca1))
+
 ## [14.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.0.1...v14.1.0) (2026-03-27)
 
 
