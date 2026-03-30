@@ -1,5 +1,13 @@
 # Changelog
 
+## [14.1.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.1.1...v14.1.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* promote key MakeMKV events to INFO, demote rsync progress to DEBUG ([c0c1d59](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c0c1d592fbf3ed1a127f44fde6333db15bbb7a6b))
+* protect /system/paths from NFS stalls via cached subprocess probe ([173b41f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/173b41f9b5900ddfebfdda6c33e23f7068ba7e29))
+
 ## [14.1.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.1.0...v14.1.1) (2026-03-30)
 
 
