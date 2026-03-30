@@ -883,6 +883,9 @@ def clean_old_jobs():
     active_jobs = db.session.query(Job).filter(Job.status.notin_(excluded)).all()
     # Clean up abandoned jobs
     for job in active_jobs:
+        if job.pid is None:
+            logging.info(f"Job #{job.job_id} has no PID (folder rip or pre-scan). Skipping.")
+            continue
         if psutil.pid_exists(job.pid):
             job_process = psutil.Process(job.pid)
             if job.pid_hash == hash(job_process):
