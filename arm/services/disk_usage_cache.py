@@ -40,7 +40,7 @@ def get_disk_usage(path: str) -> dict | None:
     """
     with _cache_lock:
         entry = _cache.get(path)
-    if entry:
+    if entry and "total" in entry:
         return {
             "total": entry["total"],
             "used": entry["used"],
@@ -51,7 +51,7 @@ def get_disk_usage(path: str) -> dict | None:
     _refresh_path(path)
     with _cache_lock:
         entry = _cache.get(path)
-    if entry:
+    if entry and "total" in entry:
         return {
             "total": entry["total"],
             "used": entry["used"],
@@ -74,30 +74,29 @@ def get_path_status(path: str) -> dict | None:
     return None
 
 
+_PROBE_SCRIPT = """\
+import os, json, sys
+p = sys.argv[1]
+e = os.path.exists(p)
+w = os.access(p, os.W_OK) if e else False
+d = {'exists': e, 'writable': w}
+try:
+    s = os.statvfs(p)
+    d['total'] = s.f_frsize * s.f_blocks
+    d['free'] = s.f_frsize * s.f_bavail
+    d['used'] = d['total'] - (s.f_frsize * s.f_bfree)
+    d['percent'] = round(d['used'] / d['total'] * 100, 1) if d['total'] else 0
+except OSError:
+    pass
+json.dump(d, sys.stdout)
+"""
+
+
 def _refresh_path(path: str):
     """Refresh disk usage and path status using a subprocess with timeout."""
     try:
-        # Use a subprocess so D-state statvfs doesn't block our threads.
-        # The subprocess probes existence, writability, and disk usage in one call.
         result = subprocess.run(
-            [
-                "python3", "-c",
-                "import os, json, sys; "
-                "p = sys.argv[1]; "
-                "e = os.path.exists(p); "
-                "w = os.access(p, os.W_OK) if e else False; "
-                "d = {'exists': e, 'writable': w}; "
-                "try:\n"
-                "  s = os.statvfs(p); "
-                "  d['total'] = s.f_frsize * s.f_blocks; "
-                "  d['free'] = s.f_frsize * s.f_bavail; "
-                "  d['used'] = d['total'] - (s.f_frsize * s.f_bfree); "
-                "  d['percent'] = round(d['used'] / d['total'] * 100, 1) if d['total'] else 0\n"
-                "except OSError:\n"
-                "  pass\n"
-                "json.dump(d, sys.stdout)",
-                path,
-            ],
+            ["python3", "-c", _PROBE_SCRIPT, path],
             capture_output=True,
             text=True,
             timeout=SUBPROCESS_TIMEOUT,
