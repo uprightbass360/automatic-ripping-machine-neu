@@ -453,6 +453,18 @@ class TestValidatePattern:
         assert result['valid'] is False
         assert len(result['invalid_vars']) == 2
 
+    def test_format_spec_valid_var(self):
+        """Variables with format specs like {title:.20} should be recognized."""
+        result = validate_pattern('{title:.20} ({year:>4})')
+        assert result['valid'] is True
+        assert result['invalid_vars'] == []
+
+    def test_format_spec_invalid_var(self):
+        """Invalid variable with format spec should still be caught."""
+        result = validate_pattern('{badvar:.10}')
+        assert result['valid'] is False
+        assert 'badvar' in result['invalid_vars']
+
 
 class TestGetPatternWithJobOverride:
     def test_job_title_override_takes_priority(self):
@@ -557,7 +569,7 @@ class TestRenderAllTracks:
         assert 'S01E02' in results[1]['rendered_title']
 
     def test_duplicate_detection_appends_track_number(self):
-        """Literal pattern with no per-track variation → duplicates detected."""
+        """Literal pattern with no per-track variation - duplicates detected."""
         job = self._make_job_with_tracks(
             [
                 {'track_number': '0'},
@@ -571,6 +583,24 @@ class TestRenderAllTracks:
         assert titles[0] != titles[1]
         assert 'Track 0' in titles[0]
         assert 'Track 1' in titles[1]
+
+    def test_three_way_duplicate_detection(self):
+        """Three tracks with identical names all get disambiguated."""
+        job = self._make_job_with_tracks(
+            [
+                {'track_number': '0'},
+                {'track_number': '1'},
+                {'track_number': '2'},
+            ],
+            title='Movie', video_type='movie', year='2024',
+            title_pattern_override='Same Name',
+        )
+        results = render_all_tracks(job)
+        titles = [r['rendered_title'] for r in results]
+        assert len(set(titles)) == 3
+        assert 'Track 0' in titles[0]
+        assert 'Track 1' in titles[1]
+        assert 'Track 2' in titles[2]
 
     def test_cross_tier_duplicate_detection(self):
         """Custom filename collides with pattern-rendered name."""

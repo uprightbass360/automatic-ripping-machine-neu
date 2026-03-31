@@ -239,6 +239,8 @@ def _build_webhook_payload(title, body, job, raw_basename):
                 "filename": str(track.filename or ''),
                 "has_custom_title": bool(track.title) or bool(getattr(track, 'custom_filename', None)),
                 "folder_name": r.get("rendered_folder", ''),
+                # _clean_for_filename is idempotent; render_track_title already
+                # sanitizes custom_filename but raw pattern output needs it here.
                 "title_name": _clean_for_filename(r.get("rendered_title", '')) if r.get("rendered_title") else '',
                 "episode_number": str(getattr(track, 'episode_number', '') or ''),
                 "episode_name": str(getattr(track, 'episode_name', '') or ''),

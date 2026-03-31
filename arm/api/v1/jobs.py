@@ -516,6 +516,11 @@ def update_job_naming(job_id: int, body: dict):
         if field in body:
             value = body[field]
             if value is not None and value != '':
+                if len(value) > 512:
+                    return JSONResponse({
+                        "success": False,
+                        "error": "Pattern too long (max 512 characters)",
+                    }, status_code=400)
                 result = validate_pattern(value)
                 if not result['valid']:
                     return JSONResponse({

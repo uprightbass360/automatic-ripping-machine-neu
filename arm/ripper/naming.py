@@ -343,7 +343,7 @@ def validate_pattern(pattern):
 
     Returns {"valid": bool, "invalid_vars": [...], "suggestions": {...}}.
     """
-    tokens = re.findall(r'\{(\w+)\}', pattern)
+    tokens = re.findall(r'\{(\w+)[^}]*\}', pattern)
     invalid = [t for t in tokens if t not in VALID_VARS]
     suggestions = {}
     for inv in invalid:
