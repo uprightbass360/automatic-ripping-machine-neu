@@ -2314,3 +2314,149 @@ class TestApiActiveJobs:
         job = response.json()["jobs"][0]
         assert job["track_counts"]["total"] == 2
         assert job["track_counts"]["ripped"] == 1
+
+
+class TestApiJobsPaginated:
+    """Test GET /api/v1/jobs/paginated endpoint."""
+
+    def test_basic_pagination(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/paginated')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 1
+        assert data["page"] == 1
+        assert data["per_page"] == 25
+        assert data["pages"] == 1
+        assert len(data["jobs"]) == 1
+        assert data["jobs"][0]["title"] == "SERIAL_MOM"
+
+    def test_filter_by_status(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/paginated?status=active')
+        assert response.status_code == 200
+        assert response.json()["total"] == 1
+
+        response = client.get('/api/v1/jobs/paginated?status=success')
+        assert response.json()["total"] == 0
+
+    def test_filter_by_disctype(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/paginated?disctype=bluray')
+        assert response.json()["total"] == 1
+
+        response = client.get('/api/v1/jobs/paginated?disctype=dvd')
+        assert response.json()["total"] == 0
+
+    def test_search(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/paginated?search=SERIAL')
+        assert response.json()["total"] == 1
+
+        response = client.get('/api/v1/jobs/paginated?search=NONEXISTENT')
+        assert response.json()["total"] == 0
+
+    def test_sort_ascending(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/paginated?sort_by=title&sort_dir=asc')
+        assert response.status_code == 200
+        assert len(response.json()["jobs"]) == 1
+
+    def test_page_out_of_range(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/paginated?page=999')
+        assert response.status_code == 200
+        assert response.json()["jobs"] == []
+        assert response.json()["total"] == 1
+
+    def test_empty_database(self, client, app_context):
+        response = client.get('/api/v1/jobs/paginated')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["jobs"] == []
+        assert data["pages"] == 1
+
+    def test_multiple_jobs_pagination(self, client, sample_job, app_context):
+        """Create extra jobs and verify per_page limit works."""
+        import unittest.mock
+        from arm.models.job import Job
+        from arm.database import db
+
+        for i in range(3):
+            with unittest.mock.patch.object(Job, 'parse_udev'), \
+                 unittest.mock.patch.object(Job, 'get_pid'):
+                j = Job('/dev/sr0')
+            j.title = f"Movie {i}"
+            j.status = "success"
+            j.disctype = "bluray"
+            j.arm_version = "test"
+            j.crc_id = ""
+            j.logfile = f"test_{i}.log"
+            db.session.add(j)
+        db.session.commit()
+
+        response = client.get('/api/v1/jobs/paginated?per_page=2')
+        data = response.json()
+        assert data["total"] == 4  # sample_job + 3 new
+        assert len(data["jobs"]) == 2
+        assert data["pages"] == 2
+
+        response = client.get('/api/v1/jobs/paginated?per_page=2&page=2')
+        data = response.json()
+        assert len(data["jobs"]) == 2
+
+
+class TestApiRetranscodeInfo:
+    """Test GET /api/v1/jobs/<id>/retranscode-info endpoint."""
+
+    def test_retranscode_info_basic(self, client, sample_job, app_context):
+        from arm.database import db
+        sample_job.raw_path = "/home/arm/media/raw/SERIAL_MOM"
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/retranscode-info')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "SERIAL_MOM"
+        assert data["year"] == "1994"
+        assert data["job_id"] == sample_job.job_id
+        assert data["disctype"] == "bluray"
+        assert data["path"] == "/home/arm/media/raw/SERIAL_MOM"
+
+    def test_retranscode_info_not_found(self, client, app_context):
+        response = client.get('/api/v1/jobs/99999/retranscode-info')
+        assert response.status_code == 404
+
+    def test_retranscode_info_non_video(self, client, sample_job, app_context):
+        from arm.database import db
+        sample_job.disctype = "music"
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/retranscode-info')
+        assert response.status_code == 400
+
+    def test_retranscode_info_with_overrides(self, client, sample_job, app_context):
+        import json
+        from arm.database import db
+        sample_job.transcode_overrides = json.dumps({"video_encoder": "nvenc_h265"})
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/retranscode-info')
+        data = response.json()
+        assert data["config_overrides"] == {"video_encoder": "nvenc_h265"}
+
+    def test_retranscode_info_multi_title(self, client, sample_job, app_context):
+        from arm.models.track import Track
+        from arm.database import db
+
+        sample_job.multi_title = True
+        t = Track(
+            job_id=sample_job.job_id, track_number="0",
+            length=3600, aspect_ratio="16:9", fps="23.976",
+            main_feature=True, source="MakeMKV",
+            basename="movie.mkv", filename="movie.mkv",
+        )
+        t.title = "The Movie"
+        db.session.add(t)
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/retranscode-info')
+        data = response.json()
+        assert data["multi_title"] is True
+        assert len(data["tracks"]) == 1
+        assert data["tracks"][0]["title"] == "The Movie"
