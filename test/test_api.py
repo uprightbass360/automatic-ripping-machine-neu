@@ -2167,3 +2167,64 @@ class TestApiNotificationPurge:
         response = client.post('/api/v1/notifications/purge')
         assert response.status_code == 200
         assert response.json()["count"] == 0
+
+
+class TestApiDrivesList:
+    """Test GET /api/v1/drives endpoint."""
+
+    def test_list_drives(self, client, sample_drives):
+        response = client.get('/api/v1/drives')
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["drives"]) == 2
+        names = [d["name"] for d in data["drives"]]
+        assert "Living Room" in names
+        assert "Office" in names
+        assert "Stale Drive" not in names
+
+    def test_list_drives_include_stale(self, client, sample_drives):
+        response = client.get('/api/v1/drives?include_stale=true')
+        assert response.status_code == 200
+        assert len(response.json()["drives"]) == 3
+
+    def test_list_drives_empty(self, client, app_context):
+        response = client.get('/api/v1/drives')
+        assert response.status_code == 200
+        assert response.json()["drives"] == []
+
+    def test_drive_includes_capabilities(self, client, sample_drives):
+        response = client.get('/api/v1/drives')
+        data = response.json()
+        drive = next(d for d in data["drives"] if d["name"] == "Living Room")
+        assert "capabilities" in drive
+        assert "BD" in drive["capabilities"]
+
+    def test_drive_includes_job_ids(self, client, sample_drives):
+        response = client.get('/api/v1/drives')
+        data = response.json()
+        drive = data["drives"][0]
+        assert "job_id_current" in drive
+        assert "job_id_previous" in drive
+
+
+class TestApiDrivesWithJobs:
+    """Test GET /api/v1/drives/with-jobs endpoint."""
+
+    def test_drives_with_current_job(self, client, sample_drives, sample_job, app_context):
+        from arm.database import db
+        sample_drives[0].job_id_current = sample_job.job_id
+        db.session.commit()
+
+        response = client.get('/api/v1/drives/with-jobs')
+        assert response.status_code == 200
+        data = response.json()
+        drive = next(d for d in data["drives"] if d["name"] == "Living Room")
+        assert drive["current_job"] is not None
+        assert drive["current_job"]["title"] == "SERIAL_MOM"
+        assert drive["current_job"]["status"] == "active"
+
+    def test_drives_without_jobs(self, client, sample_drives):
+        response = client.get('/api/v1/drives/with-jobs')
+        data = response.json()
+        for drive in data["drives"]:
+            assert drive["current_job"] is None
