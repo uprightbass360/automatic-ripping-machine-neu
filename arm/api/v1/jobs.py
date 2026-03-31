@@ -5,10 +5,14 @@ threadpool, preventing blocking the event loop during DB queries,
 external HTTP calls, or filesystem operations.
 """
 import json
+import math
 import re
 import threading
-from fastapi import APIRouter
+from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, or_
 
 import arm.config.config as cfg
 from arm.constants import SINGLE_TRACK_VIDEO_TYPES
@@ -63,6 +67,16 @@ router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
 
 _ACTIVE_STATUSES = {"active", "ripping", "transcoding", "waiting"}
+_WAITING_STATUSES = {"waiting", "waiting_transcode"}
+
+_SORTABLE_COLUMNS = {
+    "title": Job.title,
+    "year": Job.year,
+    "status": Job.status,
+    "video_type": Job.video_type,
+    "disctype": Job.disctype,
+    "start_time": Job.start_time,
+}
 
 HIDDEN_CONFIG_FIELDS = {
     "PB_KEY", "IFTTT_KEY", "PO_USER_KEY", "PO_APP_KEY",
@@ -112,6 +126,75 @@ def get_active_jobs():
         job_data["track_counts"] = {"total": len(tracks), "ripped": ripped}
         result.append(job_data)
     return {"jobs": result}
+
+
+@router.get('/jobs/paginated')
+def get_jobs_paginated(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+    status: str | None = None,
+    search: str | None = None,
+    video_type: str | None = None,
+    disctype: str | None = None,
+    days: int | None = Query(None, ge=1),
+    sort_by: str | None = None,
+    sort_dir: str | None = Query(None, pattern="^(asc|desc)$"),
+):
+    """Paginated job list with filtering and sorting.
+
+    Supports status grouping (active = active+ripping+transcoding,
+    waiting = waiting+waiting_transcode), text search across title fields,
+    and sorting by title/year/status/video_type/disctype/start_time.
+    """
+    query = db.session.query(Job)
+
+    # Status filter (with group expansion)
+    if status:
+        s = status.lower()
+        if s == "active":
+            query = query.filter(func.lower(Job.status).in_(list(_ACTIVE_STATUSES - _WAITING_STATUSES)))
+        elif s == "waiting":
+            query = query.filter(func.lower(Job.status).in_(list(_WAITING_STATUSES)))
+        else:
+            query = query.filter(func.lower(Job.status) == s)
+
+    if video_type:
+        query = query.filter(func.lower(Job.video_type) == video_type.lower())
+    if disctype:
+        query = query.filter(func.lower(Job.disctype) == disctype.lower())
+    if days:
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        query = query.filter(Job.start_time >= cutoff)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Job.title.ilike(pattern),
+                Job.title_auto.ilike(pattern),
+                Job.title_manual.ilike(pattern),
+                Job.label.ilike(pattern),
+            )
+        )
+
+    total = query.count()
+
+    # Sorting
+    col = _SORTABLE_COLUMNS.get(sort_by, Job.start_time)
+    if sort_dir == "asc":
+        query = query.order_by(col.asc().nulls_last())
+    else:
+        query = query.order_by(col.desc().nulls_last())
+
+    jobs = query.offset((page - 1) * per_page).limit(per_page).all()
+    pages = max(1, math.ceil(total / per_page)) if total else 1
+
+    return {
+        "jobs": [_job_to_dict(j) for j in jobs],
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": pages,
+    }
 
 
 @router.delete('/jobs/{job_id}')
@@ -697,6 +780,63 @@ def get_job_detail(job_id: int):
             "ripped": ripped,
         },
     }
+
+
+@router.get('/jobs/{job_id}/retranscode-info')
+def get_retranscode_info(job_id: int):
+    """Build a webhook-shaped payload for re-transcoding a job.
+
+    Returns the data the UI needs to submit to the transcoder for a
+    re-transcode request, including per-track metadata for multi-title discs.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
+    if job.disctype not in ("dvd", "bluray", "bluray4k"):
+        return JSONResponse(
+            {"success": False, "error": "Only video disc jobs can be re-transcoded"},
+            status_code=400,
+        )
+
+    title = job.title or job.title_auto or job.label or "Unknown"
+    year = job.year or job.year_auto or ""
+
+    config_overrides = None
+    if job.transcode_overrides:
+        try:
+            config_overrides = json.loads(job.transcode_overrides)
+        except (ValueError, TypeError):
+            pass
+
+    payload = {
+        "title": title,
+        "body": f"{title} ({year})" if year else title,
+        "path": job.raw_path or job.path or "",
+        "job_id": job.job_id,
+        "status": "success",
+        "video_type": job.video_type or job.video_type_auto or "movie",
+        "year": year,
+        "disctype": job.disctype,
+        "poster_url": job.poster_url or job.poster_url_auto or "",
+        "config_overrides": config_overrides,
+    }
+
+    if job.multi_title:
+        payload["multi_title"] = True
+        tracks_meta = []
+        for track in (job.tracks or []):
+            if getattr(track, 'title', None):
+                tracks_meta.append({
+                    "track_number": str(track.track_number or ''),
+                    "title": str(track.title),
+                    "year": str(getattr(track, 'year', '') or ''),
+                    "video_type": str(getattr(track, 'video_type', '') or ''),
+                    "filename": str(track.filename or ''),
+                })
+        if tracks_meta:
+            payload["tracks"] = tracks_meta
+
+    return payload
 
 
 @router.post('/jobs/{job_id}/transcode-callback')
