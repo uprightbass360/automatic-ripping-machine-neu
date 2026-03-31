@@ -2075,3 +2075,95 @@ class TestApiAutoFlagTracks:
         _auto_flag_tracks(job, mainfeature=False)
         db.session.refresh(t1)
         assert t1.enabled is True
+
+
+# ---- API Migration Phase 1 ----
+
+
+class TestApiNotificationsList:
+    """Test GET /api/v1/notifications endpoint."""
+
+    def test_list_excludes_cleared(self, client, sample_notifications):
+        response = client.get('/api/v1/notifications')
+        assert response.status_code == 200
+        data = response.json()
+        # 3 non-cleared: 2 unseen + 1 seen
+        assert len(data["notifications"]) == 3
+        for n in data["notifications"]:
+            assert n["cleared"] is False
+
+    def test_list_include_cleared(self, client, sample_notifications):
+        response = client.get('/api/v1/notifications?include_cleared=true')
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["notifications"]) == 4
+
+    def test_list_empty(self, client, app_context):
+        response = client.get('/api/v1/notifications')
+        assert response.status_code == 200
+        assert response.json()["notifications"] == []
+
+    def test_list_ordered_newest_first(self, client, sample_notifications):
+        response = client.get('/api/v1/notifications')
+        data = response.json()
+        times = [n["trigger_time"] for n in data["notifications"]]
+        assert times == sorted(times, reverse=True)
+
+
+class TestApiNotificationCount:
+    """Test GET /api/v1/notifications/count endpoint."""
+
+    def test_count_with_notifications(self, client, sample_notifications):
+        response = client.get('/api/v1/notifications/count')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["unseen"] == 2
+        assert data["seen"] == 1
+        assert data["cleared"] == 1
+        assert data["total"] == 4
+
+    def test_count_empty(self, client, app_context):
+        response = client.get('/api/v1/notifications/count')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["unseen"] == 0
+        assert data["total"] == 0
+
+
+class TestApiNotificationDismissAll:
+    """Test POST /api/v1/notifications/dismiss-all endpoint."""
+
+    def test_dismiss_all(self, client, sample_notifications):
+        response = client.post('/api/v1/notifications/dismiss-all')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["count"] == 2
+
+        check = client.get('/api/v1/notifications/count')
+        assert check.json()["unseen"] == 0
+
+    def test_dismiss_all_none_unseen(self, client, app_context):
+        response = client.post('/api/v1/notifications/dismiss-all')
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+
+
+class TestApiNotificationPurge:
+    """Test POST /api/v1/notifications/purge endpoint."""
+
+    def test_purge_cleared(self, client, sample_notifications):
+        response = client.post('/api/v1/notifications/purge')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["count"] == 1
+
+        check = client.get('/api/v1/notifications/count')
+        assert check.json()["total"] == 3
+        assert check.json()["cleared"] == 0
+
+    def test_purge_none_cleared(self, client, app_context):
+        response = client.post('/api/v1/notifications/purge')
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
