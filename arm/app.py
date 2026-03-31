@@ -17,15 +17,26 @@ class SessionCleanupMiddleware(BaseHTTPMiddleware):
 
     FastAPI runs sync def handlers in a threadpool.  AnyIO reuses threads,
     so scoped_session (keyed by thread ID) can leak uncommitted state from
-    one request to the next on the same thread.  Calling db.session.remove()
-    returns the connection to the pool and resets the session.
+    one request to the next on the same thread.
+
+    The rollback() before remove() is critical: if a request fails mid-flush
+    (e.g. SQLite "database is locked"), the session enters a
+    PendingRollbackError state.  Without an explicit rollback, every
+    subsequent request on the same thread will fail with the same error.
+    rollback() is a no-op when there is nothing to roll back.
     """
 
     async def dispatch(self, request: Request, call_next):
-        response = await call_next(request)
-        if db._engine is not None:
-            db.session.remove()
-        return response
+        try:
+            response = await call_next(request)
+            return response
+        finally:
+            if db._engine is not None:
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                db.session.remove()
 
 
 @asynccontextmanager
