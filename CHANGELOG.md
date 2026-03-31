@@ -1,5 +1,23 @@
 # Changelog
 
+## [14.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.1.2...v14.2.0) (2026-03-31)
+
+
+### Features
+
+* add GET /drives and /drives/with-jobs listing endpoints ([339c56c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/339c56c95d6bf8c41c10010175c95a1d706e09cb))
+* add GET /jobs/active and /jobs/{id}/detail endpoints ([e1144e1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e1144e1bb0f81580fadfd153663f9f123bfcf03c))
+* add notification list, count, dismiss-all, purge endpoints ([314442c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/314442ccaf89fa69c2218f2d62f5608a2e1f9622))
+* add paginated jobs listing and retranscode-info endpoints ([2753c8f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2753c8f634c78b8c2d192778b52a76733eb902c9))
+
+
+### Bug Fixes
+
+* disk-usage cache subprocess probe SyntaxError breaks path checks ([0c09d8a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0c09d8a51ec66a49c60e46b559f19a089b444946))
+* harden naming pattern validation and add missing test coverage ([947f0eb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/947f0eb765cddec07dd2dc6a6f52c41952c7be67))
+* replace deprecated datetime.utcnow() with datetime.now() ([1ae9834](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1ae9834c227be358abe571fd9874c0cbac65eff7))
+* use Annotated type hints for FastAPI Query parameters ([6ed7014](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6ed701470ba89b6603a26dbc941a8fad1469528d))
+
 ## [14.1.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.1.1...v14.1.2) (2026-03-30)
 
 
