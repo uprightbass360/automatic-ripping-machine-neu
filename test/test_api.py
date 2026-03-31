@@ -2228,3 +2228,89 @@ class TestApiDrivesWithJobs:
         data = response.json()
         for drive in data["drives"]:
             assert drive["current_job"] is None
+
+
+class TestApiJobDetail:
+    """Test GET /api/v1/jobs/<id>/detail endpoint."""
+
+    def test_job_detail_basic(self, client, sample_job, app_context):
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["job"]["title"] == "SERIAL_MOM"
+        assert data["job"]["year"] == "1994"
+        assert "config" in data
+        assert "track_counts" in data
+
+    def test_job_detail_track_counts(self, client, sample_job, app_context):
+        from arm.models.track import Track
+        from arm.database import db
+
+        for i in range(3):
+            t = Track(
+                job_id=sample_job.job_id, track_number=str(i),
+                length=3600, aspect_ratio="16:9", fps="23.976",
+                main_feature=i == 0, source="MakeMKV",
+                basename=f"title_{i}.mkv", filename=f"title_{i}.mkv",
+            )
+            t.ripped = i < 2
+            db.session.add(t)
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        data = response.json()
+        assert data["track_counts"]["total"] == 3
+        assert data["track_counts"]["ripped"] == 2
+
+    def test_job_detail_not_found(self, client, app_context):
+        response = client.get('/api/v1/jobs/99999/detail')
+        assert response.status_code == 404
+
+    def test_job_detail_config_masks_sensitive(self, client, sample_job, app_context):
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        data = response.json()
+        config = data["config"]
+        for key in ("PB_KEY", "IFTTT_KEY", "PO_USER_KEY", "PO_APP_KEY",
+                     "EMBY_PASSWORD", "EMBY_API_KEY"):
+            if key in config:
+                assert config[key] in (None, "", "***")
+
+
+class TestApiActiveJobs:
+    """Test GET /api/v1/jobs/active endpoint."""
+
+    def test_active_jobs_returns_active(self, client, sample_job, app_context):
+        response = client.get('/api/v1/jobs/active')
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["jobs"]) == 1
+        assert data["jobs"][0]["title"] == "SERIAL_MOM"
+        assert "track_counts" in data["jobs"][0]
+
+    def test_active_jobs_excludes_completed(self, client, sample_job, app_context):
+        from arm.database import db
+        sample_job.status = "success"
+        db.session.commit()
+
+        response = client.get('/api/v1/jobs/active')
+        assert response.json()["jobs"] == []
+
+    def test_active_jobs_with_tracks(self, client, sample_job, app_context):
+        from arm.models.track import Track
+        from arm.database import db
+
+        for i in range(2):
+            t = Track(
+                job_id=sample_job.job_id, track_number=str(i),
+                length=3600, aspect_ratio="16:9", fps="23.976",
+                main_feature=i == 0, source="MakeMKV",
+                basename=f"title_{i}.mkv", filename=f"title_{i}.mkv",
+            )
+            t.ripped = i == 0
+            db.session.add(t)
+        db.session.commit()
+
+        response = client.get('/api/v1/jobs/active')
+        job = response.json()["jobs"][0]
+        assert job["track_counts"]["total"] == 2
+        assert job["track_counts"]["ripped"] == 1

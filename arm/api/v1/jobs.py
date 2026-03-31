@@ -62,6 +62,28 @@ def _auto_flag_tracks(job, mainfeature: bool):
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
 
+_ACTIVE_STATUSES = {"active", "ripping", "transcoding", "waiting"}
+
+HIDDEN_CONFIG_FIELDS = {
+    "PB_KEY", "IFTTT_KEY", "PO_USER_KEY", "PO_APP_KEY",
+    "EMBY_PASSWORD", "EMBY_API_KEY", "OMDB_API_KEY",
+    "TMDB_API_KEY", "TVDB_API_KEY", "MAKEMKV_PERMA_KEY",
+    "ARM_API_KEY", "JSON_URL", "EMBY_USERID", "EMBY_USERNAME",
+}
+
+
+def _job_to_dict(job):
+    """Serialize a Job record to a dict with ISO datetimes."""
+    data = {
+        col.name: getattr(job, col.name)
+        for col in Job.__table__.columns
+    }
+    for key, val in data.items():
+        if hasattr(val, 'isoformat'):
+            data[key] = val.isoformat()
+    return data
+
+
 @router.get('/jobs')
 def list_jobs(status: str = None, q: str = None):
     """List jobs, optionally filtered by status or search query."""
@@ -73,6 +95,23 @@ def list_jobs(status: str = None, q: str = None):
         return svc_jobs.get_x_jobs(JobState.SUCCESS.value)
     else:
         return svc_jobs.get_x_jobs('joblist')
+
+
+@router.get('/jobs/active')
+def get_active_jobs():
+    """Return jobs with active statuses, including track counts.
+
+    Used by the dashboard to show currently running/waiting jobs.
+    """
+    jobs = Job.query.filter(Job.status.in_(_ACTIVE_STATUSES)).all()
+    result = []
+    for job in jobs:
+        job_data = _job_to_dict(job)
+        tracks = Track.query.filter_by(job_id=job.job_id).all()
+        ripped = sum(1 for t in tracks if t.ripped)
+        job_data["track_counts"] = {"total": len(tracks), "ripped": ripped}
+        result.append(job_data)
+    return {"jobs": result}
 
 
 @router.delete('/jobs/{job_id}')
@@ -620,6 +659,44 @@ def update_transcode_config(job_id: int, body: dict):
     db.session.commit()
 
     return {"success": True, "overrides": overrides}
+
+
+@router.get('/jobs/{job_id}/detail')
+def get_job_detail(job_id: int):
+    """Return job with config (masked) and track counts."""
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
+
+    job_data = _job_to_dict(job)
+
+    # Config (masked)
+    config_data = None
+    if job.config:
+        from arm.models.config import Config
+        config_data = {}
+        for col in Config.__table__.columns:
+            name = col.name
+            if name in ("CONFIG_ID", "job_id"):
+                continue
+            value = getattr(job.config, name, None)
+            if name in HIDDEN_CONFIG_FIELDS:
+                config_data[name] = "***" if value else None
+            else:
+                config_data[name] = value
+
+    # Track counts
+    tracks = Track.query.filter_by(job_id=job_id).all()
+    ripped = sum(1 for t in tracks if t.ripped)
+
+    return {
+        "job": job_data,
+        "config": config_data,
+        "track_counts": {
+            "total": len(tracks),
+            "ripped": ripped,
+        },
+    }
 
 
 @router.post('/jobs/{job_id}/transcode-callback')
