@@ -350,6 +350,51 @@ class TestApiJobTitleUpdate:
         assert response.status_code == 400
 
 
+class TestApiJobNamingUpdate:
+    """Test PATCH /api/v1/jobs/<id>/naming endpoint."""
+
+    def test_set_title_pattern(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/naming',
+            json={"title_pattern_override": "{title} ({year})"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["title_pattern_override"] == "{title} ({year})"
+
+    def test_clear_pattern(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/naming',
+            json={"title_pattern_override": ""},
+        )
+        assert response.status_code == 200
+        assert response.json()["title_pattern_override"] is None
+
+    def test_invalid_variable(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/naming',
+            json={"title_pattern_override": "{bogus}"},
+        )
+        assert response.status_code == 400
+        assert "invalid_vars" in response.json()
+
+    def test_pattern_too_long(self, client, sample_job, app_context):
+        response = client.patch(
+            f'/api/v1/jobs/{sample_job.job_id}/naming',
+            json={"title_pattern_override": "x" * 513},
+        )
+        assert response.status_code == 400
+        assert "too long" in response.json()["error"]
+
+    def test_nonexistent_job(self, client):
+        response = client.patch(
+            '/api/v1/jobs/99999/naming',
+            json={"title_pattern_override": "{title}"},
+        )
+        assert response.status_code == 404
+
+
 class TestApiNamingPreview:
     """Test POST /api/v1/naming/preview endpoint."""
 
