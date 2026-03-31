@@ -17,6 +17,90 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["drives"])
 
+
+def _drive_capabilities(d):
+    """Build capabilities list from drive flags."""
+    caps = []
+    if d.read_cd:
+        caps.append("CD")
+    if d.read_dvd:
+        caps.append("DVD")
+    if d.read_bd:
+        caps.append("BD")
+    if getattr(d, 'uhd_capable', False):
+        caps.append("UHD")
+    return caps
+
+
+def _drive_dict(d):
+    """Serialize a SystemDrives record to a dict."""
+    return {
+        "drive_id": d.drive_id,
+        "name": d.name,
+        "description": getattr(d, 'description', ''),
+        "mount": d.mount,
+        "maker": d.maker,
+        "model": d.model,
+        "serial": d.serial,
+        "firmware": d.firmware,
+        "connection": d.connection,
+        "capabilities": _drive_capabilities(d),
+        "uhd_capable": getattr(d, 'uhd_capable', False),
+        "drive_mode": getattr(d, 'drive_mode', 'auto'),
+        "stale": d.stale,
+        "job_id_current": d.job_id_current,
+        "job_id_previous": d.job_id_previous,
+    }
+
+
+@router.get('/drives')
+def list_drives(include_stale: bool = False):
+    """List optical drives with capabilities and current/previous job IDs."""
+    query = SystemDrives.query
+    if not include_stale:
+        query = query.filter(SystemDrives.stale == False)  # noqa: E712
+    return {"drives": [_drive_dict(d) for d in query.all()]}
+
+
+@router.get('/drives/with-jobs')
+def list_drives_with_jobs():
+    """List non-stale drives with current job details attached."""
+    from arm.models.job import Job
+
+    drives = (
+        SystemDrives.query
+        .filter(SystemDrives.stale == False)  # noqa: E712
+        .all()
+    )
+
+    def _job_summary(job_id):
+        if not job_id:
+            return None
+        job = Job.query.get(job_id)
+        if not job:
+            return None
+        return {
+            "job_id": job.job_id,
+            "title": job.title,
+            "year": job.year,
+            "video_type": job.video_type,
+            "status": job.status,
+            "stage": job.stage,
+            "disctype": job.disctype,
+            "label": job.label,
+            "poster_url": job.poster_url,
+            "no_of_titles": job.no_of_titles,
+        }
+
+    result = []
+    for d in drives:
+        entry = _drive_dict(d)
+        entry["current_job"] = _job_summary(d.job_id_current)
+        result.append(entry)
+
+    return {"drives": result}
+
+
 _CDS_NAMES = {0: "NO_INFO", 1: "NO_DISC", 2: "TRAY_OPEN", 3: "NOT_READY", 4: "DISC_OK"}
 
 
