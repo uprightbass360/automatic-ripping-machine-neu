@@ -9,6 +9,7 @@ import math
 import re
 import threading
 from datetime import datetime, timedelta
+from typing import Annotated
 
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
@@ -130,15 +131,15 @@ def get_active_jobs():
 
 @router.get('/jobs/paginated')
 def get_jobs_paginated(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(25, ge=1, le=100),
+    page: Annotated[int, Query(ge=1)] = 1,
+    per_page: Annotated[int, Query(ge=1, le=100)] = 25,
     status: str | None = None,
     search: str | None = None,
     video_type: str | None = None,
     disctype: str | None = None,
-    days: int | None = Query(None, ge=1),
+    days: Annotated[int | None, Query(ge=1)] = None,
     sort_by: str | None = None,
-    sort_dir: str | None = Query(None, pattern="^(asc|desc)$"),
+    sort_dir: Annotated[str | None, Query(pattern="^(asc|desc)$")] = None,
 ):
     """Paginated job list with filtering and sorting.
 
