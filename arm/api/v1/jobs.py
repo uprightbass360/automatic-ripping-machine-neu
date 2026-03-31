@@ -782,17 +782,41 @@ def get_job_detail(job_id: int):
     }
 
 
+def _parse_transcode_overrides(raw: str | None) -> dict | None:
+    """Parse JSON transcode overrides, returning None on failure."""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+
+
+def _build_multi_title_tracks(job) -> list[dict]:
+    """Extract per-track metadata for multi-title discs."""
+    return [
+        {
+            "track_number": str(t.track_number or ''),
+            "title": str(t.title),
+            "year": str(getattr(t, 'year', '') or ''),
+            "video_type": str(getattr(t, 'video_type', '') or ''),
+            "filename": str(t.filename or ''),
+        }
+        for t in (job.tracks or [])
+        if getattr(t, 'title', None)
+    ]
+
+
+_VIDEO_DISC_TYPES = {"dvd", "bluray", "bluray4k"}
+
+
 @router.get('/jobs/{job_id}/retranscode-info')
 def get_retranscode_info(job_id: int):
-    """Build a webhook-shaped payload for re-transcoding a job.
-
-    Returns the data the UI needs to submit to the transcoder for a
-    re-transcode request, including per-track metadata for multi-title discs.
-    """
+    """Build a webhook-shaped payload for re-transcoding a job."""
     job = Job.query.get(job_id)
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
-    if job.disctype not in ("dvd", "bluray", "bluray4k"):
+    if job.disctype not in _VIDEO_DISC_TYPES:
         return JSONResponse(
             {"success": False, "error": "Only video disc jobs can be re-transcoded"},
             status_code=400,
@@ -800,13 +824,6 @@ def get_retranscode_info(job_id: int):
 
     title = job.title or job.title_auto or job.label or "Unknown"
     year = job.year or job.year_auto or ""
-
-    config_overrides = None
-    if job.transcode_overrides:
-        try:
-            config_overrides = json.loads(job.transcode_overrides)
-        except (ValueError, TypeError):
-            pass
 
     payload = {
         "title": title,
@@ -818,21 +835,12 @@ def get_retranscode_info(job_id: int):
         "year": year,
         "disctype": job.disctype,
         "poster_url": job.poster_url or job.poster_url_auto or "",
-        "config_overrides": config_overrides,
+        "config_overrides": _parse_transcode_overrides(job.transcode_overrides),
     }
 
     if job.multi_title:
         payload["multi_title"] = True
-        tracks_meta = []
-        for track in (job.tracks or []):
-            if getattr(track, 'title', None):
-                tracks_meta.append({
-                    "track_number": str(track.track_number or ''),
-                    "title": str(track.title),
-                    "year": str(getattr(track, 'year', '') or ''),
-                    "video_type": str(getattr(track, 'video_type', '') or ''),
-                    "filename": str(track.filename or ''),
-                })
+        tracks_meta = _build_multi_title_tracks(job)
         if tracks_meta:
             payload["tracks"] = tracks_meta
 
