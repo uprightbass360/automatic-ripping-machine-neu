@@ -163,7 +163,7 @@ def get_jobs_paginated(
     if disctype:
         query = query.filter(func.lower(Job.disctype) == disctype.lower())
     if days:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now() - timedelta(days=days)
         query = query.filter(Job.start_time >= cutoff)
     if search:
         pattern = f"%{search}%"
