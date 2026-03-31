@@ -290,3 +290,76 @@ def tmp_media(tmp_path):
     (raw / "SERIAL_MOM").mkdir()  # matches sample_job.title
     (completed / "Another Orphan").mkdir()
     return {"raw": str(raw), "completed": str(tmp_path / "completed")}
+
+
+# --- Notification fixtures ---
+
+@pytest.fixture
+def sample_notifications(app_context):
+    """Create test notifications: 2 unseen, 1 seen, 1 cleared."""
+    import datetime
+    from arm.models.notifications import Notifications
+    from arm.database import db
+
+    now = datetime.datetime.now()
+
+    n1 = Notifications("Job Complete", "Movie ripped successfully")
+    n1.trigger_time = now - datetime.timedelta(hours=2)
+
+    n2 = Notifications("Job Started", "Ripping disc")
+    n2.trigger_time = now - datetime.timedelta(hours=1)
+
+    n3 = Notifications("Old Job", "Already read")
+    n3.seen = True
+    n3.dismiss_time = now - datetime.timedelta(minutes=30)
+    n3.trigger_time = now - datetime.timedelta(hours=3)
+
+    n4 = Notifications("Cleared Job", "Gone")
+    n4.seen = True
+    n4.cleared = True
+    n4.cleared_time = now - datetime.timedelta(minutes=10)
+    n4.trigger_time = now - datetime.timedelta(hours=4)
+
+    db.session.add_all([n1, n2, n3, n4])
+    db.session.commit()
+    return [n1, n2, n3, n4]
+
+
+# --- Drive fixtures ---
+
+@pytest.fixture
+def sample_drives(app_context):
+    """Create test drives: 2 active, 1 stale."""
+    from arm.models.system_drives import SystemDrives
+    from arm.database import db
+
+    d1 = SystemDrives()
+    d1.name = "Living Room"
+    d1.mount = "/dev/sr0"
+    d1.maker = "PIONEER"
+    d1.model = "BD-RW BDR-S12JX"
+    d1.firmware = "1.01"
+    d1.read_cd = True
+    d1.read_dvd = True
+    d1.read_bd = True
+    d1.stale = False
+
+    d2 = SystemDrives()
+    d2.name = "Office"
+    d2.mount = "/dev/sr1"
+    d2.maker = "LG"
+    d2.model = "WH16NS60"
+    d2.firmware = "1.02"
+    d2.read_cd = True
+    d2.read_dvd = True
+    d2.read_bd = True
+    d2.stale = False
+
+    d3 = SystemDrives()
+    d3.name = "Stale Drive"
+    d3.mount = "/dev/sr2"
+    d3.stale = True
+
+    db.session.add_all([d1, d2, d3])
+    db.session.commit()
+    return [d1, d2, d3]
