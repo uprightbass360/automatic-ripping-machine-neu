@@ -42,7 +42,7 @@ class TestSearchEndpoint:
         with unittest.mock.patch('arm.api.v1.metadata.search', return_value=[]) as mock_fn:
             resp = client.get("/api/v1/metadata/search?q=Matrix&year=1999")
         assert resp.status_code == 200
-        mock_fn.assert_called_once_with("Matrix", "1999")
+        mock_fn.assert_called_once_with("Matrix", "1999", page=1)
 
     def test_missing_query(self, client):
         resp = client.get("/api/v1/metadata/search")
