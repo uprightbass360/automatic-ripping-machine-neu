@@ -272,7 +272,7 @@ class TestSearch:
         with unittest.mock.patch('arm.services.metadata._omdb_search',
                                  return_value=[{"title": "Test"}]) as mock_omdb:
             result = _run(search("Matrix", "1999"))
-            mock_omdb.assert_called_once_with("Matrix", "1999", "key123")
+            mock_omdb.assert_called_once_with("Matrix", "1999", "key123", page=1)
         assert result == [{"title": "Test"}]
 
     @unittest.mock.patch.dict('arm.config.config.arm_config', {
@@ -294,7 +294,7 @@ class TestSearch:
         with unittest.mock.patch('arm.services.metadata._omdb_search',
                                  return_value=[]) as mock_omdb:
             _run(search("Matrix"))
-            mock_omdb.assert_called_once_with("Matrix", None, "omdb_fallback")
+            mock_omdb.assert_called_once_with("Matrix", None, "omdb_fallback", page=1)
 
     @pytest.mark.parametrize("config", [
         {'METADATA_PROVIDER': 'tmdb', 'TMDB_API_KEY': '', 'OMDB_API_KEY': ''},
