@@ -89,11 +89,12 @@ async def crc_lookup_endpoint(crc64: str):
 async def search_metadata(
     q: str = Query(..., min_length=1),
     year: str | None = None,
+    page: int = Query(1, ge=1),
 ):
     """Search OMDb/TMDb for titles matching the query."""
-    log.debug("GET /metadata/search q=%r year=%s", q, year)
+    log.debug("GET /metadata/search q=%r year=%s page=%d", q, year, page)
     try:
-        return await search(q, year)
+        return await search(q, year, page=page)
     except MetadataConfigError as exc:
         log.warning("Metadata search failed (config): %s", exc)
         raise HTTPException(status_code=503, detail=str(exc))
