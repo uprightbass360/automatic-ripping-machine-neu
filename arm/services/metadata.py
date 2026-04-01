@@ -129,9 +129,9 @@ async def test_configured_key(override_key: str | None = None, override_provider
         return {"success": False, "message": f"Test failed: {type(exc).__name__}", "provider": provider}
 
 
-async def search(query: str, year: str | None = None) -> list[dict[str, Any]]:
+async def search(query: str, year: str | None = None, page: int = 1) -> list[dict[str, Any]]:
     """Search for titles. Returns normalized list of SearchResult dicts."""
-    log.debug("Metadata search: query=%r year=%s", query, year)
+    log.debug("Metadata search: query=%r year=%s page=%d", query, year, page)
     keys = _get_keys()
     if keys["provider"] == "tmdb" and keys["tmdb_key"]:
         return await _tmdb_search(query, year, keys["tmdb_key"])
@@ -143,7 +143,7 @@ async def search(query: str, year: str | None = None) -> list[dict[str, Any]]:
                 "METADATA_PROVIDER is 'tmdb' but TMDB_API_KEY is not set and no OMDB_API_KEY fallback."
             )
     if keys["omdb_key"]:
-        return await _omdb_search(query, year, keys["omdb_key"])
+        return await _omdb_search(query, year, keys["omdb_key"], page=page)
     raise MetadataConfigError(
         f"No API key configured for metadata provider '{keys['provider']}'. "
         "Set OMDB_API_KEY or TMDB_API_KEY in arm.yaml."
@@ -408,10 +408,12 @@ def _extract_format(media: list[dict]) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-async def _omdb_search(query: str, year: str | None, api_key: str) -> list[dict[str, Any]]:
+async def _omdb_search(query: str, year: str | None, api_key: str, page: int = 1) -> list[dict[str, Any]]:
     params: dict[str, str] = {"s": query, "r": "json", "apikey": api_key}
     if year:
         params["y"] = year
+    if page > 1:
+        params["page"] = str(page)
     async with _http_client() as client:
         resp = await client.get(_OMDB_URL, params=params)
         if resp.status_code in (401, 403):
