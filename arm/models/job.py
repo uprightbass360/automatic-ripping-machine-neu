@@ -71,11 +71,13 @@ JOB_STATUS_FINISHED = {
     JobState.SUCCESS,
     JobState.FAILURE,
 }
-JOB_STATUS_RIPPING = {
+JOB_STATUS_SCANNING = {
     JobState.IDENTIFYING,
+}
+JOB_STATUS_RIPPING = {
     JobState.AUDIO_RIPPING,
     JobState.VIDEO_RIPPING,
-    JobState.MANUAL_WAIT_STARTED,  # <-- not ripping, but undistinguishable
+    JobState.MANUAL_WAIT_STARTED,
     JobState.VIDEO_WAITING,
     JobState.VIDEO_INFO,
     JobState.COPYING,
