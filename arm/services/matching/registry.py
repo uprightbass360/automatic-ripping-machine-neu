@@ -10,9 +10,25 @@ from __future__ import annotations
 import logging
 from typing import Sequence
 
+import arm.config.config as cfg
 from arm.services.matching.base import MatchResult, MatchStrategy
 
 log = logging.getLogger(__name__)
+
+
+def _no_matcher_reason(job) -> str:
+    """Return a user-friendly reason why no matcher was selected."""
+    job_id = getattr(job, "job_id", "?")
+    vtype = getattr(job, "video_type", None)
+
+    if vtype != "series":
+        return f"Episode matching is only available for TV series (job {job_id} is '{vtype}')"
+    if not cfg.arm_config.get("TVDB_API_KEY"):
+        return "TVDB API key is not configured. Set TVDB_API_KEY in Settings to enable episode matching."
+    imdb_id = getattr(job, "imdb_id", None) or getattr(job, "imdb_id_auto", None)
+    if not imdb_id:
+        return f"No IMDb ID set for job {job_id}. Use Search to identify the series first."
+    return f"No matcher available for job {job_id} (type={vtype})"
 
 # Ordered list — first match wins.
 _MATCHERS: list[MatchStrategy] = []
@@ -46,10 +62,10 @@ def match_job(job, tracks: list[dict] | None = None, **kwargs) -> MatchResult:
     """
     matcher = select_matcher(job)
     if matcher is None:
+        reason = _no_matcher_reason(job)
         return MatchResult(
             matcher="none",
-            error=f"No matcher available for job {getattr(job, 'job_id', '?')} "
-                  f"(type={getattr(job, 'video_type', None)})",
+            error=reason,
         )
 
     if tracks is None:

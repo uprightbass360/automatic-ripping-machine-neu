@@ -932,7 +932,7 @@ class TestRegistryMatchJob:
         result = match_job(job)
         assert result.matcher == "none"
         assert result.error is not None
-        assert "No matcher" in result.error
+        assert "movie" in result.error
 
     def test_match_job_builds_tracks_from_job(self):
         """When tracks=None, builds from job.tracks."""
