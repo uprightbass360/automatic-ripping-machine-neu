@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import or_
+
 from arm.database import db
 
 log = logging.getLogger(__name__)
@@ -48,7 +50,7 @@ def get_excluded_episodes(job, season: int | None = None) -> set[int]:
         disc_number = getattr(job, "disc_number", None)
         if disc_number is not None:
             query = query.filter(
-                db.or_(
+                or_(
                     Job.disc_number != disc_number,
                     Job.disc_number.is_(None),
                 )
@@ -56,7 +58,7 @@ def get_excluded_episodes(job, season: int | None = None) -> set[int]:
         # Filter by season when known — episode numbers restart each season
         if season is not None:
             query = query.filter(
-                db.or_(
+                or_(
                     Job.season == str(season),
                     Job.season_auto == str(season),
                 )
