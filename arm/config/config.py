@@ -67,9 +67,11 @@ if len(cur_cfg) != len(new_cfg):
             arm_cfg += config_utils.arm_yaml_test_bool(key, value)
 
     # this handles the truncation
-    with open(arm_config_path, "w") as settings_file:
-        settings_file.write(arm_cfg)
-        settings_file.close()
+    try:
+        with open(arm_config_path, "w") as settings_file:
+            settings_file.write(arm_cfg)
+    except OSError:
+        pass  # config may be read-only (e.g. Docker bind-mount)
 
 arm_config = _load_config(arm_config_path)
 
