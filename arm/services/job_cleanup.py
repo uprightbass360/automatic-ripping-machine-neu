@@ -12,7 +12,7 @@ import logging
 
 from arm.database import db
 from arm.models.job import Job, JobState, JOB_STATUS_FINISHED, JOB_STATUS_TRANSCODING
-from arm.ripper.utils import clean_old_jobs
+from arm.ripper.utils import clean_old_jobs, notify
 
 logger = logging.getLogger(__name__)
 
@@ -54,5 +54,16 @@ def cleanup_orphaned_jobs() -> int:
     if count:
         db.session.commit()
         logger.info("Cleaned up %d orphaned job(s)", count)
+
+        # Send summary notification
+        titles = ", ".join(j.title or f"Job {j.job_id}" for j in orphans)
+        try:
+            notify(
+                None,
+                f"ARM Startup: {count} orphaned job(s) cleaned up",
+                f"Failed jobs: {titles}",
+            )
+        except Exception:
+            logger.warning("Could not send orphan cleanup notification", exc_info=True)
 
     return count

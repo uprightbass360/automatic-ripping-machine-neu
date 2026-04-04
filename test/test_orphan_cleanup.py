@@ -170,6 +170,27 @@ class TestCleanupOrphanedJobs:
         count = cleanup_orphaned_jobs()
         assert count == 0
 
+    @patch("arm.services.job_cleanup.notify")
+    def test_notification_sent_when_orphans_found(self, mock_notify, mock_clean, app_context, sample_job):
+        sample_job.status = JobState.IDENTIFYING.value
+        sample_job.title = "Test Movie"
+        db.session.commit()
+
+        from arm.services.job_cleanup import cleanup_orphaned_jobs
+        cleanup_orphaned_jobs()
+
+        mock_notify.assert_called_once()
+        call_args = mock_notify.call_args
+        assert "1 orphaned" in call_args[0][1]
+        assert "Test Movie" in call_args[0][2]
+
+    @patch("arm.services.job_cleanup.notify")
+    def test_no_notification_when_no_orphans(self, mock_notify, mock_clean, app_context):
+        from arm.services.job_cleanup import cleanup_orphaned_jobs
+        cleanup_orphaned_jobs()
+
+        mock_notify.assert_not_called()
+
     def test_multiple_orphans(self, mock_clean, app_context):
         from arm.services.job_cleanup import cleanup_orphaned_jobs
 
