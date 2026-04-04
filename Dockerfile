@@ -41,6 +41,7 @@ COPY ./scripts/docker/runsv/armui.sh /etc/service/armui/run
 
 # Startup scripts
 COPY ./scripts/docker/runit/arm_user_files_setup.sh /etc/my_init.d/arm_user_files_setup.sh
+COPY ./scripts/docker/runit/cleanup_orphaned_jobs.sh /etc/my_init.d/cleanup_orphaned_jobs.sh
 COPY ./scripts/docker/runit/start_udev.sh /etc/my_init.d/start_udev.sh
 
 # Modified udev for container
