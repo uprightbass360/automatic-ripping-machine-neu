@@ -47,6 +47,7 @@ def _drive_dict(d):
         "capabilities": _drive_capabilities(d),
         "uhd_capable": getattr(d, 'uhd_capable', False),
         "drive_mode": getattr(d, 'drive_mode', 'auto'),
+        "rip_speed": getattr(d, 'rip_speed', None),
         "stale": d.stale,
         "job_id_current": d.job_id_current,
         "job_id_previous": d.job_id_previous,
@@ -405,6 +406,20 @@ def update_drive(drive_id: int, body: dict):
             return JSONResponse({"success": False, "error": "drive_mode must be 'auto' or 'manual'"}, status_code=400)
         drive.drive_mode = mode
         updated['drive_mode'] = drive.drive_mode
+    if 'rip_speed' in body:
+        val = body['rip_speed']
+        if val is None:
+            drive.rip_speed = None
+            updated['rip_speed'] = None
+        else:
+            try:
+                speed = int(val)
+            except (ValueError, TypeError):
+                return JSONResponse({"success": False, "error": "rip_speed must be an integer or null"}, status_code=400)
+            if speed < 1 or speed > 99:
+                return JSONResponse({"success": False, "error": "rip_speed must be 1-99 (or null for max)"}, status_code=400)
+            drive.rip_speed = speed
+            updated['rip_speed'] = speed
 
     if not updated:
         return JSONResponse({"success": False, "error": "No valid fields provided"}, status_code=400)

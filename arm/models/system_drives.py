@@ -124,6 +124,7 @@ class SystemDrives(db.Model):  # pylint: disable=too-many-instance-attributes
     name = db.Column(db.String(100))
     description = db.Column(db.Unicode(200))
     uhd_capable = db.Column(db.Boolean)
+    rip_speed = db.Column(db.Integer, nullable=True)  # MakeMKV read speed (None = max)
 
     def __init__(self):
         # mark drive info as outdated
