@@ -58,6 +58,11 @@ services:
       # Local SSD scratch for ripping (moved to shared storage after rip)
       - ARM_LOCAL_RAW_PATH=${ARM_LOCAL_RAW_PATH:-}
       - ARM_SHARED_RAW_PATH=${ARM_SHARED_RAW_PATH:-}
+      # Host path mapping for preflight health checks
+      - ARM_MEDIA_PATH=${ARM_MEDIA_PATH}
+      - ARM_CONFIG_PATH=${ARM_CONFIG_PATH}
+      - ARM_LOGS_PATH=${ARM_LOGS_PATH}
+      - ARM_MUSIC_PATH=${ARM_MUSIC_PATH}
     volumes:
       - ${ARM_MUSIC_PATH}:/home/arm/music
       - ${ARM_LOGS_PATH}:/home/arm/logs
