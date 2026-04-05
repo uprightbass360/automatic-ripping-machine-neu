@@ -109,12 +109,14 @@ if [[ -h /home/arm/Music ]]; then
 fi
 
 ##### Setup ARM-specific config files if not found
-# Create config dir if missing, then verify ownership
+# Create config dir if missing, then fix ownership.
+# Docker bind-mounts create the target directory as root if it doesn't
+# exist on the host, so we always attempt chown before checking.
 if [[ ! -d /etc/arm/config ]]; then
   echo "Creating dir: /etc/arm/config"
   mkdir -p /etc/arm/config
-  chown arm:arm /etc/arm/config
 fi
+chown arm:arm /etc/arm/config 2>/dev/null || true
 check_folder_ownership "/etc/arm/config"
 CONFS="arm.yaml apprise.yaml"
 for conf in $CONFS; do
