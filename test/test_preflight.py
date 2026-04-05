@@ -1,6 +1,7 @@
 """Tests for preflight readiness checks."""
 
 import asyncio
+import os
 import unittest.mock
 
 import httpx
@@ -175,3 +176,211 @@ class TestTvdbKeyValidation:
 
         assert result["success"] is True
         assert posted_payloads[0]["apikey"] == "my-key"
+
+
+# -------------------------------------------------------------------
+# Preflight service tests
+# -------------------------------------------------------------------
+
+from arm.services.preflight import resolve_host_path, check_path, run_checks
+
+
+class TestResolveHostPath:
+    """Test resolve_host_path() bind-mount parsing and env var fallback."""
+
+    def test_mountinfo_parsing(self, tmp_path):
+        """Finds host path from a /proc/self/mountinfo-style line."""
+        fake_mountinfo = (
+            "36 1 8:1 / /mnt rw - ext4 /dev/sda1 rw\n"
+            "100 36 0:50 / /home/arm/media rw - ext4 /host/media rw\n"
+        )
+        with unittest.mock.patch(
+            "builtins.open", unittest.mock.mock_open(read_data=fake_mountinfo)
+        ):
+            result = resolve_host_path("/home/arm/media")
+        assert result == "/host/media"
+
+    def test_mountinfo_subpath(self):
+        """Subpath under a bind mount resolves correctly."""
+        fake_mountinfo = (
+            "100 36 0:50 / /home/arm/media rw - ext4 /host/media rw\n"
+        )
+        with unittest.mock.patch(
+            "builtins.open", unittest.mock.mock_open(read_data=fake_mountinfo)
+        ):
+            result = resolve_host_path("/home/arm/media/raw/movie.mkv")
+        assert result == "/host/media/raw/movie.mkv"
+
+    def test_env_var_fallback(self):
+        """Falls back to env var when mountinfo is not available."""
+        with unittest.mock.patch(
+            "builtins.open", side_effect=OSError("no mountinfo")
+        ):
+            with unittest.mock.patch.dict(
+                os.environ, {"ARM_MEDIA_PATH": "/mnt/nas/media"}
+            ):
+                result = resolve_host_path("/home/arm/media")
+        assert result == "/mnt/nas/media"
+
+    def test_env_var_subpath(self):
+        """Env var fallback preserves the path suffix."""
+        with unittest.mock.patch(
+            "builtins.open", side_effect=OSError("no mountinfo")
+        ):
+            with unittest.mock.patch.dict(
+                os.environ, {"ARM_MEDIA_PATH": "/mnt/nas/media"}
+            ):
+                result = resolve_host_path("/home/arm/media/raw")
+        assert result == "/mnt/nas/media/raw"
+
+    def test_unknown_path_returns_none(self):
+        """Unknown path with no mountinfo and no env var returns None."""
+        with unittest.mock.patch(
+            "builtins.open", side_effect=OSError("no mountinfo")
+        ):
+            with unittest.mock.patch.dict(os.environ, {}, clear=False):
+                # Remove any ARM env vars that might interfere
+                env_clean = {
+                    k: v for k, v in os.environ.items()
+                    if k not in ("ARM_MEDIA_PATH", "ARM_CONFIG_PATH",
+                                 "ARM_LOGS_PATH", "ARM_MUSIC_PATH")
+                }
+                with unittest.mock.patch.dict(os.environ, env_clean, clear=True):
+                    result = resolve_host_path("/some/random/path")
+        assert result is None
+
+    def test_empty_path_returns_none(self):
+        """Empty container path returns None."""
+        result = resolve_host_path("")
+        assert result is None
+
+
+class TestCheckPath:
+    """Test check_path() existence, writability, and UID/GID checks."""
+
+    def test_existing_writable_path(self, tmp_path):
+        """Existing path with correct ownership passes all checks."""
+        uid = os.getuid()
+        gid = os.getgid()
+
+        with unittest.mock.patch(
+            "arm.services.preflight.resolve_host_path", return_value=None
+        ):
+            result = check_path("test_dir", str(tmp_path), uid, gid)
+
+        assert result["name"] == "test_dir"
+        assert result["exists"] is True
+        assert result["writable"] is True
+        assert result["owner_uid"] == uid
+        assert result["owner_gid"] == gid
+        assert result["match"] is True
+
+    def test_nonexistent_path(self):
+        """Non-existent path reports exists=False."""
+        with unittest.mock.patch(
+            "arm.services.preflight.resolve_host_path", return_value=None
+        ):
+            result = check_path(
+                "missing", "/nonexistent/path/xyz", os.getuid(), os.getgid()
+            )
+
+        assert result["exists"] is False
+        assert result["writable"] is False
+        assert result["owner_uid"] is None
+
+    def test_uid_mismatch(self, tmp_path):
+        """Path owned by a different UID reports match=False."""
+        uid = os.getuid()
+        gid = os.getgid()
+        wrong_uid = uid + 999
+
+        with unittest.mock.patch(
+            "arm.services.preflight.resolve_host_path", return_value=None
+        ):
+            result = check_path("test_dir", str(tmp_path), wrong_uid, gid)
+
+        assert result["exists"] is True
+        assert result["match"] is False
+        assert result["expected_uid"] == wrong_uid
+        assert result["owner_uid"] == uid
+
+
+class TestRunChecks:
+    """Test run_checks() response shape and content."""
+
+    def test_response_shape(self):
+        """run_checks() returns arm_uid, arm_gid, checks (4 items), paths."""
+        omdb_check = {"name": "omdb_key", "success": True, "message": "OK", "fixable": False}
+        tmdb_check = {"name": "tmdb_key", "success": False, "message": "Not configured", "fixable": False}
+        tvdb_check = {"name": "tvdb_key", "success": False, "message": "Not configured", "fixable": False}
+        makemkv_check = {"name": "makemkv_key", "success": True, "message": "Valid", "fixable": True}
+
+        mock_paths = [
+            {
+                "name": "RAW_PATH",
+                "container_path": "/home/arm/media/raw",
+                "host_path": None,
+                "exists": True,
+                "writable": True,
+                "owner_uid": 1000,
+                "owner_gid": 1000,
+                "expected_uid": 1000,
+                "expected_gid": 1000,
+                "match": True,
+                "fixable": False,
+            }
+        ]
+
+        async def fake_omdb():
+            return omdb_check
+
+        async def fake_tmdb():
+            return tmdb_check
+
+        async def fake_tvdb():
+            return tvdb_check
+
+        async def fake_makemkv():
+            return makemkv_check
+
+        with unittest.mock.patch("arm.services.preflight._check_omdb_key", fake_omdb), \
+             unittest.mock.patch("arm.services.preflight._check_tmdb_key", fake_tmdb), \
+             unittest.mock.patch("arm.services.preflight._check_tvdb_key", fake_tvdb), \
+             unittest.mock.patch("arm.services.preflight._check_makemkv_key", fake_makemkv), \
+             unittest.mock.patch("arm.services.preflight._get_path_checks", return_value=mock_paths):
+            result = asyncio.run(run_checks())
+
+        assert "arm_uid" in result
+        assert "arm_gid" in result
+        assert isinstance(result["arm_uid"], int)
+        assert isinstance(result["arm_gid"], int)
+
+        assert "checks" in result
+        assert len(result["checks"]) == 4
+        check_names = [c["name"] for c in result["checks"]]
+        assert check_names == ["omdb_key", "tmdb_key", "tvdb_key", "makemkv_key"]
+
+        assert "paths" in result
+        assert isinstance(result["paths"], list)
+        assert len(result["paths"]) == 1
+        assert result["paths"][0]["name"] == "RAW_PATH"
+
+    def test_checks_have_required_fields(self):
+        """Each check in the response has name, success, message, fixable."""
+        async def fake_check():
+            return {"name": "test", "success": True, "message": "OK", "fixable": False}
+
+        mock_paths = []
+
+        with unittest.mock.patch("arm.services.preflight._check_omdb_key", fake_check), \
+             unittest.mock.patch("arm.services.preflight._check_tmdb_key", fake_check), \
+             unittest.mock.patch("arm.services.preflight._check_tvdb_key", fake_check), \
+             unittest.mock.patch("arm.services.preflight._check_makemkv_key", fake_check), \
+             unittest.mock.patch("arm.services.preflight._get_path_checks", return_value=mock_paths):
+            result = asyncio.run(run_checks())
+
+        for check in result["checks"]:
+            assert "name" in check
+            assert "success" in check
+            assert "message" in check
+            assert "fixable" in check
