@@ -59,39 +59,37 @@ def _parse_mountinfo(container_path: str) -> str | None:
     Each line has the format (space-separated fields):
       mount_id parent_id major:minor root mount_point ... - fs_type source ...
 
-    We look for lines where mount_point matches *container_path* (or is a
-    parent of it) and the source looks like an absolute host path.
+    For Docker bind mounts, ``root`` (field 3) contains the host-side path
+    and ``mount_point`` (field 4) is the container-side path. When ``root``
+    is ``/`` the entry is a full filesystem mount (not a bind), so we skip it.
     """
     best_mount = ""
-    best_source = None
+    best_root = None
 
     with open("/proc/self/mountinfo") as f:
         for line in f:
             parts = line.split()
             if len(parts) < 5:
                 continue
+            root = parts[3]
             mount_point = parts[4]
-            # Find the separator '-' to locate fs_type and source
-            try:
-                sep_idx = parts.index("-")
-            except ValueError:
+
+            # Skip non-bind mounts (root is "/" for full filesystem mounts)
+            if root == "/":
                 continue
-            if sep_idx + 2 >= len(parts):
-                continue
-            source = parts[sep_idx + 2]
 
             # Check if this mount_point is a prefix of container_path
             if container_path == mount_point or container_path.startswith(
                 mount_point + "/"
             ):
                 # Prefer the longest (most specific) mount point match
-                if len(mount_point) > len(best_mount) and source.startswith("/"):
+                if len(mount_point) > len(best_mount):
                     best_mount = mount_point
-                    best_source = source
+                    best_root = root
 
-    if best_source is not None:
+    if best_root is not None:
         suffix = container_path[len(best_mount):]
-        return best_source + suffix
+        return best_root + suffix
     return None
 
 
