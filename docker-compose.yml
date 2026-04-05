@@ -105,6 +105,18 @@ services:
       arm-hb-presets:
         condition: service_completed_successfully
 
+  # Fix ownership on the transcoder work directory before it starts.
+  # Docker creates bind-mount targets as root; the transcoder entrypoint
+  # does a shallow chown but cannot fix a root-owned top-level dir it
+  # doesn't own.  This one-shot container ensures the work dir is usable.
+  arm-transcoder-init:
+    image: alpine
+    container_name: arm-transcoder-init
+    volumes:
+      - ${TRANSCODER_WORK_PATH:-./work}:/data/work
+    command: chown -R ${ARM_UID:-1000}:${ARM_GID:-1000} /data/work
+    restart: "no"
+
   # GPU-accelerated transcoding service
   arm-transcoder:
     image: uprightbass360/arm-transcoder:${TRANSCODER_VERSION:-latest}
@@ -115,6 +127,9 @@ services:
     environment:
       - TZ=${TZ}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # Match ARM's UID/GID so the transcoder can read raw files and write completed
+      - TRANSCODER_UID=${ARM_UID:-1000}
+      - TRANSCODER_GID=${ARM_GID:-1000}
       # Paths inside container
       - RAW_PATH=/data/raw
       - COMPLETED_PATH=/data/completed
@@ -161,6 +176,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    depends_on:
+      arm-transcoder-init:
+        condition: service_completed_successfully
 
 volumes:
   arm-db:
