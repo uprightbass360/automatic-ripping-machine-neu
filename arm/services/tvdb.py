@@ -48,6 +48,31 @@ async def _ensure_token() -> str:
         return _TOKEN
 
 
+async def validate_tvdb_key(api_key: str) -> dict[str, str]:
+    """Test a TVDB API key by attempting login. Returns {success, message}."""
+    if not api_key or not api_key.strip():
+        return {"success": False, "message": "TVDB_API_KEY is empty"}
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(f"{_BASE}/login", json={"apikey": api_key.strip()})
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("data", {}).get("token"):
+                return {"success": True, "message": "TVDB API key is valid"}
+            return {"success": False, "message": "TVDB login returned no token"}
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 401:
+            return {"success": False, "message": "Invalid TVDB API key"}
+        return {"success": False, "message": f"TVDB returned HTTP {exc.response.status_code}"}
+    except httpx.TimeoutException:
+        return {"success": False, "message": "TVDB request timed out - check network"}
+    except httpx.ConnectError:
+        return {"success": False, "message": "Cannot connect to TVDB - check network/DNS"}
+    except Exception as exc:
+        log.warning("TVDB key test failed: %s", exc)
+        return {"success": False, "message": f"Test failed: {type(exc).__name__}"}
+
+
 async def _get(path: str, params: dict | None = None) -> dict:
     """Authenticated GET request to TVDB v4 API."""
     token = await _ensure_token()
