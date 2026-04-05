@@ -47,9 +47,9 @@ services:
     ports:
       - "${ARM_PORT:-8080}:8080"
     environment:
-      - ARM_UID=${ARM_UID}
-      - ARM_GID=${ARM_GID}
-      - TZ=${TZ}
+      - ARM_UID=${ARM_UID:-1000}
+      - ARM_GID=${ARM_GID:-1000}
+      - TZ=${TZ:-Etc/UTC}
       # FindVUK community keydb for Blu-ray decryption (true/false, default: true)
       - ARM_COMMUNITY_KEYDB=${ARM_COMMUNITY_KEYDB:-true}
       # Transcoder integration (written to arm.yaml at startup)
@@ -130,7 +130,7 @@ services:
     ports:
       - "${TRANSCODER_PORT:-5000}:5000"
     environment:
-      - TZ=${TZ}
+      - TZ=${TZ:-Etc/UTC}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Match ARM's UID/GID so the transcoder can read raw files and write completed
       - TRANSCODER_UID=${ARM_UID:-1000}
