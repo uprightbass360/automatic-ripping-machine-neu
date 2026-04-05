@@ -1112,6 +1112,45 @@ def _resolve_mdisc(job):
         raise ValueError(f"No MakeMKV disc number for device {job.devpath}")
 
 
+def _apply_drive_rip_speed(job):
+    """Write per-drive rip speed to MakeMKV settings.conf before ripping.
+
+    MakeMKV uses settings.conf entries like:
+        speed_BD-RE_PIONEER_BD-RW__BDR-S12JX_1.01_SERIAL = "0=4"
+    where 0=all titles, value=speed multiplier (99=max).
+
+    If the drive has rip_speed set, find and update the matching speed line.
+    If no matching line exists, the speed stays at MakeMKV's default.
+    """
+    drive = getattr(job, 'drive', None)
+    if not drive:
+        return
+    speed = getattr(drive, 'rip_speed', None)
+    if speed is None:
+        return
+
+    settings_path = os.path.expanduser("~/.MakeMKV/settings.conf")
+    if not os.path.isfile(settings_path):
+        return
+
+    try:
+        with open(settings_path, "r") as f:
+            lines = f.readlines()
+
+        updated = False
+        for i, line in enumerate(lines):
+            if line.startswith("speed_"):
+                lines[i] = re.sub(r'"0=\d+"', f'"0={speed}"', line)
+                updated = True
+
+        if updated:
+            with open(settings_path, "w") as f:
+                f.writelines(lines)
+            logging.info("MakeMKV rip speed set to %d for drive %s", speed, drive.name or drive.mount)
+    except OSError as e:
+        logging.warning("Failed to set MakeMKV rip speed: %s", e)
+
+
 def makemkv(job):
     """
     Rip Blu-rays/DVDs with MakeMKV
@@ -1129,6 +1168,7 @@ def makemkv(job):
             f"Drive {job.devpath} not ready — disc may have been ejected"
         )
 
+    _apply_drive_rip_speed(job)
     prep_mkv()
     logging.info(f"Starting MakeMKV rip. Method is {job.config.RIPMETHOD}")
     _resolve_mdisc(job)

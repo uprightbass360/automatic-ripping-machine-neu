@@ -585,6 +585,114 @@ class TestApiDriveUpdate:
             response = client.patch('/api/v1/drives/1', json={"invalid_field": "value"})
         assert response.status_code == 400
 
+    def test_update_rip_speed(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"rip_speed": 4})
+        assert response.status_code == 200
+        assert mock_drive.rip_speed == 4
+
+    def test_update_rip_speed_null_clears(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"rip_speed": None})
+        assert response.status_code == 200
+        assert mock_drive.rip_speed is None
+
+    def test_update_rip_speed_invalid(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd:
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"rip_speed": 0})
+        assert response.status_code == 400
+
+    def test_update_rip_speed_too_high(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd:
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"rip_speed": 100})
+        assert response.status_code == 400
+
+
+class TestApiDriveRipSpeed:
+    """Test rip_speed in drive listing endpoints."""
+
+    def test_drives_list_includes_rip_speed(self, client, sample_drives, app_context):
+        from arm.database import db
+        sample_drives[0].rip_speed = 4
+        db.session.commit()
+
+        response = client.get('/api/v1/drives')
+        data = response.json()
+        drive = next(d for d in data["drives"] if d["name"] == "Living Room")
+        assert drive["rip_speed"] == 4
+
+    def test_drives_list_null_rip_speed(self, client, sample_drives):
+        response = client.get('/api/v1/drives')
+        data = response.json()
+        drive = next(d for d in data["drives"] if d["name"] == "Living Room")
+        assert drive["rip_speed"] is None
+
+
+class TestApiApplyDriveRipSpeed:
+    """Test _apply_drive_rip_speed writes to settings.conf."""
+
+    def test_applies_speed(self, tmp_path, sample_job, app_context):
+        from arm.ripper.makemkv import _apply_drive_rip_speed
+        from arm.database import db
+        from arm.models.system_drives import SystemDrives
+
+        # Create a drive with rip_speed and assign to job
+        drive = SystemDrives()
+        drive.name = "Test"
+        drive.mount = "/dev/sr0"
+        drive.stale = False
+        drive.rip_speed = 4
+        db.session.add(drive)
+        db.session.flush()
+        sample_job.drive = drive
+        db.session.commit()
+
+        # Create fake settings.conf
+        settings = tmp_path / ".MakeMKV" / "settings.conf"
+        settings.parent.mkdir()
+        settings.write_text('app_Key = "test"\nspeed_DRIVE_ID = "0=99"\n')
+
+        with unittest.mock.patch("os.path.expanduser", return_value=str(settings)):
+            _apply_drive_rip_speed(sample_job)
+
+        content = settings.read_text()
+        assert '"0=4"' in content
+        assert '"0=99"' not in content
+
+    def test_no_speed_set_skips(self, sample_job, app_context):
+        from arm.ripper.makemkv import _apply_drive_rip_speed
+        from arm.database import db
+        from arm.models.system_drives import SystemDrives
+
+        drive = SystemDrives()
+        drive.name = "Test"
+        drive.mount = "/dev/sr0"
+        drive.stale = False
+        drive.rip_speed = None
+        db.session.add(drive)
+        db.session.flush()
+        sample_job.drive = drive
+        db.session.commit()
+
+        # Should not touch settings.conf at all
+        with unittest.mock.patch("builtins.open") as mock_open:
+            _apply_drive_rip_speed(sample_job)
+            mock_open.assert_not_called()
+
 
 class TestApiSettingsConfig:
     """Test GET /api/v1/settings/config endpoint."""
