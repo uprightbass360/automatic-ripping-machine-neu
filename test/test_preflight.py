@@ -189,27 +189,28 @@ class TestResolveHostPath:
     """Test resolve_host_path() bind-mount parsing and env var fallback."""
 
     def test_mountinfo_parsing(self, tmp_path):
-        """Finds host path from a /proc/self/mountinfo-style line."""
+        """Finds host path from a Docker bind-mount mountinfo line."""
+        # Docker bind mounts have the host path in the root field (field 3)
         fake_mountinfo = (
-            "36 1 8:1 / /mnt rw - ext4 /dev/sda1 rw\n"
-            "100 36 0:50 / /home/arm/media rw - ext4 /host/media rw\n"
+            "36 1 8:1 / / rw - ext4 /dev/sda1 rw\n"
+            "100 36 8:1 /home/arm/media /home/arm/media rw,relatime - ext4 /dev/sda1 rw\n"
         )
         with unittest.mock.patch(
             "builtins.open", unittest.mock.mock_open(read_data=fake_mountinfo)
         ):
             result = resolve_host_path("/home/arm/media")
-        assert result == "/host/media"
+        assert result == "/home/arm/media"
 
     def test_mountinfo_subpath(self):
         """Subpath under a bind mount resolves correctly."""
         fake_mountinfo = (
-            "100 36 0:50 / /home/arm/media rw - ext4 /host/media rw\n"
+            "100 36 8:1 /nfs/shared/media /home/arm/media rw,relatime - ext4 /dev/sda1 rw\n"
         )
         with unittest.mock.patch(
             "builtins.open", unittest.mock.mock_open(read_data=fake_mountinfo)
         ):
             result = resolve_host_path("/home/arm/media/raw/movie.mkv")
-        assert result == "/host/media/raw/movie.mkv"
+        assert result == "/nfs/shared/media/raw/movie.mkv"
 
     def test_env_var_fallback(self):
         """Falls back to env var when mountinfo is not available."""
