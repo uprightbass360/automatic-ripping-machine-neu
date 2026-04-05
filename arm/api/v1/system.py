@@ -270,6 +270,26 @@ def check_makemkv_key():
     }
 
 
+@router.post('/system/preflight')
+async def preflight():
+    """Run all preflight checks: API keys, MakeMKV key, path permissions."""
+    from arm.services.preflight import run_checks
+    return await run_checks()
+
+
+@router.post('/system/preflight/fix')
+async def preflight_fix(body: dict):
+    """Attempt to fix specified issues, then re-run all checks."""
+    from arm.services.preflight import run_fixes
+    items = body.get("fix", [])
+    if not isinstance(items, list):
+        return JSONResponse(
+            {"success": False, "error": "'fix' must be a list"},
+            status_code=400,
+        )
+    return await run_fixes(items)
+
+
 @router.get('/system/stats/jobs')
 def get_job_stats():
     """Return job counts grouped by status and video type."""
