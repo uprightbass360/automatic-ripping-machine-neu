@@ -250,20 +250,24 @@ def _get_path_checks() -> list[dict]:
     expected_uid = os.getuid()
     expected_gid = os.getgid()
 
+    # (name, path, require_writable)
+    # TRANSCODE_PATH is mounted read-only in ARM (the transcoder owns it).
     path_entries = [
-        ("RAW_PATH", cfg.arm_config.get("RAW_PATH", "")),
-        ("COMPLETED_PATH", cfg.arm_config.get("COMPLETED_PATH", "")),
-        ("TRANSCODE_PATH", cfg.arm_config.get("TRANSCODE_PATH", "")),
-        ("LOGPATH", cfg.arm_config.get("LOGPATH", "")),
-        ("DBFILE", cfg.arm_config.get("DBFILE", "")),
-        ("ARM_CONFIG", "/etc/arm/config"),
+        ("RAW_PATH", cfg.arm_config.get("RAW_PATH", ""), True),
+        ("COMPLETED_PATH", cfg.arm_config.get("COMPLETED_PATH", ""), True),
+        ("TRANSCODE_PATH", cfg.arm_config.get("TRANSCODE_PATH", ""), False),
+        ("LOGPATH", cfg.arm_config.get("LOGPATH", ""), True),
+        ("DBFILE", cfg.arm_config.get("DBFILE", ""), True),
+        ("ARM_CONFIG", "/etc/arm/config", True),
     ]
 
     results = []
-    for name, path in path_entries:
+    for name, path, require_writable in path_entries:
         if not path:
             continue
-        results.append(check_path(name, path, expected_uid, expected_gid))
+        entry = check_path(name, path, expected_uid, expected_gid)
+        entry["require_writable"] = require_writable
+        results.append(entry)
     return results
 
 
