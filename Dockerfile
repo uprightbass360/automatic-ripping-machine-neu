@@ -50,6 +50,7 @@ COPY ./scripts/docker/custom_udev /etc/init.d/udev
 # Override base image healthcheck with faster hostname -i resolution
 COPY ./docker/base/scripts/healthcheck.sh /healthcheck.sh
 RUN chmod +x /etc/service/armui/run /etc/my_init.d/*.sh /etc/init.d/udev /healthcheck.sh
+HEALTHCHECK --interval=30s --timeout=30s --start-period=90s --retries=5 CMD /healthcheck.sh
 
 ###########################################################
 # Final image
