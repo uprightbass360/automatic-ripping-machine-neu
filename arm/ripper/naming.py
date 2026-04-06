@@ -4,6 +4,8 @@ Supports per-type patterns with {variable} placeholders.
 Variables are extracted from Job fields, preferring manual over auto values.
 Per-job pattern overrides and per-track custom filenames are supported.
 """
+import logging
+import os
 import re
 
 _TITLE_YEAR_PATTERN = '{title} ({year})'
@@ -355,3 +357,88 @@ def validate_pattern(pattern):
         if _levenshtein(inv, best) <= 2:
             suggestions[inv] = best
     return {"valid": len(invalid) == 0, "invalid_vars": invalid, "suggestions": suggestions}
+
+
+# ======================================================================
+# File finalization (transcoder-disabled deployments)
+# ======================================================================
+
+
+def finalize_output(job):
+    """Move ripped files from GUID work directory to final named location.
+
+    Used when the transcoder is disabled - ARM handles final naming directly.
+    Renders folder/file names via the naming engine, moves files, updates
+    job.path, and cleans up the empty work directory.
+    """
+    import shutil
+    from arm.database import db
+    import arm.config.config as cfg
+
+    raw_path = getattr(job, 'raw_path', None)
+    if not raw_path or not os.path.isdir(raw_path):
+        logging.debug("finalize_output: no raw_path for job %s, skipping",
+                       getattr(job, 'job_id', '?'))
+        return
+
+    config_dict = cfg.arm_config if hasattr(cfg, 'arm_config') else None
+    final_dir = job.build_final_path()
+    os.makedirs(final_dir, exist_ok=True)
+
+    # Get rendered names for each track
+    rendered = render_all_tracks(job, config_dict)
+    rendered_map = {r["track_number"]: r for r in rendered}
+
+    moved_count = 0
+    for track in job.tracks:
+        if not track.filename:
+            continue
+        src = os.path.join(raw_path, track.filename)
+        if not os.path.isfile(src):
+            continue
+
+        r = rendered_map.get(track.track_number, {})
+        rendered_title = r.get("rendered_title", '')
+        rendered_folder = r.get("rendered_folder", '')
+
+        if rendered_title:
+            ext = os.path.splitext(track.filename)[1]
+            dest_name = _clean_for_filename(rendered_title) + ext
+        else:
+            dest_name = track.filename
+
+        if rendered_folder:
+            dest_dir = os.path.join(final_dir, rendered_folder)
+        else:
+            dest_dir = final_dir
+
+        os.makedirs(dest_dir, exist_ok=True)
+        shutil.move(src, os.path.join(dest_dir, dest_name))
+        moved_count += 1
+
+    # Fallback: if no tracks matched (e.g. single-title disc without track
+    # records), move all MKV files using the job-level rendered title.
+    if moved_count == 0:
+        for fname in os.listdir(raw_path):
+            if fname.lower().endswith('.mkv'):
+                rendered_title = render_title(job, config_dict)
+                if rendered_title:
+                    dest_name = _clean_for_filename(rendered_title) + '.mkv'
+                else:
+                    dest_name = fname
+                shutil.move(os.path.join(raw_path, fname),
+                            os.path.join(final_dir, dest_name))
+                moved_count += 1
+
+    # Update job.path and persist
+    job.path = final_dir
+    db.session.commit()
+
+    # Remove empty work directory
+    try:
+        if os.path.isdir(raw_path) and not os.listdir(raw_path):
+            os.rmdir(raw_path)
+    except OSError:
+        pass
+
+    logging.info("finalize_output: moved %d files to %s", moved_count, final_dir)
