@@ -129,6 +129,9 @@ def main():
     # so tracks, cover art, and metadata are available during review.
     if job.disctype == "music":
         music_brainz.main(job)
+        # Refresh from DB to ensure MusicBrainz metadata is loaded into the
+        # session (database_updater commits + SQLAlchemy expires on commit).
+        db.session.refresh(job)
         # Set output path for display (abcde uses its own OUTPUTDIR)
         try:
             job.path = job.build_final_path()
