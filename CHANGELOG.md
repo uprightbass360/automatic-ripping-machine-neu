@@ -1,5 +1,59 @@
 # Changelog
 
+## [15.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.2.0...v15.0.0) (2026-04-06)
+
+
+### ⚠ BREAKING CHANGES
+
+* Raw rip directories now use job GUID instead of title-based names. The transcoder webhook 'path' field contains a GUID basename instead of a title. Transcoder must treat this field as opaque (already does).
+
+### Features
+
+* add disc_number/disc_total to naming pattern variables ([2c4117c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2c4117c3770d2669448d98eaafc0cb567efc8da2))
+* add finalize_output for transcoder-disabled deployments ([e4846b6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e4846b6219441c88323d77a1754c218241c4e6c3))
+* add guid column to Job model for GUID-based work paths ([94462a7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/94462a765130916d8e0c58f994af962d9164c3c2))
+* add JOB_STATUS_SCANNING group, remove IDENTIFYING from ripping ([92037b4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/92037b4e236b6f26fcfb7d92516e9a0d3017c3b3))
+* add pagination support to metadata search endpoint ([fae85b9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fae85b9ec8c3099e676e094164fc48f7c5139944))
+* add per-drive rip speed setting ([e88f195](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e88f1952075f48420bbbfa961d42e670a942cb16))
+* add preflight and preflight/fix API endpoints ([e14a3da](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e14a3dad404bb528dab9afe7bb32ca2f9ad70f91))
+* add preflight service with key checks, path ownership, and host path resolution ([406b3b3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/406b3b38445c54939710c355eaf6d329391a8d84))
+* add validate_tvdb_key() for TVDB API key validation ([f07fb47](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f07fb478031f2ab670102c617fcebc1c536f52e8))
+* build_raw_path uses GUID instead of title ([4a486a0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4a486a07d03b48b49781bfff4b654c4ce0813168))
+* call finalize_output when transcoder is disabled ([61e116e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/61e116eddcbd72915ee0a32c478c78952f894dfd))
+* naming lifecycle cleanup - GUID paths, clean titles, deferred naming ([d7862bf](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d7862bf2fd33eac8b15fa2b64bff0cb6da22a33c))
+* orphaned job cleanup service ([e7bed05](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e7bed05078d26808bf68f6df2bfad761f3886bc8))
+* pass host path env vars to arm-rippers for preflight host path resolution ([5a72830](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5a72830a40c4994bd612988478c7768236e69ef7))
+* run orphaned job cleanup on container startup ([96f0d4a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/96f0d4ab5e0804cff6056d1fac4fb4f115a0d198))
+* send notification when orphaned jobs are cleaned up ([17580f3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/17580f3590406e1405bc9a1344e9bfa9757e346b))
+* simplify setup_rawpath - GUID paths eliminate collisions ([f2634e6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f2634e647690c93f8f82d42bc00b9113c508ee50))
+* store clean titles without aggressive sanitization ([800a7d8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/800a7d82b5379a58075b43610e6af14084a2c80d))
+
+
+### Bug Fixes
+
+* address SonarCloud findings ([bccdfbf](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bccdfbf061d3137ad55f5133bc749a4c4ad94b71))
+* bind uvicorn to 0.0.0.0 in Docker, use 127.0.0.1 in healthcheck ([4000258](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4000258d6326369c75bc8de897ca03f201f96ad6))
+* collapse consecutive hyphens in clean_for_filename ([7ca38b8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7ca38b812e69fb722f62f5ce25fb639b70f3435b))
+* detect UHD Blu-ray by index.bdmv header, not /CERTIFICATE/id.bdmv ([646a0c0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/646a0c03fda7e1da1b50ea74680b8075148684a4))
+* gracefully handle read-only config during startup migration ([9a12848](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9a12848e4e27541a02e673e931f52247c4ee5432))
+* mark TRANSCODE_PATH as read-only in preflight path checks ([d901691](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d901691a7e3b7ab415fbc24fd9bc5dae1c83549a))
+* mountinfo parser uses root field for bind-mount host paths ([7c5eda9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7c5eda95a8cecd766865b37af37c36e2d6323ace))
+* override base image healthcheck in main Dockerfile ([9664ba2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9664ba23b106b8d74d2179fde7e1ba92200ee29d))
+* override HEALTHCHECK directive with longer timeout and start-period ([3d5512f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3d5512f6815cef88d88e5e3f08c86f419bb05087))
+* prevent setup wizard flash on transient DB errors ([ec70b7c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ec70b7cc69942e10939814be68e95dbea8f4679e))
+* prevent udev startup from hanging container boot ([124beab](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/124beabeb542bae0088bae787ea12d747bc8cbb0))
+* refresh job from DB after MusicBrainz update, add year verification logging ([bbf97e7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bbf97e730596c40acf9e64bacf00a8e537f23ea3))
+* remove transcoder_notify from notify() - webhook is a pipeline trigger, not a notification ([c2b2b01](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c2b2b01a1481f8c5445bf8fc0e5bec49c0486a25))
+* resolve duplicate Alembic migration ID l7m8n9o0p1q2 ([1e492c0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1e492c04f8eebcf92e624eb24afcefd4ca519243))
+* resolve first-run permission failures and audio CD rip crash ([50649b1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/50649b147bc7fcdcc578d17218f10f20974aed7f))
+* rollback poisoned DB sessions in API middleware ([c378938](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c378938e51d90add233a98689dbffbe274e97bd7))
+* strip trailing (YEAR) from API titles to prevent double-year in display ([e9a67c5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e9a67c5a61d840d6249c36280119585661ce55a5))
+* update test assertions for search pagination page param ([6157ac8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6157ac8d1fbe229548d13418ba81bf69d0a2b576))
+* use hostname -i in healthcheck to avoid 10s DNS delay ([ad273e3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ad273e3898066a6c44c04e157df7cd95ef93d139))
+* use light sanitization for Blu-ray XML titles ([bc273d1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bc273d147e4595d08ecaed8ae976a22640a8eba0))
+* use sqlalchemy.or_ instead of db.or_ in cross-disc matching ([f68c8d6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f68c8d63c6e1f4252ec03efb69be760b23cee001))
+* use TCP connect instead of HTTP for healthcheck to avoid worker starvation ([490d119](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/490d119dd95cb19370a2abd089018655c725f709))
+
 ## [14.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.1.2...v14.2.0) (2026-03-31)
 
 
