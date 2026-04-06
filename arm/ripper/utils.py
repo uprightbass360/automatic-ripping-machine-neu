@@ -72,7 +72,6 @@ def notify(job, title: str, body: str):
     database_adder(notification)
 
     bash_notify(cfg.arm_config, title, body, job)
-    transcoder_notify(cfg.arm_config, title, body, job)
 
     # Sent to remote sites
     # Create an Apprise instance

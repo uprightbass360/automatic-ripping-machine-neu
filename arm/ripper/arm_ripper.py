@@ -63,17 +63,14 @@ def rip_visual_media(have_dupes, job, logfile, protection):
     transcoder_url = cfg.arm_config.get('TRANSCODER_URL', '')
 
     if transcoder_url:
+        # Always notify the transcoder after rip - this is a pipeline trigger,
+        # separate from user notifications.
+        utils.transcoder_notify(
+            cfg.arm_config, constants.NOTIFY_TITLE,
+            f"{job.title} rip complete.", job,
+        )
         if job.config.NOTIFY_RIP:
-            # notify() also calls transcoder_notify internally
             utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
-        else:
-            # Always notify the transcoder when TRANSCODER_URL is set, even if
-            # NOTIFY_RIP is off.  The transcoder webhook is a pipeline trigger,
-            # not a user notification.
-            utils.transcoder_notify(
-                cfg.arm_config, constants.NOTIFY_TITLE,
-                f"{job.title} rip complete.", job,
-            )
     else:
         # No transcoder - finalize output locally
         from arm.ripper.naming import finalize_output
