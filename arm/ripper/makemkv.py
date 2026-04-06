@@ -1232,34 +1232,24 @@ def process_single_tracks(job, rawpath, mode: str):
 
 
 def setup_rawpath(job, raw_path):
-    """
-    Checks if we need to create path and does so if needed\n\n
+    """Create the raw rip output directory.
+
+    With GUID-based paths, collision is not possible. If the directory
+    already exists (e.g. retry after partial rip), reuse it.
 
     Parameters:
         job: arm.models.job.Job
-        raw_path
+        raw_path: str - absolute path to create
     Returns:
-        str: modified path
+        str: the raw_path (unchanged)
     """
-
     logging.info(f"Destination is {raw_path}")
-    if not os.path.exists(raw_path):
-        try:
-            os.makedirs(raw_path)
-        except OSError:
-            err = f"Couldn't create the base file path: {raw_path}. Probably a permissions error"
-            logging.error(err)
-    else:
-        import time as _time
-        ts = str(int(_time.time()))
-        logging.info(f"{raw_path} exists.  Adding timestamp {ts}.")
-        raw_path = os.path.join(str(job.config.RAW_PATH), f"{job.title}_{ts}")
-        logging.info(f"raw_path is {raw_path}")
-        try:
-            os.makedirs(raw_path)
-        except OSError:
-            err = f"Couldn't create the base file path: {raw_path}. Probably a permissions error"
-            raise OSError(err) from OSError
+    try:
+        os.makedirs(raw_path, exist_ok=True)
+    except OSError:
+        err = f"Couldn't create the base file path: {raw_path}. Probably a permissions error"
+        logging.error(err)
+        raise
     return raw_path
 
 

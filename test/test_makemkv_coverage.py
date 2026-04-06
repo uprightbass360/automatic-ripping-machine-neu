@@ -436,32 +436,28 @@ class TestPositionalMatchPass:
 
 
 class TestSetupRawpath:
-    """Test setup_rawpath() directory creation."""
+    """Test setup_rawpath() directory creation with GUID-based paths."""
 
     def test_creates_new_path(self, tmp_path):
         from arm.ripper.makemkv import setup_rawpath
 
         job = unittest.mock.MagicMock()
-        job.title = "TestMovie"
-        raw = str(tmp_path / "raw" / "TestMovie")
+        raw = str(tmp_path / "raw" / "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         result = setup_rawpath(job, raw)
         assert result == raw
         assert os.path.isdir(raw)
 
-    def test_existing_path_gets_timestamp(self, tmp_path):
+    def test_existing_path_is_reused(self, tmp_path):
+        """With GUID paths, if dir exists (e.g. retry), just reuse it."""
         from arm.ripper.makemkv import setup_rawpath
 
-        raw = str(tmp_path / "raw" / "TestMovie")
+        raw = str(tmp_path / "raw" / "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         os.makedirs(raw)
 
         job = unittest.mock.MagicMock()
-        job.title = "TestMovie"
-        job.config.RAW_PATH = str(tmp_path / "raw")
-
         result = setup_rawpath(job, raw)
-        assert result != raw
-        assert os.path.isdir(result)
-        assert "TestMovie_" in result
+        assert result == raw
+        assert os.path.isdir(raw)
 
 
 class TestProgressLog:
