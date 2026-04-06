@@ -1,7 +1,7 @@
 """job: add guid column for GUID-based work paths
 
-Revision ID: l7m8n9o0p1q2
-Revises: k6l7m8n9o0p1
+Revision ID: m8n9o0p1q2r3
+Revises: l7m8n9o0p1q2
 Create Date: 2026-04-06
 
 """
@@ -10,8 +10,8 @@ import uuid
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'l7m8n9o0p1q2'
-down_revision = 'k6l7m8n9o0p1'
+revision = 'm8n9o0p1q2r3'
+down_revision = 'l7m8n9o0p1q2'
 branch_labels = None
 depends_on = None
 
