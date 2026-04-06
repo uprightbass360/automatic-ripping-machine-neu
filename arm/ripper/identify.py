@@ -428,7 +428,10 @@ def identify_bluray(job):
     bluray_title = bluray_title.replace(' - BLU-RAY', '')
     bluray_title = bluray_title.replace(' - Blu-ray', '')
 
-    bluray_title = utils.clean_for_filename(bluray_title)
+    # Light sanitization only: strip filesystem-unsafe characters but preserve
+    # the human-readable title for metadata search.  The naming engine handles
+    # aggressive filename formatting at output time.
+    bluray_title = re.sub(r'[/\\<>"|?*\x00]', '', bluray_title).strip()
 
     job.title = job.title_auto = bluray_title
     job.year = job.year_auto = bluray_year
