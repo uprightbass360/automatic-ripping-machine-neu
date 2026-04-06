@@ -81,7 +81,7 @@ def _clean_empty_parens(s):
     return re.sub(r' *\( *\)', '', s).strip()
 
 
-def _clean_for_filename(s):
+def clean_for_filename(s):
     """Sanitize a single path segment for filesystem use."""
     s = s.replace(':', ' - ')
     s = re.sub(r'\s+', ' ', s)
@@ -144,7 +144,7 @@ def render_folder(job, config_dict=None):
     rendered = _clean_empty_parens(rendered)
     # Sanitize each path segment individually
     segments = rendered.split('/')
-    segments = [_clean_for_filename(seg) for seg in segments if seg.strip()]
+    segments = [clean_for_filename(seg) for seg in segments if seg.strip()]
     return os.path.join(*segments) if segments else ''
 
 
@@ -196,7 +196,7 @@ def render_track_title(track, job, config_dict=None):
     """
     # Custom filename takes highest priority
     if getattr(track, 'custom_filename', None):
-        return _clean_for_filename(track.custom_filename)
+        return clean_for_filename(track.custom_filename)
 
     variables = _build_track_variables(track, job)
     video_type = variables.get('video_type', '')
@@ -269,7 +269,7 @@ def render_track_folder(track, job, config_dict=None):
     if variables.get('_disc_fallback'):
         rendered = rendered.replace('Season ', 'Disc ')
     segments = rendered.split('/')
-    segments = [_clean_for_filename(seg) for seg in segments if seg.strip()]
+    segments = [clean_for_filename(seg) for seg in segments if seg.strip()]
     return os.path.join(*segments) if segments else ''
 
 
