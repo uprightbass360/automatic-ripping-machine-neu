@@ -193,9 +193,7 @@ Available as `{disc_number}` and `{disc_total}` in naming patterns:
 - `{title} - Disc {disc_number}` -> `"Dynasties - Disc 2"`
 - `{title} ({year})` -> `"Dynasties (2018)"` (disc number omitted if not in pattern)
 
-Add corresponding `_auto` / `_manual` columns for consistency with the existing field pattern:
-- `disc_number_auto`, `disc_number_manual`
-- `disc_total_auto`, `disc_total_manual`
+`disc_number` and `disc_total` columns already exist on the Job model (migration `d3e4f5a6b7c8`). No `_auto`/`_manual` variants needed - disc number is a structural property of the physical disc, not a metadata field that users would override independently. The API already supports editing them via `_DIRECT_FIELDS`.
 
 ### 5. Deferred naming - three paths
 
@@ -242,14 +240,8 @@ The transcoder already treats `path` as an opaque string - it concatenates `{inp
 Single Alembic migration:
 
 ```python
-# New columns
+# guid is the only new column — disc_number/disc_total already exist (migration d3e4f5a6b7c8)
 op.add_column('job', sa.Column('guid', sa.String(36), nullable=True, unique=True))
-op.add_column('job', sa.Column('disc_number', sa.Integer(), nullable=True))
-op.add_column('job', sa.Column('disc_number_auto', sa.Integer(), nullable=True))
-op.add_column('job', sa.Column('disc_number_manual', sa.Integer(), nullable=True))
-op.add_column('job', sa.Column('disc_total', sa.Integer(), nullable=True))
-op.add_column('job', sa.Column('disc_total_auto', sa.Integer(), nullable=True))
-op.add_column('job', sa.Column('disc_total_manual', sa.Integer(), nullable=True))
 
 # Backfill existing rows with generated UUIDs
 for row in conn.execute(sa.text("SELECT job_id FROM job WHERE guid IS NULL")):
