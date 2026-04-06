@@ -416,15 +416,13 @@ class TestProcessTracks:
 class TestGetTitle:
 
     def test_identified_disc_returns_clean_title(self, music_job, mb_disc_response):
-        """Returns 'Artist-Title' via clean_for_filename."""
+        """Returns 'Artist Title' with spaces preserved."""
         with unittest.mock.patch.object(mb, 'set_useragent'), \
              unittest.mock.patch.object(mb, 'get_releases_by_discid',
                                         return_value=mb_disc_response), \
              unittest.mock.patch('arm.ripper.utils.database_updater'):
             result = music_brainz.get_title('fake-id', music_job)
-        # clean_for_filename processes the name
-        assert 'Pink' in result
-        assert 'Floyd' in result
+        assert result == 'Pink Floyd The Dark Side of the Moon'
         assert 'not identified' not in result
 
     def test_identified_disc_sets_video_type(self, music_job, mb_disc_response):
@@ -438,7 +436,7 @@ class TestGetTitle:
         assert args_dict['video_type'] == "music"
 
     def test_cdstub_returns_title(self, music_job, mb_stub_response):
-        """Stub path returns artist-title."""
+        """Stub path returns 'artist title' with spaces."""
         with unittest.mock.patch.object(mb, 'set_useragent'), \
              unittest.mock.patch.object(mb, 'get_releases_by_discid',
                                         return_value=mb_stub_response), \

@@ -1178,10 +1178,10 @@ class TestMatcherIntegration:
         ]})
         assert job.poster_url == poster
 
-    # -- Label cleaning applied to stored title --
+    # -- Title stored as-is from API (no sanitization) --
 
-    def test_title_cleaned_for_filename(self, app_context):
-        """Matched title is run through clean_for_filename before storing."""
+    def test_title_stored_unsanitized(self, app_context):
+        """Matched title is stored as-is from the API, preserving colons and spaces."""
         from arm.ripper.identify import update_job
 
         job = self._make_job(app_context, label="LOTR_FELLOWSHIP_OF_THE_RING_P1",
@@ -1190,8 +1190,8 @@ class TestMatcherIntegration:
             {'Title': 'The Lord of the Rings: The Fellowship of the Ring', 'Year': '2001',
              'imdbID': 'tt0120737', 'Type': 'movie', 'Poster': 'N/A'},
         ]})
-        # clean_for_filename replaces colons with hyphens and spaces with hyphens
-        assert ':' not in job.title
+        # Title is stored clean for display/search - no filename sanitization
+        assert job.title == 'The Lord of the Rings: The Fellowship of the Ring'
         assert 'Fellowship' in job.title
 
     # -- No prior year/type (auto fields empty) --

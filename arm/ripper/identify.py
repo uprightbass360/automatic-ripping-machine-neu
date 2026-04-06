@@ -27,7 +27,6 @@ import arm.config.config as cfg
 from arm.models import Job
 
 from arm.ripper import utils
-from arm.ripper.naming import clean_for_filename
 from arm.ripper.ProcessHandler import arm_subprocess
 from arm.ripper.utils import RipperException
 from arm.database import db
@@ -545,7 +544,7 @@ def update_job(job, search_results):
         return None
 
     best = selection.best
-    title = clean_for_filename(best.title)
+    title = best.title
     logging.debug(
         "Matcher selected '%s' (%s) with score %.3f (title=%.3f year=%.3f type=%.3f)",
         best.title, best.imdb_id, best.score,
