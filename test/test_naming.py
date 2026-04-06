@@ -657,3 +657,32 @@ class TestRenderWithJobFolderOverride:
         result = render_title(job)
         assert 'Episode' in result
         assert 'S01' not in result
+
+
+# ======================================================================
+# disc_number / disc_total pattern variables
+# ======================================================================
+
+
+def test_disc_number_in_pattern():
+    """disc_number variable is available in naming patterns."""
+    job = _make_job(title='Dynasties', year='2018', video_type='movie')
+    job.disc_number = 2
+    cfg = {'MOVIE_TITLE_PATTERN': '{title} - Disc {disc_number}'}
+    assert render_title(job, cfg) == 'Dynasties - Disc 2'
+
+
+def test_disc_number_omitted_when_none():
+    """Missing disc_number renders as empty string (cleaned up by pattern engine)."""
+    job = _make_job(title='Dynasties', year='2018', video_type='movie')
+    job.disc_number = None
+    cfg = {'MOVIE_TITLE_PATTERN': '{title} ({year})'}
+    assert render_title(job, cfg) == 'Dynasties (2018)'
+
+
+def test_disc_total_in_folder_pattern():
+    job = _make_job(title='Dynasties', year='2018', video_type='movie')
+    job.disc_number = 2
+    job.disc_total = 3
+    cfg = {'MOVIE_FOLDER_PATTERN': '{title} ({year})/Disc {disc_number} of {disc_total}'}
+    assert render_folder(job, cfg) == os.path.join('Dynasties (2018)', 'Disc 2 of 3')

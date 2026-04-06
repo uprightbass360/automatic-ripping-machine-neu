@@ -28,6 +28,8 @@ PATTERN_VARIABLES = {
     'episode':    'TV episode number (zero-padded to 2 digits)',
     'label':      'Original disc label from drive',
     'video_type': 'Media type: movie, series, or music',
+    'disc_number': 'Disc number in a multi-disc set',
+    'disc_total':  'Total number of discs in the set',
 }
 
 # Frozen set for fast validation — derived from PATTERN_VARIABLES
@@ -73,6 +75,8 @@ def _build_variables(job):
         'episode': episode,
         'label': getattr(job, 'label', '') or '',
         'video_type': getattr(job, 'video_type', '') or '',
+        'disc_number': str(getattr(job, 'disc_number', '') or ''),
+        'disc_total': str(getattr(job, 'disc_total', '') or ''),
     })
 
 
