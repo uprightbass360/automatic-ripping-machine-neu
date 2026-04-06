@@ -1,0 +1,66 @@
+<h2>Where should the gear menu live on the drive card?</h2>
+<p class="subtitle">The gear icon opens a settings panel for per-drive options like rip speed. Here are three approaches:</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Gear icon in the action bar</h3>
+      <p>Add a small gear icon at the right end of the existing action bar (next to Eject/Insert/Scan). Clicking it expands a settings panel below the action bar.</p>
+      <div style="margin-top:12px; border:1px solid rgba(120,120,120,0.2); border-radius:8px; padding:12px; font-family:monospace; font-size:11px; background:rgba(0,0,0,0.03);">
+        <div style="display:flex; gap:6px; align-items:center; padding:6px; border:1px solid rgba(100,100,200,0.15); border-radius:6px; background:rgba(255,255,255,0.02);">
+          <span style="padding:4px 8px; background:rgba(100,100,200,0.1); border-radius:4px; font-size:10px;">Auto</span>
+          <span style="color:#666;">|</span>
+          <span style="padding:4px 8px; background:rgba(100,100,200,0.1); border-radius:4px; font-size:10px;">Eject</span>
+          <span style="padding:4px 8px; background:rgba(100,100,200,0.1); border-radius:4px; font-size:10px;">Insert</span>
+          <span style="padding:4px 8px; background:rgba(100,100,200,0.1); border-radius:4px; font-size:10px;">Scan</span>
+          <span style="margin-left:auto; padding:4px 6px; background:rgba(100,100,200,0.15); border-radius:4px; font-size:10px; cursor:pointer;">&#9881;</span>
+        </div>
+        <div style="margin-top:8px; padding:8px; border:1px dashed rgba(100,100,200,0.2); border-radius:6px; color:#888; font-size:10px;">
+          &#8595; Settings panel expands here (rip speed, future settings)
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Gear icon in the card header</h3>
+      <p>Place the gear icon in the top-right corner of the card (next to the status badge). Clicking it toggles a settings section at the bottom of the card.</p>
+      <div style="margin-top:12px; border:1px solid rgba(120,120,120,0.2); border-radius:8px; padding:12px; font-family:monospace; font-size:11px; background:rgba(0,0,0,0.03);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-weight:bold;">Living Room</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:10px; color:#888;">Idle</span>
+            <span style="padding:3px 5px; background:rgba(100,100,200,0.15); border-radius:4px; font-size:10px; cursor:pointer;">&#9881;</span>
+          </div>
+        </div>
+        <div style="color:#888; font-size:10px; margin-bottom:6px;">Pioneer BD-RW BDR-S12JX</div>
+        <div style="padding:6px; border:1px solid rgba(100,100,200,0.15); border-radius:6px; font-size:10px; color:#888;">
+          [Auto] [Eject] [Insert] [Scan]
+        </div>
+        <div style="margin-top:8px; padding:8px; border-top:1px solid rgba(100,100,200,0.1); color:#888; font-size:10px;">
+          &#8595; Settings section appears at card bottom
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Dedicated settings row below the action bar</h3>
+      <p>Always show a small settings row beneath the action bar. No gear icon needed - the rip speed selector is just always visible as a compact row.</p>
+      <div style="margin-top:12px; border:1px solid rgba(120,120,120,0.2); border-radius:8px; padding:12px; font-family:monospace; font-size:11px; background:rgba(0,0,0,0.03);">
+        <div style="padding:6px; border:1px solid rgba(100,100,200,0.15); border-radius:6px; font-size:10px; color:#888; margin-bottom:6px;">
+          [Auto] [Eject] [Insert] [Scan]
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:6px; font-size:10px; color:#888;">
+          <span style="font-size:9px; text-transform:uppercase; letter-spacing:0.5px; color:#999;">Rip Speed</span>
+          <span style="padding:3px 8px; background:rgba(100,100,200,0.1); border-radius:4px;">Max &#9662;</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

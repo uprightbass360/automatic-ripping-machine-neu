@@ -1,0 +1,46 @@
+<h2>ARM Setup & Health Check - Brainstorming</h2>
+<p class="subtitle">Which improvement matters most for first-time users?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Improved Setup Wizard (API Keys)</h3>
+      <p>Add an explicit step for OMDB/TMDB/TVDB key entry with live validation during first-run setup. Users currently discover broken metadata after their first rip fails to identify.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Permissions Health Check</h3>
+      <p>A diagnostic panel showing volume ownership, path writability, and UID alignment across ARM/transcoder/UI. Users currently have to read container logs to diagnose permission errors.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Both - Scoped Together</h3>
+      <p>Add API key step to the wizard AND a permissions health panel. Design them as one feature since both serve the "first-run success" goal.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Follow-up: Where should these live?</h3>
+  <div class="options">
+    <div class="option" data-choice="wizard-only" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>Setup Wizard Only</h3>
+        <p>First-run experience only. After setup is complete, users go to Settings for changes.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="always-accessible" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>Always Accessible</h3>
+        <p>Available in the setup wizard AND as a dashboard/settings panel for ongoing diagnostics.</p>
+      </div>
+    </div>
+  </div>
+</div>
