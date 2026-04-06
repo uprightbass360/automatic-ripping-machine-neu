@@ -273,11 +273,22 @@ class Job(db.Model):
             self.disctype = "dvd"
         elif os.path.isdir(self.mountpoint + "/BDMV"):
             logging.debug(f"Found: {self.mountpoint}/BDMV")
-            # UHD Blu-rays use AACS2 and have a /CERTIFICATE/id.bdmv file
-            if os.path.isfile(self.mountpoint + "/CERTIFICATE/id.bdmv"):
-                logging.debug(f"Found: {self.mountpoint}/CERTIFICATE/id.bdmv — UHD Blu-ray")
-                self.disctype = "bluray4k"
-            else:
+            # Detect UHD by reading the index.bdmv header version.
+            # INDX0300 = UHD (AACS2), INDX0200 = standard Blu-ray.
+            # The old check (/CERTIFICATE/id.bdmv) is unreliable — that
+            # file exists on most standard Blu-rays with BD-J content.
+            index_path = os.path.join(self.mountpoint, "BDMV", "index.bdmv")
+            try:
+                with open(index_path, "rb") as f:
+                    header = f.read(8)
+                if header == b"INDX0300":
+                    logging.debug("index.bdmv header is INDX0300 — UHD Blu-ray")
+                    self.disctype = "bluray4k"
+                else:
+                    logging.debug(f"index.bdmv header is {header!r} — standard Blu-ray")
+                    self.disctype = "bluray"
+            except OSError:
+                logging.debug("Could not read index.bdmv — assuming standard Blu-ray")
                 self.disctype = "bluray"
         elif os.path.isdir(self.mountpoint + "/HVDVD_TS"):
             logging.debug(f"Found: {self.mountpoint}/HVDVD_TS")
