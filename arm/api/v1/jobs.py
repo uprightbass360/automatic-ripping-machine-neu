@@ -419,8 +419,6 @@ def _process_mapped_fields(body):
         if key not in body or body[key] is None:
             continue
         value = str(body[key]).strip()
-        if key == 'title':
-            value = _clean_for_filename(value)
         args[eff] = value
         args[manual] = value
         updated[key] = value
@@ -556,8 +554,6 @@ def update_track_title(job_id: int, track_id: int, body: dict):
     for key, (attr, typ, maxlen) in track_fields.items():
         if key in body and body[key] is not None:
             value = typ(body[key]).strip()[:maxlen]
-            if key == 'title':
-                value = _clean_for_filename(value)
             setattr(track, attr, value)
             updated[key] = value
 
@@ -987,17 +983,6 @@ def tvdb_episodes(job_id: int, season: int = 1):
 
     episodes = _run_async(tvdb.get_season_episodes(tvdb_id, season))
     return {"episodes": episodes, "tvdb_id": tvdb_id, "season": season}
-
-
-def _clean_for_filename(string):
-    """Clean a string for use in filenames."""
-    string = re.sub(r'\s+', ' ', string)
-    string = string.replace(' : ', ' - ')
-    string = string.replace(':', '-')
-    string = string.replace('&', 'and')
-    string = string.replace("\\", " - ")
-    string = re.sub(r"[^\w -]", "", string)
-    return string.strip()
 
 
 # --- Track field updates ---

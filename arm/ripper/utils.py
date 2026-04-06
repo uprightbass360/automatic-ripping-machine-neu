@@ -194,7 +194,7 @@ def _build_webhook_payload(title, body, job, raw_basename):
     doesn't need its own naming logic — ARM is the single source of truth
     for folder/file naming patterns configured in arm.yaml.
     """
-    from arm.ripper.naming import render_folder, render_title, render_all_tracks, _clean_for_filename
+    from arm.ripper.naming import render_folder, render_title, render_all_tracks, clean_for_filename
 
     payload = {"title": title, "body": body, "type": "info"}
     if raw_basename:
@@ -211,7 +211,7 @@ def _build_webhook_payload(title, body, job, raw_basename):
         # render_folder may contain '/' for nested dirs (e.g. "Title/Season 01")
         # — it already sanitizes each segment, so don't strip slashes here.
         payload["folder_name"] = render_folder(job, config_dict)
-        payload["title_name"] = _clean_for_filename(render_title(job, config_dict))
+        payload["title_name"] = clean_for_filename(render_title(job, config_dict))
         if job.transcode_overrides:
             try:
                 payload["config_overrides"] = json.loads(job.transcode_overrides)
@@ -239,9 +239,9 @@ def _build_webhook_payload(title, body, job, raw_basename):
                 "filename": str(track.filename or ''),
                 "has_custom_title": bool(track.title) or bool(getattr(track, 'custom_filename', None)),
                 "folder_name": r.get("rendered_folder", ''),
-                # _clean_for_filename is idempotent; render_track_title already
+                # clean_for_filename is idempotent; render_track_title already
                 # sanitizes custom_filename but raw pattern output needs it here.
-                "title_name": _clean_for_filename(r.get("rendered_title", '')) if r.get("rendered_title") else '',
+                "title_name": clean_for_filename(r.get("rendered_title", '')) if r.get("rendered_title") else '',
                 "episode_number": str(getattr(track, 'episode_number', '') or ''),
                 "episode_name": str(getattr(track, 'episode_name', '') or ''),
             })
@@ -924,21 +924,6 @@ def check_ip():
         return ip_list[0]
     return '127.0.0.1'
 
-
-def clean_for_filename(string):
-    """ Cleans up string for use in filename """
-    string = re.sub('\\[(.*?)]', '', string)
-    string = string.replace(' : ', ' - ')
-    string = string.replace(':', '-')
-    string = string.replace('&', 'and')
-    string = string.replace("\\", " - ")
-    string = re.sub('\\s+', ' ', string)
-    string = string.replace(' - ', '-')
-    string = re.sub('\\s+', '-', string)
-    # Collapse consecutive hyphens (e.g. "Title - Disc" -> "Title-Disc" not "Title---Disc")
-    string = re.sub('-{2,}', '-', string)
-    string = string.strip(' -')
-    return re.sub('[^\\w.() -]', '', string)
 
 
 def duplicate_run_check(dev_path):

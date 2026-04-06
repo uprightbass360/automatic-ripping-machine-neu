@@ -120,43 +120,6 @@ class TestExtractYear:
         assert extract_year(raw) == expected
 
 
-class TestCleanForFilename:
-    """Test clean_for_filename() string sanitization."""
-
-    def test_simple_title(self):
-        from arm.ripper.utils import clean_for_filename
-        assert clean_for_filename("Serial Mom") == "Serial-Mom"
-
-    def test_brackets_removed(self):
-        from arm.ripper.utils import clean_for_filename
-        assert "Rated" not in clean_for_filename("Serial Mom [Rated R]")
-
-    def test_colon_replaced(self):
-        from arm.ripper.utils import clean_for_filename
-        result = clean_for_filename("Star Wars: A New Hope")
-        assert ":" not in result
-
-    def test_ampersand_replaced(self):
-        from arm.ripper.utils import clean_for_filename
-        result = clean_for_filename("Tom & Jerry")
-        assert "&" not in result
-        assert "and" in result
-
-    def test_special_chars_stripped(self):
-        from arm.ripper.utils import clean_for_filename
-        result = clean_for_filename("Movie! @#$% Title")
-        # Only word chars, dots, parens, spaces, hyphens allowed
-        assert all(c.isalnum() or c in '.() -_' for c in result)
-
-    def test_empty_string(self):
-        from arm.ripper.utils import clean_for_filename
-        assert clean_for_filename("") == ""
-
-    def test_preserves_year_parens(self):
-        from arm.ripper.utils import clean_for_filename
-        result = clean_for_filename("Serial Mom (1994)")
-        assert "(1994)" in result
-
 
 class TestDatabaseUpdaterUI:
     """Test database_updater in arm/ui/utils.py."""

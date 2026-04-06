@@ -2104,27 +2104,6 @@ class TestApiTvdbEpisodes:
         assert len(data["episodes"]) == 1
 
 
-class TestApiCleanForFilename:
-    """Test _clean_for_filename helper in jobs.py."""
-
-    def test_colons_replaced(self):
-        from arm.api.v1.jobs import _clean_for_filename
-        assert _clean_for_filename("Movie: Subtitle") == "Movie- Subtitle"
-
-    def test_ampersand_replaced(self):
-        from arm.api.v1.jobs import _clean_for_filename
-        assert _clean_for_filename("Tom & Jerry") == "Tom and Jerry"
-
-    def test_backslash_replaced(self):
-        from arm.api.v1.jobs import _clean_for_filename
-        assert _clean_for_filename("A\\B") == "A - B"
-
-    def test_special_chars_removed(self):
-        from arm.api.v1.jobs import _clean_for_filename
-        result = _clean_for_filename("Movie! (2024) #1")
-        assert "!" not in result
-        assert "#" not in result
-
 
 class TestApiAutoFlagTracks:
     """Test _auto_flag_tracks helper."""

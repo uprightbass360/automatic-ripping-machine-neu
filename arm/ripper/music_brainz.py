@@ -9,6 +9,7 @@ from discid import read, Disc
 import arm.config.config as cfg
 from arm.database import db
 from arm.ripper import utils as u
+from arm.ripper.naming import clean_for_filename
 
 
 def main(disc):
@@ -372,7 +373,7 @@ def get_title(discid: str, job) -> str:
             u.database_updater(False, job)
             return "not identified"
 
-        clean_title = u.clean_for_filename(artist) + "-" + u.clean_for_filename(title)
+        clean_title = clean_for_filename(artist) + "-" + clean_for_filename(title)
         args = {
             'crc_id': crc_id,
             'title': str(artist + " " + title),
