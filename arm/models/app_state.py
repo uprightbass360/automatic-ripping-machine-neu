@@ -18,13 +18,26 @@ class AppState(db.Model):
 
     @classmethod
     def get(cls):
-        """Return the singleton row, creating it if it doesn't exist."""
+        """Return the singleton row, creating it if it doesn't exist.
+
+        Handles the race condition where two threads both see None and
+        try to insert: the loser's commit fails, so we retry the read.
+        """
         state = cls.query.get(1)
-        if state is None:
+        if state is not None:
+            return state
+        try:
             state = cls(id=1, ripping_paused=False, setup_complete=False)
             db.session.add(state)
             db.session.commit()
-        return state
+            return state
+        except Exception:
+            # Another thread likely created the row - rollback and re-read
+            db.session.rollback()
+            state = cls.query.get(1)
+            if state is not None:
+                return state
+            raise  # genuinely broken - let caller handle it
 
     def __repr__(self):
         return f'<AppState ripping_paused={self.ripping_paused} setup_complete={self.setup_complete}>'
