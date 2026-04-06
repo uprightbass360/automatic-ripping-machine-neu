@@ -56,8 +56,11 @@ def is_docker():
 
 def get_host():
     host = cfg.arm_config['WEBSERVER_IP']
-    # Check if auto ip address 'x.x.x.x' or if inside docker - set internal ip from host and use WEBSERVER_IP for notify
-    if host == 'x.x.x.x' or is_docker():
+    # Inside Docker, bind to all interfaces so healthchecks and
+    # inter-container communication work reliably.
+    if is_docker():
+        return '0.0.0.0'
+    if host == 'x.x.x.x':
         # autodetect host IP address
         from netifaces import interfaces, ifaddresses, AF_INET
         ip_list = []
