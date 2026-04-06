@@ -251,6 +251,7 @@ def _process_disc_data(job, disc_info):
         disc_number=disc_number, disc_total=disc_total)
     logging.info(f"CD args: {args}")
     u.database_updater(args, job)
+    logging.info(f"Post-update verification: job.year={job.year} job.year_auto={job.year_auto}")
     logging.debug(f"musicbrain works -  New title is {title}  New Year is: {new_year}")
 
     logging.info(f"do have artwork?======{release['cover-art-archive']['artwork']}")
