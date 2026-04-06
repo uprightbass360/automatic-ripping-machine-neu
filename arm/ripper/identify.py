@@ -545,6 +545,11 @@ def update_job(job, search_results):
 
     best = selection.best
     title = best.title
+    # Strip trailing (YEAR) from title if it matches best.year — some API results
+    # include the year in the title (e.g. "The Cabin In The Woods (2012)") which
+    # causes double-year when the naming engine appends {year} from the separate field.
+    if best.year:
+        title = re.sub(rf'\s*\({re.escape(str(best.year))}\)\s*$', '', title).strip()
     logging.debug(
         "Matcher selected '%s' (%s) with score %.3f (title=%.3f year=%.3f type=%.3f)",
         best.title, best.imdb_id, best.score,
