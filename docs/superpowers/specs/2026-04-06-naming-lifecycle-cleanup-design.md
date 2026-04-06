@@ -84,12 +84,20 @@ Any code that currently identifies files by matching against title-based directo
 - **Track file matching:** Use `track.track_number` and `track.filename` (MakeMKV's original filename like `B1_t00.mkv`), never parse the containing directory name.
 - **Transcoder input:** Webhook includes `path` (GUID basename) and per-track `filename` values - transcoder matches files by filename within the GUID directory.
 
-Files to audit for path-based lookups:
-- `arm/ripper/makemkv.py` - `_scan_output_dir`, any post-rip file reconciliation
-- `arm/ripper/utils.py` - `move_files`, `transcoder_notify` raw_basename extraction
-- `arm/ripper/arm_ripper.py` - post-rip file handling
-- `arm/ripper/folder_ripper.py` - folder import file handling
-- `arm/api/v1/jobs.py` - any endpoint that resolves files from job metadata
+Audit of all downstream file identification (completed):
+
+| Component | How it identifies files | GUID-safe? |
+|-----------|----------------------|------------|
+| `makemkv._reconcile_filenames` | Matches `track.filename` against `os.listdir(rawpath)`, then `_t\d+` suffix extraction on filenames | Yes - directory name irrelevant |
+| `makemkv._strip_track_suffix` | Regex on filenames only (`_t\d+$`) | Yes |
+| `utils._move_to_shared_storage` | `os.path.basename(job.raw_path)` | Yes - reads persisted path |
+| `utils._build_webhook_payload` | `os.path.basename(job.raw_path)` for `path` field | Yes - transcoder treats as opaque |
+| `folder_ripper` file check | `track.filename in os.listdir(rawpath)` | Yes |
+| `services/maintenance.py` orphan cleanup | `Path(job.raw_path).name` against directory listing | Yes - matches persisted basename |
+| UI file browser | `os.scandir(path)` | Yes - displays name, doesn't parse |
+| Notifications | `job.title` (display field) | Yes - never uses directory name |
+
+No component parses the directory name to extract title/metadata. All file-to-record correlation uses DB fields (`track.filename`, `track.track_number`) matched against actual files on disk.
 
 ### 2. Clean title storage
 
