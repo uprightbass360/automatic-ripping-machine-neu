@@ -45,15 +45,24 @@ def get_setup_status():
 
     db_initialized = db_status.get("db_current", False)
 
-    # Check first_run via AppState.setup_complete
-    first_run = True
+    # Check first_run via AppState.setup_complete.
+    #
+    # When the DB is initialized, default to first_run=False so that
+    # transient DB errors (contention, locked session) don't flash the
+    # setup wizard during normal operation.  Only default to True when
+    # the DB genuinely doesn't exist or isn't current.
+    first_run = not db_initialized
     drive_count = 0
     try:
         from arm.models.app_state import AppState
         state = AppState.get()
         first_run = not state.setup_complete
     except Exception:
-        pass  # Table may not exist yet
+        if not db_initialized:
+            first_run = True  # DB not ready - assume first run
+        else:
+            log.warning("AppState query failed on initialized DB - defaulting first_run=False")
+            first_run = False  # DB exists but query failed - don't flash wizard
 
     try:
         from arm.models.system_drives import SystemDrives
