@@ -42,8 +42,23 @@ class TestTypeSubfolder:
 
 
 class TestBuildPaths:
-    def test_build_raw_path(self, sample_job):
-        assert sample_job.build_raw_path() == "/home/arm/media/raw/SERIAL_MOM"
+    def test_build_raw_path_uses_guid(self, sample_job):
+        """Raw path uses job GUID, not title."""
+        expected = f"/home/arm/media/raw/{sample_job.guid}"
+        assert sample_job.build_raw_path() == expected
+
+    def test_build_raw_path_independent_of_title(self, sample_job):
+        """Changing title does not affect raw path."""
+        path_before = sample_job.build_raw_path()
+        sample_job.title = "Something Else"
+        sample_job.title_auto = "Something Else"
+        assert sample_job.build_raw_path() == path_before
+
+    def test_build_raw_path_independent_of_manual_title(self, sample_job):
+        """Manual title correction does not affect raw path."""
+        path_before = sample_job.build_raw_path()
+        sample_job.title_manual = "Serial Mom"
+        assert sample_job.build_raw_path() == path_before
 
     def test_build_transcode_path(self, sample_job):
         assert sample_job.build_transcode_path() == "/home/arm/media/transcode/movies/SERIAL_MOM (1994)"
@@ -51,16 +66,10 @@ class TestBuildPaths:
     def test_build_final_path(self, sample_job):
         assert sample_job.build_final_path() == "/home/arm/media/completed/movies/SERIAL_MOM (1994)"
 
-    def test_build_raw_path_uses_title_auto(self, sample_job):
-        """raw_path should use title_auto, not title (which may be corrected)."""
-        sample_job.title = "Serial Mom"
-        sample_job.title_auto = "SERIAL_MOM"
-        assert sample_job.build_raw_path() == "/home/arm/media/raw/SERIAL_MOM"
-
     def test_build_paths_with_manual_title(self, sample_job):
         sample_job.title_manual = "Serial Mom"
-        # raw_path uses title_auto (original auto-detected title)
-        assert sample_job.build_raw_path() == "/home/arm/media/raw/SERIAL_MOM"
+        # raw_path uses GUID (independent of title)
+        assert sample_job.build_raw_path() == f"/home/arm/media/raw/{sample_job.guid}"
         # transcode and final use formatted_title (prefers manual)
         assert sample_job.build_transcode_path() == "/home/arm/media/transcode/movies/Serial Mom (1994)"
         assert sample_job.build_final_path() == "/home/arm/media/completed/movies/Serial Mom (1994)"
@@ -171,12 +180,12 @@ class TestPatternEngineIntegration:
     # --- Raw path never uses pattern ---
 
     def test_raw_path_unaffected_by_structured_fields(self, sample_job):
-        """build_raw_path always uses title_auto, never the pattern engine."""
+        """build_raw_path always uses GUID, never the pattern engine."""
         sample_job.video_type = "music"
         sample_job.artist = "The Beatles"
         sample_job.album = "Abbey Road"
         sample_job.title_auto = "Beatles Abbey Road"
-        assert sample_job.build_raw_path() == "/home/arm/media/raw/Beatles Abbey Road"
+        assert sample_job.build_raw_path() == f"/home/arm/media/raw/{sample_job.guid}"
 
 
 class TestStructuredFieldColumns:
