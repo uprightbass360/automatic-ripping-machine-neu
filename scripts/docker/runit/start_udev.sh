@@ -1,11 +1,18 @@
-#!/bin/sh -i
+#!/bin/sh
+
+# Start udev inside the container. Must not block my_init - if udev
+# hangs (common in Docker due to --notify-await or udevadm settle),
+# we timeout and continue. ARM can still function without udev for
+# disc detection since udev rules are on the host.
 
 echo "Trying to start udev"
-/etc/init.d/udev start > /dev/null 2>&1
-echo "udev Started successfully"
+timeout 30 /etc/init.d/udev start > /dev/null 2>&1 || {
+    echo "WARNING: udev start timed out or failed - continuing without udev"
+}
+echo "udev startup complete"
 
 # Ensure device nodes exist for all optical drives.
-# When a drive is re-enumerated (e.g. sr0 → sr1 after USB reconnect),
+# When a drive is re-enumerated (e.g. sr0 -> sr1 after USB reconnect),
 # the container's devtmpfs may not have the new device node even though
 # the kernel sees the drive. Create any missing nodes here.
 if [ -f /proc/sys/dev/cdrom/info ]; then

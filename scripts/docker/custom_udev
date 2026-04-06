@@ -167,7 +167,7 @@ case "$1" in
     log_daemon_msg "Starting $DESC" "$NAME"
     if start-stop-daemon --start --name $NAME --user root --quiet \
         --pidfile $PIDFILE --exec $DAEMON --background --make-pidfile \
-        --notify-await; then
+        ; then
         # prevents udevd to be killed by sendsigs (see #791944)
         mkdir -p $OMITDIR
         ln -sf $PIDFILE $OMITDIR/$NAME
@@ -195,7 +195,7 @@ case "$1" in
 
     # wait for the systemd-udevd childs to finish
     log_action_begin_msg "Waiting for /dev to be fully populated"
-    if udevadm settle; then
+    if udevadm settle --timeout=10; then
         log_action_end_msg 0
     else
         log_action_end_msg 0 'timeout'
@@ -228,7 +228,7 @@ case "$1" in
     log_daemon_msg "Starting $DESC" "$NAME"
     if start-stop-daemon --start --name $NAME --user root --quiet \
         --pidfile $PIDFILE --exec $DAEMON --background --make-pidfile \
-        --notify-await; then
+        ; then
         # prevents udevd to be killed by sendsigs (see #791944)
         mkdir -p $OMITDIR
         ln -sf $PIDFILE $OMITDIR/$NAME
