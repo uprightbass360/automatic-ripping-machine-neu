@@ -364,6 +364,64 @@ def validate_pattern(pattern):
 # ======================================================================
 
 
+def _move_track(track, raw_path, final_dir, rendered_map):
+    """Move a single track file to its final rendered destination.
+
+    Returns True if the file was moved, False if skipped.
+    """
+    import shutil
+
+    if not track.filename:
+        return False
+    src = os.path.join(raw_path, track.filename)
+    if not os.path.isfile(src):
+        return False
+
+    r = rendered_map.get(str(track.track_number or ''), {})
+    rendered_title = r.get("rendered_title", '')
+
+    if rendered_title:
+        ext = os.path.splitext(track.filename)[1]
+        dest_name = clean_for_filename(rendered_title) + ext
+    else:
+        dest_name = track.filename
+
+    rendered_folder = r.get("rendered_folder", '')
+    dest_dir = os.path.join(final_dir, rendered_folder) if rendered_folder else final_dir
+
+    os.makedirs(dest_dir, exist_ok=True)
+    shutil.move(src, os.path.join(dest_dir, dest_name))
+    return True
+
+
+def _move_untracked_mkvs(raw_path, final_dir, job, config_dict):
+    """Fallback: move all MKV files using the job-level rendered title.
+
+    Used when no track records matched (e.g. single-title disc).
+    Returns the number of files moved.
+    """
+    import shutil
+
+    moved = 0
+    rendered_title = render_title(job, config_dict)
+    for fname in os.listdir(raw_path):
+        if not fname.lower().endswith('.mkv'):
+            continue
+        dest_name = clean_for_filename(rendered_title) + '.mkv' if rendered_title else fname
+        shutil.move(os.path.join(raw_path, fname), os.path.join(final_dir, dest_name))
+        moved += 1
+    return moved
+
+
+def _cleanup_empty_dir(path):
+    """Remove a directory if it exists and is empty."""
+    try:
+        if os.path.isdir(path) and not os.listdir(path):
+            os.rmdir(path)
+    except OSError:
+        pass
+
+
 def finalize_output(job):
     """Move ripped files from GUID work directory to final named location.
 
@@ -371,7 +429,6 @@ def finalize_output(job):
     Renders folder/file names via the naming engine, moves files, updates
     job.path, and cleans up the empty work directory.
     """
-    import shutil
     from arm.database import db
     import arm.config.config as cfg
 
@@ -385,60 +442,16 @@ def finalize_output(job):
     final_dir = job.build_final_path()
     os.makedirs(final_dir, exist_ok=True)
 
-    # Get rendered names for each track
     rendered = render_all_tracks(job, config_dict)
     rendered_map = {r["track_number"]: r for r in rendered}
 
-    moved_count = 0
-    for track in job.tracks:
-        if not track.filename:
-            continue
-        src = os.path.join(raw_path, track.filename)
-        if not os.path.isfile(src):
-            continue
+    moved_count = sum(1 for t in job.tracks if _move_track(t, raw_path, final_dir, rendered_map))
 
-        r = rendered_map.get(str(track.track_number or ''), {})
-        rendered_title = r.get("rendered_title", '')
-        rendered_folder = r.get("rendered_folder", '')
-
-        if rendered_title:
-            ext = os.path.splitext(track.filename)[1]
-            dest_name = clean_for_filename(rendered_title) + ext
-        else:
-            dest_name = track.filename
-
-        if rendered_folder:
-            dest_dir = os.path.join(final_dir, rendered_folder)
-        else:
-            dest_dir = final_dir
-
-        os.makedirs(dest_dir, exist_ok=True)
-        shutil.move(src, os.path.join(dest_dir, dest_name))
-        moved_count += 1
-
-    # Fallback: if no tracks matched (e.g. single-title disc without track
-    # records), move all MKV files using the job-level rendered title.
     if moved_count == 0:
-        for fname in os.listdir(raw_path):
-            if fname.lower().endswith('.mkv'):
-                rendered_title = render_title(job, config_dict)
-                if rendered_title:
-                    dest_name = clean_for_filename(rendered_title) + '.mkv'
-                else:
-                    dest_name = fname
-                shutil.move(os.path.join(raw_path, fname),
-                            os.path.join(final_dir, dest_name))
-                moved_count += 1
+        moved_count = _move_untracked_mkvs(raw_path, final_dir, job, config_dict)
 
-    # Update job.path and persist
     job.path = final_dir
     db.session.commit()
 
-    # Remove empty work directory
-    try:
-        if os.path.isdir(raw_path) and not os.listdir(raw_path):
-            os.rmdir(raw_path)
-    except OSError:
-        pass
-
+    _cleanup_empty_dir(raw_path)
     logging.info("finalize_output: moved %d files to %s", moved_count, final_dir)

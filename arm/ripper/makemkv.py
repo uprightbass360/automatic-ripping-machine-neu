@@ -1174,7 +1174,7 @@ def makemkv(job):
     _resolve_mdisc(job)
     logging.info(f"MakeMKV disc number: {job.drive.mdisc}")
 
-    rawpath = setup_rawpath(job, job.build_raw_path())
+    rawpath = setup_rawpath(job.build_raw_path())
     logging.info(f"Processing files to: {rawpath}")
 
     if (job.config.RIPMETHOD in ("backup", "backup_dvd")) and job.disctype in ("bluray", "bluray4k"):
@@ -1271,14 +1271,13 @@ def process_single_tracks(job, rawpath, mode: str):
             db.session.commit()
 
 
-def setup_rawpath(job, raw_path):
+def setup_rawpath(raw_path):
     """Create the raw rip output directory.
 
     With GUID-based paths, collision is not possible. If the directory
     already exists (e.g. retry after partial rip), reuse it.
 
     Parameters:
-        job: arm.models.job.Job
         raw_path: str - absolute path to create
     Returns:
         str: the raw_path (unchanged)
