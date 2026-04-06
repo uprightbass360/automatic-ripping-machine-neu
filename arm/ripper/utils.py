@@ -928,13 +928,16 @@ def check_ip():
 def clean_for_filename(string):
     """ Cleans up string for use in filename """
     string = re.sub('\\[(.*?)]', '', string)
-    string = re.sub('\\s+', '-', string)
     string = string.replace(' : ', ' - ')
     string = string.replace(':', '-')
     string = string.replace('&', 'and')
     string = string.replace("\\", " - ")
-    string = string.replace(" ", " - ")
-    string = string.strip()
+    string = re.sub('\\s+', ' ', string)
+    string = string.replace(' - ', '-')
+    string = re.sub('\\s+', '-', string)
+    # Collapse consecutive hyphens (e.g. "Title - Disc" -> "Title-Disc" not "Title---Disc")
+    string = re.sub('-{2,}', '-', string)
+    string = string.strip(' -')
     return re.sub('[^\\w.() -]', '', string)
 
 
