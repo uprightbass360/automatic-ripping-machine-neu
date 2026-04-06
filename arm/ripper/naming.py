@@ -397,13 +397,13 @@ def finalize_output(job):
         if not os.path.isfile(src):
             continue
 
-        r = rendered_map.get(track.track_number, {})
+        r = rendered_map.get(str(track.track_number or ''), {})
         rendered_title = r.get("rendered_title", '')
         rendered_folder = r.get("rendered_folder", '')
 
         if rendered_title:
             ext = os.path.splitext(track.filename)[1]
-            dest_name = _clean_for_filename(rendered_title) + ext
+            dest_name = clean_for_filename(rendered_title) + ext
         else:
             dest_name = track.filename
 
@@ -423,7 +423,7 @@ def finalize_output(job):
             if fname.lower().endswith('.mkv'):
                 rendered_title = render_title(job, config_dict)
                 if rendered_title:
-                    dest_name = _clean_for_filename(rendered_title) + '.mkv'
+                    dest_name = clean_for_filename(rendered_title) + '.mkv'
                 else:
                     dest_name = fname
                 shutil.move(os.path.join(raw_path, fname),

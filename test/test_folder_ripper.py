@@ -48,6 +48,7 @@ class TestRipFolder:
         self, mock_prep, mock_prescan, mock_run,
         mock_reconcile, mock_notify, mock_db, tmp_path
     ):
+        """No transcoder configured - finalize_output runs, status is success."""
         from arm.ripper.folder_ripper import rip_folder
 
         rawpath = tmp_path / "raw" / "Test Movie"
@@ -57,7 +58,8 @@ class TestRipFolder:
         mock_run.return_value = iter([])  # MakeMKV yields nothing on success
 
         with patch("arm.ripper.folder_ripper.setup_rawpath", return_value=str(rawpath)), \
-             patch("arm.ripper.folder_ripper.cfg") as mock_cfg:
+             patch("arm.ripper.folder_ripper.cfg") as mock_cfg, \
+             patch("arm.ripper.naming.finalize_output") as mock_finalize:
             mock_cfg.arm_config = {"TRANSCODER_URL": ""}
             rip_folder(job)
 
@@ -69,7 +71,8 @@ class TestRipFolder:
         assert args[1] == str(rawpath)
         assert "title_map" in kwargs
         mock_notify.assert_not_called()
-        assert job.status == "waiting_transcode"
+        mock_finalize.assert_called_once_with(job)
+        assert job.status == "success"
 
     @patch("arm.ripper.folder_ripper.db")
     @patch("arm.ripper.folder_ripper.utils.transcoder_notify")
@@ -129,7 +132,8 @@ class TestRipFolder:
         job.tracks = [track0, track1, track2]
         mock_run.return_value = iter([])
 
-        with patch("arm.ripper.folder_ripper.cfg") as mock_cfg, mock_setup:
+        with patch("arm.ripper.folder_ripper.cfg") as mock_cfg, mock_setup, \
+             patch("arm.ripper.naming.finalize_output"):
             mock_cfg.arm_config = {"TRANSCODER_URL": ""}
             rip_folder(job)
 

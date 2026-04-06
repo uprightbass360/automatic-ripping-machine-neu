@@ -57,18 +57,30 @@ def rip_visual_media(have_dupes, job, logfile, protection):
 
     # Persist raw_path to DB — this is the actual directory on disk
     utils.database_updater({'raw_path': makemkv_out_path}, job)
-    if job.config.NOTIFY_RIP:
-        # notify() also calls transcoder_notify internally
-        utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
+
+    # Determine whether to hand off to transcoder or finalize locally
+    import arm.config.config as cfg
+    transcoder_url = cfg.arm_config.get('TRANSCODER_URL', '')
+
+    if transcoder_url:
+        if job.config.NOTIFY_RIP:
+            # notify() also calls transcoder_notify internally
+            utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
+        else:
+            # Always notify the transcoder when TRANSCODER_URL is set, even if
+            # NOTIFY_RIP is off.  The transcoder webhook is a pipeline trigger,
+            # not a user notification.
+            utils.transcoder_notify(
+                cfg.arm_config, constants.NOTIFY_TITLE,
+                f"{job.title} rip complete.", job,
+            )
     else:
-        # Always notify the transcoder when TRANSCODER_URL is set, even if
-        # NOTIFY_RIP is off.  The transcoder webhook is a pipeline trigger,
-        # not a user notification.
-        import arm.config.config as cfg
-        utils.transcoder_notify(
-            cfg.arm_config, constants.NOTIFY_TITLE,
-            f"{job.title} rip complete.", job,
-        )
+        # No transcoder - finalize output locally
+        from arm.ripper.naming import finalize_output
+        logging.info("No transcoder configured - finalizing output locally")
+        finalize_output(job)
+        if job.config.NOTIFY_RIP:
+            utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
     logging.info("************* Ripping with MakeMKV completed *************")
 
     # Report errors if any

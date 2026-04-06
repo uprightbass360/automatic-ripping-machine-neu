@@ -202,7 +202,7 @@ def rip_folder(job):
                  sum(1 for t in job.tracks if t.ripped),
                  len(list(job.tracks)), rawpath)
 
-        # 7. Notify transcoder if configured
+        # 7. Notify transcoder or finalize locally
         transcoder_url = cfg.arm_config.get("TRANSCODER_URL", "")
         if transcoder_url:
             utils.transcoder_notify(
@@ -211,9 +211,13 @@ def rip_folder(job):
                 f"{job.title} folder import rip complete.",
                 job,
             )
+            job.status = JobState.TRANSCODE_WAITING.value
+        else:
+            from arm.ripper.naming import finalize_output
+            log.info("No transcoder configured - finalizing output locally")
+            finalize_output(job)
+            job.status = JobState.SUCCESS.value
 
-        # 8. Set status to TRANSCODE_WAITING
-        job.status = JobState.TRANSCODE_WAITING.value
         db.session.commit()
         log.info("Folder import rip complete for job %s", job.job_id)
 
