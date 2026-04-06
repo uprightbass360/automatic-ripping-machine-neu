@@ -4,6 +4,7 @@ import os
 import psutil
 import pyudev
 import time
+import uuid
 
 from datetime import datetime as dt
 from prettytable import PrettyTable
@@ -153,6 +154,7 @@ class Job(db.Model):
     disc_number = db.Column(db.Integer, nullable=True)
     disc_total = db.Column(db.Integer, nullable=True)
     tvdb_id = db.Column(db.Integer, nullable=True)
+    guid = db.Column(db.String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
     ejected = db.Column(db.Boolean)
     updated = db.Column(db.Boolean)
     pid = db.Column(db.Integer)
@@ -172,6 +174,7 @@ class Job(db.Model):
     def __init__(self, devpath, _skip_hardware=False):
         """Return a disc object"""
         self.devpath = devpath
+        self.guid = str(uuid.uuid4())
         self.mountpoint = ""
         self.hasnicetitle = False
         self.video_type = "unknown"

@@ -1,5 +1,6 @@
 """Tests for Job model properties and path builders (Phase 2)."""
 import os
+import uuid
 
 
 class TestFormattedTitle:
@@ -224,3 +225,29 @@ class TestStructuredFieldColumns:
         assert sample_job.album is None
         assert sample_job.season is None
         assert sample_job.episode is None
+
+
+class TestJobGuid:
+    def test_new_job_has_guid(self, sample_job):
+        """Every job gets a UUID4 guid at creation."""
+        assert sample_job.guid is not None
+        parsed = uuid.UUID(sample_job.guid)
+        assert parsed.version == 4
+
+    def test_guid_is_unique_per_job(self, app_context):
+        """Two jobs get different GUIDs."""
+        from arm.models.job import Job
+        import unittest.mock
+        with unittest.mock.patch.object(Job, 'parse_udev'), \
+             unittest.mock.patch.object(Job, 'get_pid'):
+            job1 = Job('/dev/sr0')
+            job2 = Job('/dev/sr1')
+        assert job1.guid != job2.guid
+
+    def test_folder_job_has_guid(self, app_context):
+        """Folder-import jobs also get GUIDs."""
+        from arm.models.job import Job
+        job = Job.from_folder('/tmp/test', 'dvd')
+        assert job.guid is not None
+        parsed = uuid.UUID(job.guid)
+        assert parsed.version == 4

@@ -28,13 +28,16 @@ def _make_drive(db_obj, **overrides):
 
 def _make_job(db_obj, **overrides):
     """Create a test job in the DB by inserting directly."""
+    import uuid
     from sqlalchemy import text
     title = overrides.get('title', 'Test')
     status = overrides.get('status', 'success')
     video_type = overrides.get('video_type', 'movie')
     db_obj.session.execute(text(
-        "INSERT INTO job (title, status, video_type, devpath) VALUES (:t, :s, :v, :d)"
-    ), {"t": title, "s": status, "v": video_type, "d": "/dev/sr0"})
+        "INSERT INTO job (title, status, video_type, devpath, guid)"
+        " VALUES (:t, :s, :v, :d, :g)"
+    ), {"t": title, "s": status, "v": video_type, "d": "/dev/sr0",
+        "g": str(uuid.uuid4())})
     return None
 
 
