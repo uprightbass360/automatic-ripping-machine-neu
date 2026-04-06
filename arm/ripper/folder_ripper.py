@@ -146,7 +146,7 @@ def rip_folder(job):
         prep_mkv()
 
         # 3. Setup raw output path
-        rawpath = setup_rawpath(job, job.build_raw_path())
+        rawpath = setup_rawpath(job.build_raw_path())
         job.raw_path = rawpath
         db.session.commit()
 

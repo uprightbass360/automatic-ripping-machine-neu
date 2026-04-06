@@ -441,9 +441,8 @@ class TestSetupRawpath:
     def test_creates_new_path(self, tmp_path):
         from arm.ripper.makemkv import setup_rawpath
 
-        job = unittest.mock.MagicMock()
         raw = str(tmp_path / "raw" / "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
-        result = setup_rawpath(job, raw)
+        result = setup_rawpath(raw)
         assert result == raw
         assert os.path.isdir(raw)
 
@@ -454,8 +453,7 @@ class TestSetupRawpath:
         raw = str(tmp_path / "raw" / "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         os.makedirs(raw)
 
-        job = unittest.mock.MagicMock()
-        result = setup_rawpath(job, raw)
+        result = setup_rawpath(raw)
         assert result == raw
         assert os.path.isdir(raw)
 
