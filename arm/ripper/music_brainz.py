@@ -9,7 +9,6 @@ from discid import read, Disc
 import arm.config.config as cfg
 from arm.database import db
 from arm.ripper import utils as u
-from arm.ripper.naming import clean_for_filename
 
 
 def main(disc):
@@ -328,7 +327,7 @@ def get_title(discid: str, job) -> str:
 
     This function uses the MusicBrainz API to retrieve the release title and artist name
     for a given disc. If a valid result is found, it updates the job's database entry
-    and returns a sanitized string in the format "Artist-Title". If no valid release is
+    and returns a string in the format "Artist Title". If no valid release is
     found, or an error occurs, it updates the database with a failure and returns
     "not identified".
 
@@ -342,7 +341,7 @@ def get_title(discid: str, job) -> str:
     Returns
     -------
     str
-        The sanitized "Artist-Title" string if the disc is identified,
+        The "Artist Title" string if the disc is identified,
         or "not identified" if no match is found or an error occurs.
 
     Notes
@@ -373,7 +372,7 @@ def get_title(discid: str, job) -> str:
             u.database_updater(False, job)
             return "not identified"
 
-        clean_title = clean_for_filename(artist) + "-" + clean_for_filename(title)
+        clean_title = f"{artist} {title}"
         args = {
             'crc_id': crc_id,
             'title': str(artist + " " + title),
