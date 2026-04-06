@@ -454,10 +454,9 @@ class Job(db.Model):
         return f"{title}"
 
     def build_raw_path(self):
-        """Compute the raw rip directory path.
-        Uses title_auto (original auto-detected title) to match the actual
-        directory on disk, even after manual title correction."""
-        return os.path.join(str(self.config.RAW_PATH), str(self.title_auto or self.title))
+        """Compute the raw rip directory path. Uses GUID for uniqueness -
+        no dependency on title fields, no collision handling needed."""
+        return os.path.join(str(self.config.RAW_PATH), str(self.guid))
 
     def build_transcode_path(self):
         """Compute the transcode output directory path, using folder pattern."""
