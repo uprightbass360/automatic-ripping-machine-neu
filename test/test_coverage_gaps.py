@@ -191,6 +191,20 @@ class TestRipMusicAudioFormat:
         proc.returncode = returncode
         return proc
 
+    @staticmethod
+    def _find_abcde_cmd(mock_popen):
+        """Find the abcde command from call_args_list.
+
+        Background threads (e.g. disk_usage_cache) may also call Popen,
+        so mock_popen.call_args may capture the wrong subprocess.
+        """
+        for call in mock_popen.call_args_list:
+            cmd = call[0][0] if call[0] else call[1].get('args', [])
+            if isinstance(cmd, list) and cmd and cmd[0] == 'abcde':
+                return cmd
+        # Fallback to last call if no abcde found
+        return mock_popen.call_args[0][0]
+
     def test_audio_format_flag_in_command(self, app_context, sample_job, tmp_path):
         """When AUDIO_FORMAT is set, -o flag appears in abcde command."""
         from arm.ripper.utils import rip_music
@@ -208,7 +222,7 @@ class TestRipMusicAudioFormat:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": ""}
             rip_music(sample_job, logfile)
 
-        cmd = mock_popen.call_args[0][0]
+        cmd = self._find_abcde_cmd(mock_popen)
         assert '-o' in cmd and 'mp3' in cmd
 
     def test_audio_format_from_global_config(self, app_context, sample_job, tmp_path):
@@ -228,7 +242,7 @@ class TestRipMusicAudioFormat:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": "vorbis"}
             rip_music(sample_job, logfile)
 
-        cmd = mock_popen.call_args[0][0]
+        cmd = self._find_abcde_cmd(mock_popen)
         assert '-o' in cmd and 'vorbis' in cmd
 
     def test_no_audio_format_no_flag(self, app_context, sample_job, tmp_path):
@@ -247,7 +261,7 @@ class TestRipMusicAudioFormat:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": ""}
             rip_music(sample_job, logfile)
 
-        cmd = mock_popen.call_args[0][0]
+        cmd = self._find_abcde_cmd(mock_popen)
         assert '-o' not in cmd
 
     def test_log_read_oserror_treated_as_success(self, app_context, sample_job, tmp_path):
