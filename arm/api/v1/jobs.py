@@ -1041,3 +1041,39 @@ def update_track_fields(job_id: int, track_id: int, body: dict):
         track.title = clean["episode_name"]
     db.session.commit()
     return {"success": True, "job_id": job_id, "track_id": track_id, "updated": clean}
+
+
+@router.post('/jobs/{job_id}/tracks/auto-number')
+def auto_number_episodes(job_id: int, body: dict = None):
+    """Assign sequential episode numbers to enabled tracks.
+
+    Body (optional):
+        start: int - starting episode number (default 1)
+
+    Only enabled (non-skipped) tracks receive episode numbers, sorted by
+    track_number. Disabled tracks are left unnumbered. Existing episode
+    numbers are overwritten.
+    """
+    body = body or {}
+    start = int(body.get('start', 1))
+
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": "Job not found"}, status_code=404)
+
+    tracks = Track.query.filter_by(job_id=job_id).order_by(Track.track_number.asc()).all()
+    if not tracks:
+        return JSONResponse({"success": False, "error": "No tracks"}, status_code=404)
+
+    ep = start
+    numbered = []
+    for t in tracks:
+        if not getattr(t, 'enabled', True):
+            t.episode_number = None
+            continue
+        t.episode_number = str(ep)
+        numbered.append({"track_id": t.track_id, "track_number": t.track_number, "episode": ep})
+        ep += 1
+
+    db.session.commit()
+    return {"success": True, "job_id": job_id, "start": start, "count": len(numbered), "tracks": numbered}
