@@ -125,6 +125,10 @@ class SystemDrives(db.Model):  # pylint: disable=too-many-instance-attributes
     description = db.Column(db.Unicode(200))
     uhd_capable = db.Column(db.Boolean)
     rip_speed = db.Column(db.Integer, nullable=True)  # MakeMKV read speed (None = max)
+    prescan_cache_mb = db.Column(db.Integer, nullable=True)    # None = use global PRESCAN_CACHE_MB
+    prescan_timeout = db.Column(db.Integer, nullable=True)     # None = use global PRESCAN_TIMEOUT
+    prescan_retries = db.Column(db.Integer, nullable=True)     # None = use global PRESCAN_RETRIES
+    disc_enum_timeout = db.Column(db.Integer, nullable=True)   # None = use global DISC_ENUM_TIMEOUT
 
     def __init__(self):
         # mark drive info as outdated
