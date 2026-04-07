@@ -745,10 +745,13 @@ def makemkv_mkv(job, rawpath):
             f"--minlength={job.config.MINLENGTH}",
         ]
         logging.info("Process all tracks from disc.")
-        collections.deque(run(cmd, OutputType.MSG), maxlen=0)
-        for track in job.tracks:
-            track.ripped = True
-        db.session.commit()
+        for msg in run(cmd, OutputType.MSG):
+            # Mark tracks ripped in real-time as MakeMKV saves each title.
+            # MSG code 3307 = FILE_ADDED: "File {name} was added as title #{N}"
+            if hasattr(msg, 'code') and int(msg.code) == MakeMKVMessageCode.FILE_ADDED:
+                _mark_track_ripped_by_message(job, msg.message)
+        # Final sweep: mark any remaining tracks whose files exist on disk
+        _mark_ripped_from_disk(job, rawpath)
     else:
         process_single_tracks(job, rawpath, 'auto')
 
@@ -920,6 +923,62 @@ def _positional_match_pass(tracks, actual_files, matched_ids, claimed):
         )
         track.filename = f
     return True
+
+
+def _mark_track_ripped_by_message(job, message):
+    """Mark a track as ripped based on a MakeMKV FILE_ADDED message.
+
+    Message format: "File {filename} was added as title #{N}"
+    Matches the filename prefix against track records.
+    """
+    # Extract filename from message: "File B1_t01.mkv was added as title #2"
+    m = re.match(r'File (.+\.mkv) was added', message)
+    if not m:
+        return
+    filename = m.group(1)
+    # Match by filename prefix (MakeMKV may renumber _tNN)
+    prefix = re.sub(r'_t\d+\.mkv$', '', filename)
+    for track in job.tracks:
+        track_prefix = re.sub(r'_t\d+\.mkv$', '', track.filename or '')
+        if track_prefix == prefix:
+            track.ripped = True
+            track.status = "success"
+            logging.info("Track %s ripped: %s", track.track_number, filename)
+            try:
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+            return
+    logging.debug("FILE_ADDED for '%s' did not match any track", filename)
+
+
+def _mark_ripped_from_disk(job, rawpath):
+    """Final sweep: mark tracks ripped if their file exists on disk.
+
+    Catches any tracks missed by real-time FILE_ADDED detection.
+    """
+    if not os.path.isdir(rawpath):
+        return
+    actual_files = set(os.listdir(rawpath))
+    changed = False
+    for track in job.tracks:
+        if track.ripped:
+            continue
+        if track.filename and track.filename in actual_files:
+            track.ripped = True
+            track.status = "success"
+            changed = True
+        else:
+            # Check by prefix match (MakeMKV renumbers output files)
+            prefix = re.sub(r'_t\d+\.mkv$', '', track.filename or '')
+            for f in actual_files:
+                if f.endswith('.mkv') and re.sub(r'_t\d+\.mkv$', '', f) == prefix:
+                    track.ripped = True
+                    track.status = "success"
+                    changed = True
+                    break
+    if changed:
+        db.session.commit()
 
 
 def _reconcile_filenames(job, rawpath, title_map=None):
