@@ -467,3 +467,33 @@ class TestMigrations:
             os.path.join(os.path.dirname(__file__), '..',
                          'arm/migrations/versions/c3d4e5f6a7b8_config_add_audio_format.py')
         )
+
+    def test_drive_prescan_settings_migration(self):
+        """Test prescan settings migration on system_drives table."""
+        import importlib.util
+        import sqlalchemy as sa
+        from alembic.operations import Operations
+        from alembic.runtime.migration import MigrationContext
+
+        engine = sa.create_engine("sqlite:///:memory:")
+        with engine.connect() as conn:
+            meta = sa.MetaData()
+            sa.Table('system_drives', meta,
+                     sa.Column('drive_id', sa.Integer, primary_key=True),
+                     sa.Column('rip_speed', sa.Integer, nullable=True))
+            meta.create_all(conn)
+            conn.commit()
+
+            ctx = MigrationContext.configure(conn)
+            spec = importlib.util.spec_from_file_location("migration",
+                os.path.join(os.path.dirname(__file__), '..',
+                             'arm/migrations/versions/n9o0p1q2r3s4_drive_prescan_settings.py'))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+
+            with Operations.context(ctx):
+                mod.upgrade()
+                mod.downgrade()
+
+            conn.commit()
+        engine.dispose()
