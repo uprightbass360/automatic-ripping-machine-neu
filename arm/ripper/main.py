@@ -67,6 +67,42 @@ def log_udev_params(dev_path):
     logging.debug("******************* End udev attributes *******************")
 
 
+def _auto_number_episodes(job):
+    """Auto-assign sequential episode numbers to enabled series tracks.
+
+    Only applies when no track already has an episode_number (i.e. TVDB
+    matching didn't run or didn't succeed). Numbers only non-skipped
+    (enabled) tracks so extras/menus don't consume episode slots.
+
+    The starting episode is derived from the job's ``episode`` field
+    (e.g. set by the user in the review widget) or defaults to 1.
+    """
+    tracks = list(job.tracks)
+    if not tracks:
+        return
+    # Skip if any track already has an episode number (TVDB matched)
+    if any(getattr(t, 'episode_number', None) for t in tracks):
+        return
+
+    start = 1
+    job_episode = getattr(job, 'episode', None)
+    if job_episode:
+        try:
+            start = int(job_episode)
+        except (ValueError, TypeError):
+            pass
+
+    ep = start
+    for t in sorted(tracks, key=lambda t: int(t.track_number or 0)):
+        if not getattr(t, 'enabled', True):
+            continue
+        t.episode_number = str(ep)
+        ep += 1
+    db.session.commit()
+    logging.info("Auto-numbered %d enabled tracks as E%02d-E%02d",
+                 ep - start, start, ep - 1)
+
+
 def log_arm_params(job):
     """log all entry parameters"""
 
@@ -202,6 +238,12 @@ def main():
                 logging.info("TVDB episode matching applied to tracks")
         except Exception as e:
             logging.warning("TVDB episode matching failed (non-fatal): %s", e)
+
+    # Auto-number episodes for series discs when TVDB matching didn't apply.
+    # Sequential numbers are assigned only to enabled (non-skipped) tracks,
+    # so extras/menus don't consume episode slots.
+    if job.video_type == "series":
+        _auto_number_episodes(job)
 
     # Check if user has manual wait time enabled
     utils.check_for_wait(job)
