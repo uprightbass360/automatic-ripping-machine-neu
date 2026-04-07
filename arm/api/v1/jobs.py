@@ -475,16 +475,24 @@ def update_job_title(job_id: int, body: dict):
         return JSONResponse({"success": False, "error": "No fields to update"}, status_code=400)
 
     args['hasnicetitle'] = True
-    notification = Notifications(
-        f"Job: {job.job_id} was updated",
-        f"Title: {old_title} ({old_year}) was updated to "
-        f"{updated.get('title', old_title)} ({updated.get('year', old_year)})"
-    )
-    db.session.add(notification)
     svc_files.database_updater(args, job)
 
     if structured_changed and 'title' not in updated:
         _re_render_title(job, updated)
+
+    # Create notification after the title update succeeds.
+    # Wrapped in try/except so a DB lock on the notification insert
+    # doesn't roll back the title update itself.
+    try:
+        notification = Notifications(
+            f"Job: {job.job_id} was updated",
+            f"Title: {old_title} ({old_year}) was updated to "
+            f"{updated.get('title', old_title)} ({updated.get('year', old_year)})"
+        )
+        db.session.add(notification)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     return {"success": True, "job_id": job.job_id, "updated": updated}
 
