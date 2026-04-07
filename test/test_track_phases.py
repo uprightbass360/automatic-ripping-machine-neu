@@ -1,11 +1,11 @@
-"""Tests for _apply_track_phases and _poll_music_progress in arm.ripper.utils."""
+"""Tests for _apply_track_phases and _stream_abcde_output in arm.ripper.utils."""
 import os
 import tempfile
 import unittest.mock
 
 import pytest
 
-from arm.ripper.utils import _apply_track_phases, _poll_music_progress, put_track
+from arm.ripper.utils import _apply_track_phases, _stream_abcde_output, put_track
 
 
 class TestApplyTrackPhases:
@@ -111,53 +111,49 @@ class TestApplyTrackPhases:
         assert tracks[3].status == "ripping"
 
 
-class TestPollMusicProgress:
-    """Test _poll_music_progress() polls log file and updates tracks."""
+class TestStreamAbcdeOutput:
+    """Test _stream_abcde_output() reads stdout and updates tracks."""
 
-    def test_parses_all_three_phases(self, app_context, sample_job, tmp_path):
+    def test_parses_all_three_phases(self, app_context, sample_job):
         from arm.database import db
 
         put_track(sample_job, 1, 180, 'n/a', 0.1, False, 'TOC', 'Track 1.flac')
         db.session.commit()
 
-        logpath = str(tmp_path / "abcde.log")
-        with open(logpath, "w") as f:
-            f.write("Grabbing track 1: some info\n")
-            f.write("Encoding track 1 of 5\n")
-            f.write("Tagging track 1 of 5\n")
-
         proc = unittest.mock.MagicMock()
-        # poll() returns None once (enters loop), then returns 0 (exits)
-        proc.poll.side_effect = [None, 0]
+        proc.stdout = iter([
+            "Grabbing track 1: some info\n",
+            "Encoding track 1 of 5\n",
+            "Tagging track 1 of 5\n",
+        ])
 
-        with unittest.mock.patch('arm.ripper.utils.time.sleep'):
-            _poll_music_progress(proc, sample_job, logpath)
+        errors = _stream_abcde_output(proc, sample_job)
 
         from arm.models.track import Track
         t = Track.query.filter_by(job_id=sample_job.job_id).first()
         assert t.status == "success"
         assert t.ripped is True
+        assert errors == []
 
-    def test_handles_missing_log(self, app_context, sample_job, tmp_path):
-        """If log file doesn't exist yet, OSError is silently caught."""
-        logpath = str(tmp_path / "nonexistent.log")
-
+    def test_collects_error_lines(self, app_context, sample_job):
         proc = unittest.mock.MagicMock()
-        proc.poll.side_effect = [None, 0]
+        proc.stdout = iter([
+            "Starting rip\n",
+            "[ERROR] Unable to read disc\n",
+            "Finished\n",
+        ])
 
-        with unittest.mock.patch('arm.ripper.utils.time.sleep'):
-            _poll_music_progress(proc, sample_job, logpath)
-        # Should not raise
+        errors = _stream_abcde_output(proc, sample_job)
+        assert len(errors) == 1
+        assert "[ERROR] Unable to read disc" in errors[0]
 
-    def test_exits_when_process_done(self, app_context, sample_job, tmp_path):
-        """Loop exits immediately if proc.poll() returns non-None."""
-        logpath = str(tmp_path / "abcde.log")
-
+    def test_empty_stdout(self, app_context, sample_job):
+        """Empty stdout returns no errors."""
         proc = unittest.mock.MagicMock()
-        proc.poll.return_value = 0  # Already done
+        proc.stdout = iter([])
 
-        _poll_music_progress(proc, sample_job, logpath)
-        # Should return immediately without reading log
+        errors = _stream_abcde_output(proc, sample_job)
+        assert errors == []
 
 
 class TestPutTrackTitle:

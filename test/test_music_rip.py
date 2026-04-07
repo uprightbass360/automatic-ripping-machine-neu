@@ -557,24 +557,27 @@ class TestCheckDate:
 class TestRipMusicIntegration:
 
     @staticmethod
-    def _mock_popen(returncode=0):
-        """Create a mock Popen that finishes immediately."""
+    def _mock_popen(returncode=0, stdout_lines=None):
+        """Create a mock Popen with iterable stdout."""
         proc = unittest.mock.MagicMock()
         proc.poll.return_value = returncode
         proc.wait.return_value = returncode
         proc.returncode = returncode
+        proc.stdout = iter(stdout_lines or [])
         return proc
 
     def test_abcde_log_error_detection(self, music_job, tmp_path):
-        """[ERROR] in abcde log returns False, captures actual error line."""
+        """[ERROR] in abcde stdout returns False, captures actual error line."""
         logfile = "test_rip.log"
-        logpath = tmp_path / logfile
-        logpath.write_text("[ERROR] Unable to read disc\nSome other output\n")
-
         music_job.config.LOGPATH = str(tmp_path)
 
+        mock_proc = self._mock_popen(0, stdout_lines=[
+            "[ERROR] Unable to read disc\n",
+            "Some other output\n",
+        ])
+
         with unittest.mock.patch.dict(cfg.arm_config, {'ABCDE_CONFIG_FILE': '/nonexistent'}), \
-             unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)), \
+             unittest.mock.patch('subprocess.Popen', return_value=mock_proc), \
              unittest.mock.patch('arm.ripper.utils.database_updater') as mock_db:
             result = utils.rip_music(music_job, logfile)
 
@@ -586,15 +589,17 @@ class TestRipMusicIntegration:
         assert "[ERROR] Unable to read disc" in failure_calls[0][0][0]['errors']
 
     def test_abcde_drive_unavailable_detection(self, music_job, tmp_path):
-        """'CDROM drive unavailable' in log returns False."""
+        """'CDROM drive unavailable' in stdout returns False."""
         logfile = "test_rip.log"
-        logpath = tmp_path / logfile
-        logpath.write_text("Trying to read disc\nCDROM drive unavailable\n")
-
         music_job.config.LOGPATH = str(tmp_path)
 
+        mock_proc = self._mock_popen(0, stdout_lines=[
+            "Trying to read disc\n",
+            "CDROM drive unavailable\n",
+        ])
+
         with unittest.mock.patch.dict(cfg.arm_config, {'ABCDE_CONFIG_FILE': '/nonexistent'}), \
-             unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)), \
+             unittest.mock.patch('subprocess.Popen', return_value=mock_proc), \
              unittest.mock.patch('arm.ripper.utils.database_updater'):
             result = utils.rip_music(music_job, logfile)
 
@@ -1127,15 +1132,9 @@ class TestMusicPipelineEndToEnd:
         assert len(tracks_after) == 3
 
     def test_full_abcde_log_error(self, music_job, mb_disc_response, tmp_path):
-        """MB succeeds → abcde exits 0 but log has [ERROR] → job fails."""
+        """MB succeeds → abcde exits 0 but stdout has [ERROR] → job fails."""
         fake_disc = self._make_fake_discid([(1, 68), (2, 169), (3, 216)])
         logfile = "abcde_test.log"
-        logpath = tmp_path / logfile
-        logpath.write_text(
-            "Ripping track 1...\n"
-            "[ERROR] Unable to read disc\n"
-            "Some other output\n"
-        )
         music_job.config.LOGPATH = str(tmp_path)
 
         with unittest.mock.patch('arm.ripper.music_brainz.read', return_value=fake_disc), \
@@ -1150,11 +1149,16 @@ class TestMusicPipelineEndToEnd:
                                  return_value=False):
             music_brainz.main(music_job)
 
-        # Phase 2: abcde exits 0 but log contains errors
+        # Phase 2: abcde exits 0 but stdout contains errors
         mock_proc = unittest.mock.MagicMock()
         mock_proc.poll.return_value = 0
         mock_proc.wait.return_value = 0
         mock_proc.returncode = 0
+        mock_proc.stdout = iter([
+            "Ripping track 1...\n",
+            "[ERROR] Unable to read disc\n",
+            "Some other output\n",
+        ])
         with unittest.mock.patch.dict(cfg.arm_config, {
                  'ABCDE_CONFIG_FILE': '/nonexistent',
              }), \

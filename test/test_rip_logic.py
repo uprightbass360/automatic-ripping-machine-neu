@@ -262,15 +262,15 @@ class TestRipMusic:
         sample_job.disctype = "music"
         sample_job.config.LOGPATH = str(tmp_path)
 
-        # Write a log file with abcde error markers
         logfile = "test_music.log"
-        (tmp_path / logfile).write_text(
-            "Grabbing track 01...\n"
-            "[ERROR] cdparanoia could not read disc\n"
-            "CDROM drive unavailable\n"
-        )
+        mock_proc = self._mock_popen(0)
+        mock_proc.stdout = iter([
+            "Grabbing track 01...\n",
+            "[ERROR] cdparanoia could not read disc\n",
+            "CDROM drive unavailable\n",
+        ])
 
-        with unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)), \
+        with unittest.mock.patch('subprocess.Popen', return_value=mock_proc), \
              unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent"}
             result = rip_music(sample_job, logfile)

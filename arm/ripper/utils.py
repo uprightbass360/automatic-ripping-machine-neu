@@ -435,32 +435,52 @@ def _update_music_tracks(job, ripped, status):
         db.session.rollback()
 
 
-def _poll_music_progress(proc, job, logpath):
-    """Poll abcde log during ripping to update per-track status.
+def _stream_abcde_output(proc, job):
+    """Read abcde stdout/stderr line by line, log through structlog, track progress.
 
-    Parses abcde output for three phases per track:
-      - ``Grabbing track NN:``  → status "ripping"
-      - ``Encoding track NN of`` → status "encoding", ripped=True
-      - ``Tagging track NN of``  → status "success", ripped=True
+    Returns a list of error lines found in the output (for post-rip checking).
     """
     seen_grabbing: set[int] = set()
     seen_encoding: set[int] = set()
     seen_tagging: set[int] = set()
+    error_lines: list[str] = []
+    last_phase_update = 0
 
-    while proc.poll() is None:
-        time.sleep(5)
-        try:
-            with open(logpath, "r", errors="replace") as f:
-                content = f.read()
-            for m in re.finditer(r"Grabbing track (\d+):", content):
-                seen_grabbing.add(int(m.group(1)))
-            for m in re.finditer(r"Encoding track (\d+) of", content):
-                seen_encoding.add(int(m.group(1)))
-            for m in re.finditer(r"Tagging track (\d+) of", content):
-                seen_tagging.add(int(m.group(1)))
+    for raw_line in proc.stdout:
+        line = raw_line.rstrip('\n\r')
+        if not line:
+            continue
+
+        # Classify the line for log level
+        if line.startswith('[ERROR]') or 'Permission denied' in line \
+                or 'CDROM drive unavailable' in line:
+            logging.error(line)
+            error_lines.append(line)
+        elif line.startswith('cdparanoia') or line.startswith('outputting to'):
+            logging.debug(line)
+        else:
+            logging.info(line)
+
+        # Track progress from abcde phase markers
+        m = re.match(r'Grabbing track (\d+):', line)
+        if m:
+            seen_grabbing.add(int(m.group(1)))
+        m = re.match(r'Encoding track (\d+) of', line)
+        if m:
+            seen_encoding.add(int(m.group(1)))
+        m = re.match(r'Tagging track (\d+) of', line)
+        if m:
+            seen_tagging.add(int(m.group(1)))
+
+        # Throttle DB updates to avoid hammering SQLite
+        now = time.time()
+        if now - last_phase_update > 3:
             _apply_track_phases(job, seen_grabbing, seen_encoding, seen_tagging)
-        except OSError:
-            pass
+            last_phase_update = now
+
+    # Final phase update after process exits
+    _apply_track_phases(job, seen_grabbing, seen_encoding, seen_tagging)
+    return error_lines
 
 
 def _apply_track_phases(job, grabbing, encoding, tagging):
@@ -610,32 +630,26 @@ def rip_music(job, logfile):
 
         config_to_use = tmp_config or (abcfile if os.path.isfile(abcfile) else None)
 
-        # If user has set a cfg.arm_config file with ARM use it
+        # Build command as a list (no shell redirection - we capture stdout/stderr
+        # directly and feed it through structured logging).
+        cmd = ['abcde', '-d', str(job.devpath)]
         if config_to_use:
-            cmd = f'abcde -d "{job.devpath}" -c {config_to_use}{fmt_flag} >> "{logpath}" 2>&1'
-        else:
-            cmd = f'abcde -d "{job.devpath}"{fmt_flag} >> "{logpath}" 2>&1'
+            cmd += ['-c', config_to_use]
+        if audio_fmt:
+            cmd += ['-o', audio_fmt]
 
-        logging.debug(f"Sending command: {cmd}")
+        logging.debug("Sending command: %s", cmd)
         args = {"status": JobState.AUDIO_RIPPING.value}
         database_updater(args, job)
 
         try:
-            proc = subprocess.Popen(cmd, shell=True)
-            _poll_music_progress(proc, job, logpath)
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, errors='replace')
+            error_lines = _stream_abcde_output(proc, job)
             proc.wait()
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(proc.returncode, cmd)
-            # abcde exits 0 even on drive I/O errors — check the log for failures
-            try:
-                with open(logpath, "r", errors="replace") as f:
-                    log_content = f.read()
-            except OSError as e:
-                logging.warning(f"Could not read abcde log {logpath}: {e}")
-                log_content = ""
-            error_lines = re.findall(r"^\[ERROR\].*$", log_content, re.MULTILINE)
-            if not error_lines and "CDROM drive unavailable" in log_content:
-                error_lines = ["CDROM drive unavailable"]
+            # abcde exits 0 even on drive I/O errors — check collected errors
             if error_lines:
                 err = "; ".join(error_lines)
                 logging.error(err)
@@ -649,7 +663,7 @@ def rip_music(job, logfile):
             database_updater(args, job)
             return True
         except subprocess.CalledProcessError as ab_error:
-            err = f"Call to abcde failed with code: {ab_error.returncode} ({ab_error.output})"
+            err = f"Call to abcde failed with code: {ab_error.returncode}"
             args = {"status": JobState.FAILURE.value, "errors": err}
             database_updater(args, job)
             _update_music_tracks(job, ripped=False, status="fail")

@@ -214,14 +214,14 @@ class TestRipMusic:
             mock_proc = self._mock_popen(0)
             with unittest.mock.patch('os.path.isfile', return_value=True), \
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
-                 unittest.mock.patch('arm.ripper.utils._poll_music_progress'), \
+                 unittest.mock.patch('arm.ripper.utils._stream_abcde_output', return_value=[]), \
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
                  unittest.mock.patch('subprocess.Popen',
                                      return_value=mock_proc) as mock_cmd:
                 result = rip_music(job, 'test.log')
                 assert result is True
                 cmd = mock_cmd.call_args[0][0]
-                assert '-c /tmp/test_abcde.conf' in cmd
+                assert '-c' in cmd and '/tmp/test_abcde.conf' in cmd
         finally:
             cfg.arm_config['ABCDE_CONFIG_FILE'] = original
 
@@ -237,7 +237,7 @@ class TestRipMusic:
             mock_proc = self._mock_popen(0)
             with unittest.mock.patch('os.path.isfile', return_value=False), \
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
-                 unittest.mock.patch('arm.ripper.utils._poll_music_progress'), \
+                 unittest.mock.patch('arm.ripper.utils._stream_abcde_output', return_value=[]), \
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
                  unittest.mock.patch('subprocess.Popen',
                                      return_value=mock_proc) as mock_cmd:
@@ -260,7 +260,7 @@ class TestRipMusic:
             mock_proc = self._mock_popen(0)
             with unittest.mock.patch('os.path.isfile', return_value=False), \
                  unittest.mock.patch('arm.ripper.utils.database_updater') as mock_updater, \
-                 unittest.mock.patch('arm.ripper.utils._poll_music_progress'), \
+                 unittest.mock.patch('arm.ripper.utils._stream_abcde_output', return_value=[]), \
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
                  unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
                 rip_music(job, 'test.log')
@@ -282,7 +282,7 @@ class TestRipMusic:
             mock_proc = self._mock_popen(1)
             with unittest.mock.patch('os.path.isfile', return_value=False), \
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
-                 unittest.mock.patch('arm.ripper.utils._poll_music_progress'), \
+                 unittest.mock.patch('arm.ripper.utils._stream_abcde_output', return_value=[]), \
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
                  unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
                 result = rip_music(job, 'test.log')

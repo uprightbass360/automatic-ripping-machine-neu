@@ -200,15 +200,16 @@ class TestRipMusicAudioFormat:
         sample_job.config.AUDIO_FORMAT = "mp3"
 
         logfile = "test.log"
-        (tmp_path / logfile).write_text("Finished.\n")
+        mock_proc = self._mock_popen(0)
+        mock_proc.stdout = iter(["Finished.\n"])
 
-        with unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)) as mock_popen, \
+        with unittest.mock.patch('subprocess.Popen', return_value=mock_proc) as mock_popen, \
              unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": ""}
             rip_music(sample_job, logfile)
 
         cmd = mock_popen.call_args[0][0]
-        assert "-o mp3" in cmd
+        assert '-o' in cmd and 'mp3' in cmd
 
     def test_audio_format_from_global_config(self, app_context, sample_job, tmp_path):
         """When job config has no AUDIO_FORMAT, falls back to arm_config."""
@@ -219,15 +220,16 @@ class TestRipMusicAudioFormat:
         # No AUDIO_FORMAT on job config
 
         logfile = "test.log"
-        (tmp_path / logfile).write_text("Finished.\n")
+        mock_proc = self._mock_popen(0)
+        mock_proc.stdout = iter(["Finished.\n"])
 
-        with unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)) as mock_popen, \
+        with unittest.mock.patch('subprocess.Popen', return_value=mock_proc) as mock_popen, \
              unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": "vorbis"}
             rip_music(sample_job, logfile)
 
         cmd = mock_popen.call_args[0][0]
-        assert "-o vorbis" in cmd
+        assert '-o' in cmd and 'vorbis' in cmd
 
     def test_no_audio_format_no_flag(self, app_context, sample_job, tmp_path):
         """When AUDIO_FORMAT is empty, no -o flag in command."""
@@ -237,15 +239,16 @@ class TestRipMusicAudioFormat:
         sample_job.config.LOGPATH = str(tmp_path)
 
         logfile = "test.log"
-        (tmp_path / logfile).write_text("Finished.\n")
+        mock_proc = self._mock_popen(0)
+        mock_proc.stdout = iter(["Finished.\n"])
 
-        with unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)) as mock_popen, \
+        with unittest.mock.patch('subprocess.Popen', return_value=mock_proc) as mock_popen, \
              unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": ""}
             rip_music(sample_job, logfile)
 
         cmd = mock_popen.call_args[0][0]
-        assert "-o " not in cmd
+        assert '-o' not in cmd
 
     def test_log_read_oserror_treated_as_success(self, app_context, sample_job, tmp_path):
         """If log file can't be read after abcde exits 0, treat as success."""
@@ -274,12 +277,13 @@ class TestRipMusicAudioFormat:
         sample_job.config.LOGPATH = str(tmp_path)
 
         logfile = "test.log"
-        (tmp_path / logfile).write_text(
-            "Grabbing track 01...\n"
-            "CDROM drive unavailable\n"
-        )
+        mock_proc = self._mock_popen(0)
+        mock_proc.stdout = iter([
+            "Grabbing track 01...\n",
+            "CDROM drive unavailable\n",
+        ])
 
-        with unittest.mock.patch('subprocess.Popen', return_value=self._mock_popen(0)), \
+        with unittest.mock.patch('subprocess.Popen', return_value=mock_proc), \
              unittest.mock.patch('arm.ripper.utils.cfg') as mock_cfg:
             mock_cfg.arm_config = {"ABCDE_CONFIG_FILE": "/nonexistent", "AUDIO_FORMAT": ""}
             result = rip_music(sample_job, logfile)
