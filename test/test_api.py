@@ -621,6 +621,101 @@ class TestApiDriveUpdate:
             response = client.patch('/api/v1/drives/1', json={"rip_speed": 100})
         assert response.status_code == 400
 
+    def test_update_prescan_cache_mb(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"prescan_cache_mb": 64})
+        assert response.status_code == 200
+        assert mock_drive.prescan_cache_mb == 64
+
+    def test_update_prescan_timeout(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"prescan_timeout": 600})
+        assert response.status_code == 200
+        assert mock_drive.prescan_timeout == 600
+
+    def test_update_prescan_retries(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"prescan_retries": 5})
+        assert response.status_code == 200
+        assert mock_drive.prescan_retries == 5
+
+    def test_update_disc_enum_timeout(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"disc_enum_timeout": 120})
+        assert response.status_code == 200
+        assert mock_drive.disc_enum_timeout == 120
+
+    def test_update_prescan_field_null_clears(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db"):
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"prescan_cache_mb": None})
+        assert response.status_code == 200
+        assert mock_drive.prescan_cache_mb is None
+
+    def test_update_prescan_field_out_of_range(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd:
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"prescan_cache_mb": 9999})
+        assert response.status_code == 400
+
+    def test_update_prescan_field_invalid_type(self, client, app_context):
+        mock_drive = unittest.mock.MagicMock()
+        mock_drive.drive_id = 1
+        with unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd:
+            mock_sd.query.get.return_value = mock_drive
+            response = client.patch('/api/v1/drives/1', json={"prescan_retries": "abc"})
+        assert response.status_code == 400
+
+
+class TestApiDrivePrescanSerialization:
+    """Test prescan fields in drive listing endpoints."""
+
+    def test_drives_list_includes_prescan_fields(self, client, sample_drives, app_context):
+        from arm.database import db
+        sample_drives[0].prescan_cache_mb = 128
+        sample_drives[0].prescan_timeout = 600
+        sample_drives[0].prescan_retries = 5
+        sample_drives[0].disc_enum_timeout = 120
+        db.session.commit()
+
+        response = client.get('/api/v1/drives')
+        data = response.json()
+        drive = next(d for d in data["drives"] if d["name"] == "Living Room")
+        assert drive["prescan_cache_mb"] == 128
+        assert drive["prescan_timeout"] == 600
+        assert drive["prescan_retries"] == 5
+        assert drive["disc_enum_timeout"] == 120
+
+    def test_drives_list_null_prescan_fields(self, client, sample_drives):
+        response = client.get('/api/v1/drives')
+        data = response.json()
+        drive = next(d for d in data["drives"] if d["name"] == "Living Room")
+        assert drive["prescan_cache_mb"] is None
+        assert drive["prescan_timeout"] is None
+        assert drive["prescan_retries"] is None
+        assert drive["disc_enum_timeout"] is None
+
 
 class TestApiDriveRipSpeed:
     """Test rip_speed in drive listing endpoints."""
