@@ -80,17 +80,8 @@ def getsize(path):
     return free / 1073741824
 
 
-def clean_for_filename(string):
-    """ Cleans up string for use in filename """
-    string = re.sub(r'\s+', ' ', string)
-    string = string.replace(' : ', ' - ')
-    string = string.replace(':', '-')
-    string = string.replace('&', 'and')
-    string = string.replace("\\", " - ")
-    # Strip out any remaining illegal chars
-    string = re.sub(r"[^\w -]", "", string)
-    string = string.strip()
-    return string
+# Re-export from naming.py - single authoritative implementation
+from arm.ripper.naming import clean_for_filename  # noqa: F401
 
 
 def fix_permissions(j_id):

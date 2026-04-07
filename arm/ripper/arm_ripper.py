@@ -76,6 +76,8 @@ def rip_visual_media(have_dupes, job, logfile, protection):
         from arm.ripper.naming import finalize_output
         logging.info("No transcoder configured - finalizing output locally")
         finalize_output(job)
+        job.status = JobState.SUCCESS.value
+        db.session.commit()
         if job.config.NOTIFY_RIP:
             utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
     logging.info("************* Ripping with MakeMKV completed *************")

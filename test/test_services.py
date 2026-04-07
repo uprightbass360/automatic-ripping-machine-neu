@@ -376,7 +376,8 @@ class TestCleanForFilename:
     def test_basic_cleaning(self):
         from arm.services.files import clean_for_filename
 
-        assert clean_for_filename("Movie: The & Sequel") == "Movie- The and Sequel"
+        # Uses naming.py's authoritative clean_for_filename (colon -> ' - ')
+        assert clean_for_filename("Movie: The & Sequel") == "Movie - The and Sequel"
         assert clean_for_filename("Bad\\Title") == "Bad - Title"
         assert clean_for_filename("  Extra   Spaces  ") == "Extra Spaces"
 

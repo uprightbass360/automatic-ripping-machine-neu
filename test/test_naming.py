@@ -269,29 +269,29 @@ def test_track_title_with_custom_config():
 # --- clean_for_filename ---
 
 
-def testclean_for_filename_colons():
+def test_clean_for_filename_colons():
     # All colon patterns produce ' - ' with normalized spacing
     assert clean_for_filename('Star Wars : A New Hope') == 'Star Wars - A New Hope'
     assert clean_for_filename('Star Wars: A New Hope') == 'Star Wars - A New Hope'
     assert clean_for_filename('Kolchak: The Night Stalker') == 'Kolchak - The Night Stalker'
 
 
-def testclean_for_filename_ampersand():
+def test_clean_for_filename_ampersand():
     assert clean_for_filename('Tom & Jerry') == 'Tom and Jerry'
 
 
-def testclean_for_filename_backslash():
+def test_clean_for_filename_backslash():
     assert clean_for_filename('AC\\DC') == 'AC - DC'
 
 
-def testclean_for_filename_special_chars():
+def test_clean_for_filename_special_chars():
     result = clean_for_filename('Movie? <Title>!')
     assert '?' not in result
     assert '<' not in result
     assert '>' not in result
 
 
-def testclean_for_filename_whitespace():
+def test_clean_for_filename_whitespace():
     assert clean_for_filename('  too   many   spaces  ') == 'too many spaces'
 
 

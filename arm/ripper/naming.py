@@ -404,10 +404,14 @@ def _move_untracked_mkvs(raw_path, final_dir, job, config_dict):
 
     moved = 0
     rendered_title = render_title(job, config_dict)
-    for fname in os.listdir(raw_path):
-        if not fname.lower().endswith('.mkv'):
-            continue
-        dest_name = clean_for_filename(rendered_title) + '.mkv' if rendered_title else fname
+    mkv_files = sorted(f for f in os.listdir(raw_path) if f.lower().endswith('.mkv'))
+    for i, fname in enumerate(mkv_files):
+        if rendered_title:
+            base = clean_for_filename(rendered_title)
+            # Append track index for multi-file fallback to avoid overwriting
+            dest_name = f"{base}.mkv" if len(mkv_files) == 1 else f"{base} - {i + 1}.mkv"
+        else:
+            dest_name = fname
         shutil.move(os.path.join(raw_path, fname), os.path.join(final_dir, dest_name))
         moved += 1
     return moved
@@ -450,8 +454,11 @@ def finalize_output(job):
     if moved_count == 0:
         moved_count = _move_untracked_mkvs(raw_path, final_dir, job, config_dict)
 
-    job.path = final_dir
-    db.session.commit()
-
-    _cleanup_empty_dir(raw_path)
-    logging.info("finalize_output: moved %d files to %s", moved_count, final_dir)
+    if moved_count > 0:
+        job.path = final_dir
+        db.session.commit()
+        _cleanup_empty_dir(raw_path)
+        logging.info("finalize_output: moved %d files to %s", moved_count, final_dir)
+    else:
+        logging.warning("finalize_output: no files moved for job %s from %s",
+                        getattr(job, 'job_id', '?'), raw_path)
