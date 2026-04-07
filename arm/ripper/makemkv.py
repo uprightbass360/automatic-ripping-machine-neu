@@ -1046,21 +1046,21 @@ def prescan_resolve_mdisc(job, timeout=60):
     return None
 
 
-def prescan_disc_info(job, timeout=300):
+def prescan_disc_info(job, timeout=300, cache_mb=1):
     """Low-level MakeMKV title scan with timeout.
 
     Does NOT touch job.status, no concurrency limiter, no penalty sleep.
     Yields CINFO/SINFO/TCOUNT/TINFO messages from makemkvcon info.
-    Uses dev:{devpath} to address the drive directly — no disc index
+    Uses dev:{devpath} to address the drive directly - no disc index
     enumeration needed, safe for multi-drive setups.
     """
     cmd = [shutil.which("makemkvcon"), "--robot", "--messages=-stdout",
-           "info", "--cache=1", job.makemkv_source, "--minlength=0"]
+           "info", f"--cache={cache_mb}", job.makemkv_source, "--minlength=0"]
     select = OutputType.CINFO | OutputType.SINFO | OutputType.TCOUNT | OutputType.TINFO
     yield from _run_with_timeout(cmd, select, timeout=timeout)
 
 
-def prescan_track_info(job, timeout=300):
+def prescan_track_info(job, timeout=300, cache_mb=1, enum_timeout=60):
     """High-level pre-scan: populate job tracks from MakeMKV without side effects.
 
     Clears existing tracks (prevents duplicates on retry), then feeds
@@ -1075,15 +1075,15 @@ def prescan_track_info(job, timeout=300):
     db.session.flush()
 
     # Resolve disc index for later rip phase (best-effort, non-critical)
-    # Skip for folder imports — no physical drive to resolve
+    # Skip for folder imports - no physical drive to resolve
     if not getattr(job, 'is_folder_import', False):
         try:
-            prescan_resolve_mdisc(job, timeout=60)
+            prescan_resolve_mdisc(job, timeout=enum_timeout)
         except Exception as exc:
             logging.warning("mdisc resolution failed (non-fatal): %s", exc)
 
     processor = TrackInfoProcessor(job, 0)
-    for message in prescan_disc_info(job, timeout=timeout):
+    for message in prescan_disc_info(job, timeout=timeout, cache_mb=cache_mb):
         processor._process_message(message)
     processor._add_track()
 
