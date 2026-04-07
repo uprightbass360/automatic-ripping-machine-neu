@@ -94,8 +94,19 @@ DRIVE_READY_TIMEOUT: 60
 
 # How long (in seconds) to wait for MakeMKV pre-scan to complete per attempt.
 # Large discs (e.g. 40+ title UHD Blu-rays) may need 600s or more.
-# The pre-scan runs up to 3 attempts before giving up.
+# The pre-scan runs up to PRESCAN_RETRIES attempts before giving up.
 PRESCAN_TIMEOUT: 300
+
+# MakeMKV cache size in MB for pre-scan/info phases.
+# Higher values help with scratched or damaged discs.
+PRESCAN_CACHE_MB: 1
+
+# Number of pre-scan attempts before giving up.
+PRESCAN_RETRIES: 3
+
+# Seconds to wait for MakeMKV disc enumeration (disc:9999).
+# Some drives are slow to spin up and need more time.
+DISC_ENUM_TIMEOUT: 60
 
 # Additional parameters for dd. e.g. "conv=noerror,sync" for ignoring read errors
 # "status=progress" to log progress
