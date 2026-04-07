@@ -75,6 +75,7 @@ check_folder_ownership "/home/arm"
 # Create as the arm user so NFS directories get the correct ownership
 # from the start (avoids root:root on NFS with root_squash).
 SUBDIRS="media media/completed media/raw media/movies media/transcode logs logs/progress db music .MakeMKV"
+WRITE_WARNINGS=""
 for dir in $SUBDIRS ; do
   thisDir="$ARM_HOME/$dir"
   if [[ ! -d "$thisDir" ]] ; then
@@ -82,10 +83,25 @@ for dir in $SUBDIRS ; do
     /sbin/setuser arm mkdir -p "$thisDir" 2>/dev/null || mkdir -p "$thisDir"
   fi
   # Try to fix ownership — Docker volumes mount as root by default.
-  # Use || true so NFS mounts with root_squash don't kill startup;
-  # check_folder_ownership (above) already verified actual access.
+  # Use || true so NFS mounts with root_squash don't kill startup.
   chown arm:arm "$thisDir" 2>/dev/null || true
+  # Verify the arm user can actually write to the directory.
+  # On NFS with root_squash, mkdir-as-root + failed chown leaves
+  # root-owned dirs that the arm user cannot write to.
+  if ! su -s /bin/sh arm -c "test -w '${thisDir}'" 2>/dev/null; then
+    WRITE_WARNINGS="${WRITE_WARNINGS}\n  [WARN] $thisDir is NOT writable by arm ($ARM_UID:$ARM_GID)"
+  fi
 done
+if [[ -n "$WRITE_WARNINGS" ]]; then
+  echo "---------------------------------------------"
+  echo -e "[WARNING] Some directories are not writable by the arm user:${WRITE_WARNINGS}"
+  echo ""
+  echo "This typically happens when Docker created the directory as root"
+  echo "on an NFS mount with root_squash enabled. Fix by running on the"
+  echo "NFS server or a client without root_squash:"
+  echo "  chown $ARM_UID:$ARM_GID <directory>"
+  echo "---------------------------------------------"
+fi
 
 # Download/update MakeMKV community keydb in background.
 # This must NEVER block container startup — the health check and udev listener
