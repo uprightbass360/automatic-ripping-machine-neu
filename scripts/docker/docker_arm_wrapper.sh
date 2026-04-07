@@ -93,9 +93,13 @@ fi
 
 cd /home/arm || exit 1
 # Drop privileges if running as root (docker exec from host udev).
-# When invoked by the in-container udev rule, setuser already ran.
+# Run main.py directly (no pipe) so the flock on fd 9 is held by
+# the exec'd process and releases cleanly when it exits.
+# Structured logging writes to the job log file and syslog already;
+# piping through logger broke flock release because the pipe created
+# a subshell that outlived or detached from the flock holder.
 if [ "$(id -u)" = "0" ]; then
-    exec /sbin/setuser arm python3 /opt/arm/arm/ripper/main.py -d "${DEVNAME}" 2>&1 | logger -t ARM -s
+    exec /sbin/setuser arm python3 /opt/arm/arm/ripper/main.py -d "${DEVNAME}"
 else
-    exec python3 /opt/arm/arm/ripper/main.py -d "${DEVNAME}" 2>&1 | logger -t ARM -s
+    exec python3 /opt/arm/arm/ripper/main.py -d "${DEVNAME}"
 fi
