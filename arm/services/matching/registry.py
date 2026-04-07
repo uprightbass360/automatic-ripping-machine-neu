@@ -63,7 +63,7 @@ def match_job(job, tracks: list[dict] | None = None, **kwargs) -> MatchResult:
     try:
         return matcher.match(job, tracks, **kwargs)
     except Exception as e:
-        log.warning("Matcher '%s' failed: %s", matcher.name, e)
+        log.warning("Matcher '%s' failed: %s", matcher.name, e, exc_info=True)
         return MatchResult(matcher=matcher.name, error=str(e))
 
 

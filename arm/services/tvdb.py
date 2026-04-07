@@ -93,7 +93,7 @@ async def resolve_tvdb_id(imdb_id: str) -> int | None:
     """
     try:
         data = await _get(f"/search/remoteid/{imdb_id}")
-        results = data.get("data", [])
+        results = data.get("data") or []
         for result in results:
             series = result.get("series")
             if series:
@@ -102,7 +102,7 @@ async def resolve_tvdb_id(imdb_id: str) -> int | None:
                     return int(tvdb_id)
             if result.get("id"):
                 return int(result["id"])
-    except (httpx.HTTPError, KeyError, ValueError) as e:
+    except (httpx.HTTPError, KeyError, ValueError, TypeError) as e:
         log.warning("TVDB series lookup failed for %s: %s", imdb_id, e)
     return None
 
