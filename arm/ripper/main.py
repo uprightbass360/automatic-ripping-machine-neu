@@ -149,14 +149,33 @@ def main():
         from arm.ripper.identify import _wait_for_drive_ready
         if not _wait_for_drive_ready(job.devpath, timeout=120):
             logging.warning("Drive not ready for pre-scan — skipping (will retry during rip)")
-        for attempt in range(1, 4):
+        # Resolve per-drive overrides with global fallback
+        drive = getattr(job, 'drive', None)
+        prescan_timeout = getattr(drive, 'prescan_timeout', None) if drive else None
+        if prescan_timeout is None:
+            prescan_timeout = int(cfg.arm_config.get('PRESCAN_TIMEOUT', 300))
+        prescan_retries = getattr(drive, 'prescan_retries', None) if drive else None
+        if prescan_retries is None:
+            prescan_retries = int(cfg.arm_config.get('PRESCAN_RETRIES', 3))
+        prescan_cache_mb = getattr(drive, 'prescan_cache_mb', None) if drive else None
+        if prescan_cache_mb is None:
+            prescan_cache_mb = int(cfg.arm_config.get('PRESCAN_CACHE_MB', 1))
+        disc_enum_timeout = getattr(drive, 'disc_enum_timeout', None) if drive else None
+        if disc_enum_timeout is None:
+            disc_enum_timeout = int(cfg.arm_config.get('DISC_ENUM_TIMEOUT', 60))
+
+        for attempt in range(1, prescan_retries + 1):
             try:
                 if not Path(job.devpath).exists():
                     raise FileNotFoundError(f"{job.devpath} not found")
                 logging.info("Pre-scanning disc titles for review (attempt %d)...", attempt)
                 makemkv.prep_mkv()
-                prescan_timeout = int(cfg.arm_config.get('PRESCAN_TIMEOUT', 300))
-                makemkv.prescan_track_info(job, timeout=prescan_timeout)
+                makemkv.prescan_track_info(
+                    job,
+                    timeout=prescan_timeout,
+                    cache_mb=prescan_cache_mb,
+                    enum_timeout=disc_enum_timeout,
+                )
                 db.session.expire(job, ['tracks'])
                 tracks = list(job.tracks)
                 if len(tracks) == 0:
@@ -167,9 +186,9 @@ def main():
                 logging.info("Pre-scan complete: %d tracks found", len(tracks))
                 break
             except Exception as e:
-                if attempt < 3:
+                if attempt < prescan_retries:
                     wait = 30 * attempt  # 30s, 60s (longer for Pioneer USB recovery)
-                    logging.warning("Pre-scan attempt %d failed: %s — retrying in %ds", attempt, e, wait)
+                    logging.warning("Pre-scan attempt %d failed: %s - retrying in %ds", attempt, e, wait)
                     time.sleep(wait)
                 else:
                     logging.warning("Pre-scan failed after %d attempts (will retry during rip): %s", attempt, e)
