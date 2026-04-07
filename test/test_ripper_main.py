@@ -285,6 +285,11 @@ class TestPreScanRetry:
         job.devpath = '/dev/sr0'
         job.job_id = 1
         job.tracks = []  # Empty tracks to trigger pre-scan
+        # Per-drive prescan overrides must be None so global fallbacks are used
+        job.drive.prescan_timeout = None
+        job.drive.prescan_retries = None
+        job.drive.prescan_cache_mb = None
+        job.drive.disc_enum_timeout = None
 
         old_job = main_mod.job
         main_mod.job = job
