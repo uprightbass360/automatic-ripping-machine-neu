@@ -72,12 +72,14 @@ chown -R --quiet arm:arm /opt/arm || true
 check_folder_ownership "/home/arm"
 
 # setup needed/expected dirs if not found
+# Create as the arm user so NFS directories get the correct ownership
+# from the start (avoids root:root on NFS with root_squash).
 SUBDIRS="media media/completed media/raw media/movies media/transcode logs logs/progress db music .MakeMKV"
 for dir in $SUBDIRS ; do
   thisDir="$ARM_HOME/$dir"
   if [[ ! -d "$thisDir" ]] ; then
     echo "Creating dir: $thisDir"
-    mkdir -p "$thisDir"
+    /sbin/setuser arm mkdir -p "$thisDir" 2>/dev/null || mkdir -p "$thisDir"
   fi
   # Try to fix ownership — Docker volumes mount as root by default.
   # Use || true so NFS mounts with root_squash don't kill startup;
