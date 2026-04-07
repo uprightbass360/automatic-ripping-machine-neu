@@ -5,6 +5,19 @@
 
 echo "[ARM] Cleaning up orphaned jobs from previous run..."
 
+# Remove stale per-device lock files from previous container lifecycle.
+# The wrapper script uses flock(2) on /home/arm/.arm_<dev>.lock — the lock
+# auto-releases when the process exits, but the file persists on the
+# bind-mounted volume. After a container restart (especially SIGKILL or
+# power loss), no process holds the lock yet the file's existence can
+# confuse flock if file descriptors leaked. Remove them so the next
+# udev-triggered wrapper gets a clean lock.
+for lockfile in /home/arm/.arm_*.lock; do
+    [ -e "$lockfile" ] || continue
+    echo "[ARM] Removing stale lock file: $lockfile"
+    rm -f "$lockfile"
+done
+
 cd /opt/arm
 
 # Run cleanup as the arm user with the same Python environment.
