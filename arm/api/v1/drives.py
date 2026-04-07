@@ -48,6 +48,10 @@ def _drive_dict(d):
         "uhd_capable": getattr(d, 'uhd_capable', False),
         "drive_mode": getattr(d, 'drive_mode', 'auto'),
         "rip_speed": getattr(d, 'rip_speed', None),
+        "prescan_cache_mb": getattr(d, 'prescan_cache_mb', None),
+        "prescan_timeout": getattr(d, 'prescan_timeout', None),
+        "prescan_retries": getattr(d, 'prescan_retries', None),
+        "disc_enum_timeout": getattr(d, 'disc_enum_timeout', None),
         "stale": d.stale,
         "job_id_current": d.job_id_current,
         "job_id_previous": d.job_id_previous,
@@ -420,6 +424,29 @@ def update_drive(drive_id: int, body: dict):
                 return JSONResponse({"success": False, "error": "rip_speed must be 1-99 (or null for max)"}, status_code=400)
             drive.rip_speed = speed
             updated['rip_speed'] = speed
+
+    # Per-drive prescan overrides (nullable integers with range validation)
+    _PRESCAN_FIELDS = {
+        'prescan_cache_mb': (1, 1024, "prescan_cache_mb must be 1-1024 (or null for global default)"),
+        'prescan_timeout': (30, 3600, "prescan_timeout must be 30-3600 (or null for global default)"),
+        'prescan_retries': (1, 10, "prescan_retries must be 1-10 (or null for global default)"),
+        'disc_enum_timeout': (10, 600, "disc_enum_timeout must be 10-600 (or null for global default)"),
+    }
+    for field, (lo, hi, err_msg) in _PRESCAN_FIELDS.items():
+        if field in body:
+            val = body[field]
+            if val is None:
+                setattr(drive, field, None)
+                updated[field] = None
+            else:
+                try:
+                    ival = int(val)
+                except (ValueError, TypeError):
+                    return JSONResponse({"success": False, "error": f"{field} must be an integer or null"}, status_code=400)
+                if ival < lo or ival > hi:
+                    return JSONResponse({"success": False, "error": err_msg}, status_code=400)
+                setattr(drive, field, ival)
+                updated[field] = ival
 
     if not updated:
         return JSONResponse({"success": False, "error": "No valid fields provided"}, status_code=400)
