@@ -435,9 +435,76 @@ def _update_music_tracks(job, ripped, status):
         db.session.rollback()
 
 
+# ── abcde / cdparanoia output classification ────────────────────────────────
+
+# Patterns that indicate errors (rip/encode/move failures, device errors)
+_ABCDE_ERROR_PATTERNS = [
+    re.compile(r'^\[ERROR\]'),                          # abcde log error prefix
+    re.compile(r'The following commands failed to run'), # end-of-run error summary
+    re.compile(r'returned code \d+:'),                   # individual command failure
+    re.compile(r'Permission denied'),                    # filesystem permission
+    re.compile(r'CDROM drive unavailable'),               # drive gone
+    re.compile(r'CDROM has not been defined'),            # no device configured
+    re.compile(r'CD could not be read'),                  # cd-discid failure
+    re.compile(r'Unable to open disc'),                   # cdparanoia can't open
+    re.compile(r'Unable to open cdrom'),                  # cdparanoia variant
+    re.compile(r'Unable to read any data'),               # cdparanoia total failure
+    re.compile(r'CDROMREADTOCHDR:'),                      # cd-discid ioctl error
+    re.compile(r'Input/output error'),                    # generic I/O error
+    re.compile(r'No medium found'),                       # no disc in drive
+    re.compile(r'HEH! The file .* disappeared'),          # file vanished mid-pipeline
+    re.compile(r'Segmentation fault'),                    # process crash
+    re.compile(r'^\d{3}: '),                              # cdparanoia numbered error (001-405)
+]
+
+# Patterns that indicate warnings (non-fatal issues, degraded rip quality)
+_ABCDE_WARNING_PATTERNS = [
+    re.compile(r'^\[WARNING\]'),                          # abcde log warning prefix
+    re.compile(r'Not cleaning up'),                       # errors prevented cleanup
+    re.compile(r'something went wrong while querying'),   # CDDB/MusicBrainz partial failure
+    re.compile(r'still considered experimental'),          # CUE sheet warning
+    re.compile(r'problem with the CD reading'),            # partial read failure
+]
+
+# Patterns that are debug-level (noisy progress, not useful in production logs)
+_ABCDE_DEBUG_PATTERNS = [
+    re.compile(r'^cdparanoia III'),                       # cdparanoia version banner
+    re.compile(r'^Ripping from sector'),                  # cdparanoia sector range
+    re.compile(r'^\s+to sector'),                         # cdparanoia sector range cont.
+    re.compile(r'^outputting to'),                        # cdparanoia output path
+    re.compile(r'^[.+!\-eV :;\^()|D08X]+$'),             # cdparanoia progress bar symbols
+    re.compile(r'^\s*$'),                                  # blank/whitespace only
+    re.compile(r'^Done\.$'),                               # cdparanoia "Done."
+]
+
+# Phase markers for per-track progress tracking
+_PHASE_GRABBING = re.compile(r'Grabbing track (\d+):')
+_PHASE_ENCODING = re.compile(r'Encoding track (\d+) of')
+_PHASE_TAGGING = re.compile(r'Tagging track (\d+) of')
+_PHASE_NORMALIZING = re.compile(r'Normalizing track (\d+) of')
+
+
+def _classify_abcde_line(line):
+    """Classify an abcde/cdparanoia output line.
+
+    Returns: 'error', 'warning', 'debug', or 'info'.
+    """
+    for pattern in _ABCDE_ERROR_PATTERNS:
+        if pattern.search(line):
+            return 'error'
+    for pattern in _ABCDE_WARNING_PATTERNS:
+        if pattern.search(line):
+            return 'warning'
+    for pattern in _ABCDE_DEBUG_PATTERNS:
+        if pattern.search(line):
+            return 'debug'
+    return 'info'
+
+
 def _stream_abcde_output(proc, job):
     """Read abcde stdout/stderr line by line, log through structlog, track progress.
 
+    Each line is classified by severity and logged as a structured JSON entry.
     Returns a list of error lines found in the output (for post-rip checking).
     """
     seen_grabbing: set[int] = set()
@@ -451,24 +518,26 @@ def _stream_abcde_output(proc, job):
         if not line:
             continue
 
-        # Classify the line for log level
-        if line.startswith('[ERROR]') or 'Permission denied' in line \
-                or 'CDROM drive unavailable' in line:
+        level = _classify_abcde_line(line)
+
+        if level == 'error':
             logging.error(line)
             error_lines.append(line)
-        elif line.startswith('cdparanoia') or line.startswith('outputting to'):
+        elif level == 'warning':
+            logging.warning(line)
+        elif level == 'debug':
             logging.debug(line)
         else:
             logging.info(line)
 
         # Track progress from abcde phase markers
-        m = re.match(r'Grabbing track (\d+):', line)
+        m = _PHASE_GRABBING.match(line)
         if m:
             seen_grabbing.add(int(m.group(1)))
-        m = re.match(r'Encoding track (\d+) of', line)
+        m = _PHASE_ENCODING.match(line)
         if m:
             seen_encoding.add(int(m.group(1)))
-        m = re.match(r'Tagging track (\d+) of', line)
+        m = _PHASE_TAGGING.match(line)
         if m:
             seen_tagging.add(int(m.group(1)))
 
