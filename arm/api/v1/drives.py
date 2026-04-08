@@ -312,10 +312,13 @@ async def rescan_drives():
     from arm.services.drives import drives_update
 
     def _do_rescan():
-        before = SystemDrives.query.count()
-        removed = drives_update()
-        after = SystemDrives.query.count()
-        return before, after, removed
+        try:
+            before = SystemDrives.query.count()
+            removed = drives_update()
+            after = SystemDrives.query.count()
+            return before, after, removed
+        finally:
+            db.session.remove()
 
     try:
         before, after, removed = await asyncio.to_thread(_do_rescan)

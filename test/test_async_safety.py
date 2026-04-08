@@ -201,6 +201,44 @@ class TestRipFolderSessionCleanup:
 
 
 # =====================================================================
+# _with_session_cleanup - executor thread session safety
+# =====================================================================
+
+
+class TestWithSessionCleanup:
+    """Test that _with_session_cleanup releases scoped sessions."""
+
+    def test_session_removed_on_success(self, app_context):
+        from arm.api.v1.jobs import _with_session_cleanup
+
+        with unittest.mock.patch("arm.api.v1.jobs.db") as mock_db:
+            result = _with_session_cleanup(lambda: "ok")
+
+        assert result == "ok"
+        mock_db.session.remove.assert_called_once()
+
+    def test_session_removed_on_exception(self, app_context):
+        from arm.api.v1.jobs import _with_session_cleanup
+
+        def boom():
+            raise ValueError("test")
+
+        with unittest.mock.patch("arm.api.v1.jobs.db") as mock_db:
+            with pytest.raises(ValueError, match="test"):
+                _with_session_cleanup(boom)
+
+        mock_db.session.remove.assert_called_once()
+
+    def test_passes_args_through(self, app_context):
+        from arm.api.v1.jobs import _with_session_cleanup
+
+        with unittest.mock.patch("arm.api.v1.jobs.db"):
+            result = _with_session_cleanup(lambda a, b: a + b, 3, 4)
+
+        assert result == 7
+
+
+# =====================================================================
 # TVDB token lock
 # =====================================================================
 

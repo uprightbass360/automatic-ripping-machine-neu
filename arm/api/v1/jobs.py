@@ -393,16 +393,30 @@ def change_job_config(job_id: int, body: dict):
     return {"success": True, "job_id": job.job_id}
 
 
+def _with_session_cleanup(fn, *args):
+    """Run *fn* and ensure the executor thread's scoped session is released.
+
+    asyncio.to_thread runs callables on executor threads whose scoped
+    sessions are NOT cleaned up by SessionCleanupMiddleware (which targets
+    the event-loop thread).  This wrapper prevents stale sessions from
+    accumulating on reused executor threads.
+    """
+    try:
+        return fn(*args)
+    finally:
+        db.session.remove()
+
+
 @router.post('/jobs/{job_id}/fix-permissions')
 async def fix_job_permissions(job_id: int):
     """Fix file permissions for a job."""
-    return await asyncio.to_thread(svc_files.fix_permissions, str(job_id))
+    return await asyncio.to_thread(_with_session_cleanup, svc_files.fix_permissions, str(job_id))
 
 
 @router.post('/jobs/{job_id}/send')
 async def send_job(job_id: int):
     """Send a job to a remote database."""
-    return await asyncio.to_thread(svc_files.send_to_remote_db, str(job_id))
+    return await asyncio.to_thread(_with_session_cleanup, svc_files.send_to_remote_db, str(job_id))
 
 
 _FIELD_MAP = {
