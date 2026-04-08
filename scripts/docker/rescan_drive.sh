@@ -93,8 +93,17 @@ fi
 # --- Check if ARM is already processing this drive ---
 LOCKFILE="/home/arm/.arm_${DEVNAME}.lock"
 if ! flock -n "$LOCKFILE" true 2>/dev/null; then
-    log "ARM already running for $DEVNAME (lock held), skipping"
-    exit 0
+    # Lock is held - verify the holding process is actually alive.
+    # A stuck or killed ARM process can leave a held flock if fd 9
+    # is inherited by a zombie child or the process is in D-state.
+    # Check if any python main.py process is running for this device.
+    if pgrep -f "main.py.*-d ${DEVNAME}" > /dev/null 2>&1; then
+        log "ARM already running for $DEVNAME (lock held, process alive), skipping"
+        exit 0
+    else
+        log "Stale lock detected for $DEVNAME (lock held but no ARM process found), breaking lock"
+        rm -f "$LOCKFILE"
+    fi
 fi
 
 # --- Launch ARM wrapper directly ---

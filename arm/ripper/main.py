@@ -440,3 +440,15 @@ if __name__ == "__main__":
         # Release scoped session to prevent DB connection pool exhaustion
         # (this function runs in a daemon thread spawned by udev/drive detection)
         db.session.remove()
+        # Remove the per-device lock file so it doesn't persist on the
+        # bind-mounted volume after the flock is released.  The wrapper
+        # script holds flock on fd 9 which auto-releases when this
+        # process exits, but the file itself would remain and confuse
+        # stale-lock detection.  Best-effort removal (ignore errors).
+        try:
+            import os
+            dev = args.devpath if args else None
+            if dev:
+                os.remove(f"/home/arm/.arm_{dev}.lock")
+        except Exception:
+            pass
