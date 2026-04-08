@@ -40,12 +40,15 @@ def database_updater(args, job, wait_time=10):
         db.session.rollback()
         return False
 
+    job_id = getattr(job, 'job_id', None)
+    prefix = f"ID:{job_id} " if job_id is not None else ""
+
     for key, value in args.items():
         setattr(job, key, value)
         if key.lower() in _SENSITIVE_KEYS:
-            log.debug("Setting %s=<redacted>", key)
+            log.debug("%s%s=<redacted>", prefix, key)
         else:
-            log.debug("Setting %s: %s", key, value)
+            log.debug("%s%s=%s", prefix, key, value)
 
     elapsed = 0.0
     backoff = 0.1
