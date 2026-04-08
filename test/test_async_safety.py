@@ -5,7 +5,6 @@ threads, TVDB token lock, arm_config lock, async endpoint wrappers,
 and send_to_remote_db timeout.
 """
 import asyncio
-import threading
 import unittest.mock
 
 import pytest
@@ -146,6 +145,7 @@ class TestDatabaseUpdaterBackoff:
             mock_db.session.commit.side_effect = Exception("database is locked")
             with pytest.raises(RuntimeError, match="timed out"):
                 database_updater({"status": "x"}, job, wait_time=0.5)
+            mock_db.session.rollback.assert_called_once()
 
 
 # =====================================================================
