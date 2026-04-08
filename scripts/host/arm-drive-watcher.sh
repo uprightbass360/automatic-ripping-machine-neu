@@ -42,8 +42,14 @@ fi
 
 # --- Check if ARM is already processing this device ---
 if ! docker exec "$CONTAINER" flock -n "/home/arm/.arm_${DEVNAME}.lock" true 2>/dev/null; then
-    log "ARM already processing $DEVNAME, skipping"
-    exit 0
+    # Lock is held - verify an ARM process is actually running for this device.
+    if docker exec "$CONTAINER" pgrep -f "main.py.*-d ${DEVNAME}" > /dev/null 2>&1; then
+        log "ARM already processing $DEVNAME (lock held, process alive), skipping"
+        exit 0
+    else
+        log "Stale lock for $DEVNAME (no ARM process found), removing"
+        docker exec "$CONTAINER" rm -f "/home/arm/.arm_${DEVNAME}.lock"
+    fi
 fi
 
 # --- Check if a disc is present (ioctl inside container) ---
