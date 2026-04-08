@@ -12,6 +12,7 @@ The old names are re-exported here for backward compatibility.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Any
@@ -26,26 +27,28 @@ _BASE = "https://api4.thetvdb.com/v4"
 _TOKEN: str | None = None
 _TOKEN_EXPIRES: float = 0
 _TOKEN_TTL = 23 * 3600  # refresh after 23 hours (tokens last 30 days)
+_TOKEN_LOCK = asyncio.Lock()
 
 
 async def _ensure_token() -> str:
-    """Obtain or reuse a TVDB bearer token."""
+    """Obtain or reuse a TVDB bearer token (thread-safe via asyncio.Lock)."""
     global _TOKEN, _TOKEN_EXPIRES
-    if _TOKEN and time.time() < _TOKEN_EXPIRES:
-        return _TOKEN
+    async with _TOKEN_LOCK:
+        if _TOKEN and time.time() < _TOKEN_EXPIRES:
+            return _TOKEN
 
-    api_key = cfg.arm_config.get("TVDB_API_KEY", "")
-    if not api_key:
-        raise ValueError("TVDB_API_KEY not configured")
+        api_key = cfg.arm_config.get("TVDB_API_KEY", "")
+        if not api_key:
+            raise ValueError("TVDB_API_KEY not configured")
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(f"{_BASE}/login", json={"apikey": api_key})
-        resp.raise_for_status()
-        data = resp.json()
-        _TOKEN = data["data"]["token"]
-        _TOKEN_EXPIRES = time.time() + _TOKEN_TTL
-        log.info("TVDB token acquired")
-        return _TOKEN
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(f"{_BASE}/login", json={"apikey": api_key})
+            resp.raise_for_status()
+            data = resp.json()
+            _TOKEN = data["data"]["token"]
+            _TOKEN_EXPIRES = time.time() + _TOKEN_TTL
+            log.info("TVDB token acquired")
+            return _TOKEN
 
 
 async def validate_tvdb_key(api_key: str) -> dict[str, str]:

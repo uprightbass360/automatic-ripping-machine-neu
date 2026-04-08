@@ -32,11 +32,14 @@ _NOT_WAITING = "Job is not in waiting state"
 def _rip_folder_by_id(job_id: int):
     """Re-query job by ID in the thread's own session, then run rip_folder."""
     import logging
-    job = Job.query.get(job_id)
-    if not job:
-        logging.error("rip_folder thread: job %s not found", job_id)
-        return
-    rip_folder(job)
+    try:
+        job = Job.query.get(job_id)
+        if not job:
+            logging.error("rip_folder thread: job %s not found", job_id)
+            return
+        rip_folder(job)
+    finally:
+        db.session.remove()
 
 
 def _auto_flag_tracks(job, mainfeature: bool):
@@ -384,15 +387,17 @@ def change_job_config(job_id: int, body: dict):
 
 
 @router.post('/jobs/{job_id}/fix-permissions')
-def fix_job_permissions(job_id: int):
+async def fix_job_permissions(job_id: int):
     """Fix file permissions for a job."""
-    return svc_files.fix_permissions(str(job_id))
+    import asyncio
+    return await asyncio.to_thread(svc_files.fix_permissions, str(job_id))
 
 
 @router.post('/jobs/{job_id}/send')
-def send_job(job_id: int):
+async def send_job(job_id: int):
     """Send a job to a remote database."""
-    return svc_files.send_to_remote_db(str(job_id))
+    import asyncio
+    return await asyncio.to_thread(svc_files.send_to_remote_db, str(job_id))
 
 
 _FIELD_MAP = {

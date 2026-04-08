@@ -894,44 +894,14 @@ def arm_setup(arm_log: Logger) -> None:
 
 
 def database_updater(args, job, wait_time=90):
-    """
-    Try to update our db for x seconds and handle it nicely if we can't
-    If args isn't a dict assume we are wanting a rollback\n
+    """Try to commit attribute changes to the database.
 
-    :param args: This needs to be a Dict with the key being the job.method
-    you want to change and the value being
-    the new value.
-    :param job: This is the job object
-    :param int wait_time: Number of times to try(1 sec sleep between try)
-    :return: Success
+    Delegates to :func:`arm.services.files.database_updater` (single
+    implementation).  Ripper callers keep a higher default *wait_time*
+    because rip processes are more tolerant of delays than API requests.
     """
-    if not isinstance(args, dict):
-        db.session.rollback()
-        return False
-    # Loop through our args and try to set any of our job variables
-    _sensitive_keys = {'api_key', 'arm_api_key', 'omdb_api_key', 'tmdb_api_key',
-                       'pb_key', 'ifttt_key', 'po_user_key', 'po_app_key', 'apprise'}
-    for (key, value) in args.items():
-        setattr(job, key, value)
-        safe_key = str(key)
-        if safe_key.lower() in _sensitive_keys:
-            logging.debug("ID:%s %s=<redacted>", int(job.job_id), safe_key)
-        else:
-            logging.debug("ID:%s %s=%s:%s", int(job.job_id), safe_key, str(value), type(value).__name__)
-
-    for i in range(wait_time):  # give up after the users wait period in seconds
-        try:
-            db.session.commit()
-            break
-        except Exception as error:
-            if "locked" in str(error):
-                time.sleep(1)
-                logging.debug(f"database is locked - try {i}/{wait_time}")
-            else:
-                logging.debug(f"Error: {error}")
-                raise RuntimeError(str(error)) from error
-    logging.debug("successfully written to the database")
-    return True
+    from arm.services.files import database_updater as _database_updater
+    return _database_updater(args, job, wait_time=wait_time)
 
 
 def database_adder(obj_class):
