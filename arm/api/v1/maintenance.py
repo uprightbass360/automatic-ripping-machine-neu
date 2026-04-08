@@ -1,4 +1,5 @@
 """API v1 — Maintenance endpoints for orphan detection and cleanup."""
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -36,8 +37,8 @@ def get_orphan_folders():
 
 
 @router.post("/maintenance/delete-log")
-def delete_log(req: PathRequest):
-    result = svc.delete_log(req.path)
+async def delete_log(req: PathRequest):
+    result = await asyncio.to_thread(svc.delete_log, req.path)
     if not result["success"]:
         error = result.get("error", "")
         if "outside" in error:
@@ -48,8 +49,8 @@ def delete_log(req: PathRequest):
 
 
 @router.post("/maintenance/delete-folder")
-def delete_folder(req: PathRequest):
-    result = svc.delete_folder(req.path)
+async def delete_folder(req: PathRequest):
+    result = await asyncio.to_thread(svc.delete_folder, req.path)
     if not result["success"]:
         error = result.get("error", "")
         if "outside" in error:
@@ -60,9 +61,9 @@ def delete_folder(req: PathRequest):
 
 
 @router.post("/maintenance/bulk-delete-logs")
-def bulk_delete_logs(req: BulkPathRequest):
-    result = svc.bulk_delete_logs(req.paths)
-    # Sanitize error messages — don't expose internal paths
+async def bulk_delete_logs(req: BulkPathRequest):
+    result = await asyncio.to_thread(svc.bulk_delete_logs, req.paths)
+    # Sanitize error messages - don't expose internal paths
     result["errors"] = [
         f"{Path(e.split(':')[0]).name}: operation failed" if ':' in e else e
         for e in result.get("errors", [])
@@ -71,8 +72,8 @@ def bulk_delete_logs(req: BulkPathRequest):
 
 
 @router.post("/maintenance/bulk-delete-folders")
-def bulk_delete_folders(req: BulkPathRequest):
-    result = svc.bulk_delete_folders(req.paths)
+async def bulk_delete_folders(req: BulkPathRequest):
+    result = await asyncio.to_thread(svc.bulk_delete_folders, req.paths)
     result["errors"] = [
         f"{Path(e.split(':')[0]).name}: operation failed" if ':' in e else e
         for e in result.get("errors", [])
@@ -81,9 +82,9 @@ def bulk_delete_folders(req: BulkPathRequest):
 
 
 @router.post("/maintenance/clear-raw")
-def clear_raw():
+async def clear_raw():
     """Clear all contents of the raw/scratch directory."""
-    result = svc.clear_raw_directories()
+    result = await asyncio.to_thread(svc.clear_raw_directories)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result.get("error", "Failed"))
     return result

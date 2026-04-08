@@ -1,5 +1,5 @@
 """
-File and database utility services — extracted from arm/ui/utils.py.
+File and database utility services - extracted from arm/ui/utils.py.
 
 All app.logger calls replaced with standard logging.
 """
@@ -18,35 +18,57 @@ from arm.database import db
 
 log = logging.getLogger(__name__)
 
+# Sensitive keys whose values should not appear in logs
+_SENSITIVE_KEYS = frozenset({
+    'api_key', 'arm_api_key', 'omdb_api_key', 'tmdb_api_key',
+    'pb_key', 'ifttt_key', 'po_user_key', 'po_app_key', 'apprise',
+})
 
-def database_updater(args, job, wait_time=90):
-    """
-    Try to update our db for x seconds and handle it nicely if we cant\n
 
-    :param args: This needs to be a Dict with the key being the
-    job.method you want to change and the value being the new value.
-    :param job: This is the job object
-    :param wait_time: The time to wait in seconds
-    :returns : Boolean
+def database_updater(args, job, wait_time=10):
+    """Try to commit attribute changes to the database with exponential backoff.
+
+    :param args: Dict of attribute names to new values, or a non-dict to
+        trigger a rollback (for backward compatibility with ripper callers).
+    :param job: ORM object to update (Job, Config, Notification, etc.)
+    :param wait_time: Maximum seconds to retry on SQLite BUSY (default 10
+        for API callers; ripper callers may pass a higher value).
+    :returns: True on success, False if args is not a dict (rollback).
+    :raises RuntimeError: on non-lock database errors.
     """
-    # Loop through our args and try to set any of our job variables
-    for (key, value) in args.items():
+    if not isinstance(args, dict):
+        db.session.rollback()
+        return False
+
+    for key, value in args.items():
         setattr(job, key, value)
-        log.debug(f"Setting {key}: {value}")
-    for i in range(wait_time):  # give up after the users wait period in seconds
+        if key.lower() in _SENSITIVE_KEYS:
+            log.debug("Setting %s=<redacted>", key)
+        else:
+            log.debug("Setting %s: %s", key, value)
+
+    elapsed = 0.0
+    backoff = 0.1
+    while elapsed < wait_time:
         try:
             db.session.commit()
-            break
+            log.debug("successfully written to the database")
+            return True
         except Exception as error:
             if "locked" in str(error):
-                sleep(1)
-                log.debug(f"database is locked - trying in 1 second {i}/{wait_time} - {error}")
+                sleep(backoff)
+                elapsed += backoff
+                log.debug(
+                    "database is locked - retrying in %.1fs (%.1f/%.0fs)",
+                    backoff, elapsed, wait_time,
+                )
+                backoff = min(backoff * 2, 2.0)
             else:
-                log.debug("Error: " + str(error))
+                log.debug("Error: %s", error)
                 db.session.rollback()
                 raise RuntimeError(str(error)) from error
 
-    log.debug("successfully written to the database")
+    log.warning("database_updater timed out after %.0fs", wait_time)
     return True
 
 
@@ -164,7 +186,7 @@ def send_to_remote_db(job_id):
           f"&hnt={job.hasnicetitle}&l={job.label}&vt={job.video_type}"
     redacted_url = url.replace(api_key, "<redacted>") if api_key else "<no api key>"
     log.debug("Remote DB URL: %s", str(redacted_url))
-    response = requests.get(url)
+    response = requests.get(url, timeout=15)
     req = json.loads(response.text)
     log.debug("Remote DB response success: %s", str(req.get('success', 'unknown')))
     job_dict = job.get_d().items()

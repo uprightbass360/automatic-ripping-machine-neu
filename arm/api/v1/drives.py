@@ -303,17 +303,17 @@ async def drive_diagnostic():
 
 
 @router.post('/drives/rescan')
-def rescan_drives():
+async def rescan_drives():
     """Re-detect optical drives and update the database.
 
-    Python-level only — refreshes the drive inventory in the DB
+    Python-level only - refreshes the drive inventory in the DB
     by scanning /sys and udev. Does NOT trigger rips.
     """
     from arm.services.drives import drives_update
 
     try:
         before = SystemDrives.query.count()
-        removed = drives_update()
+        removed = await asyncio.to_thread(drives_update)
         after = SystemDrives.query.count()
         log.info("Drive rescan: %d before, %d after, %d removed", before, after, removed)
         return {

@@ -2,9 +2,14 @@
 """yaml config loader"""
 import json
 import os
+import threading
 import yaml
 
 import arm.config.config_utils as config_utils
+
+# Lock for atomic updates to arm_config (clear + update must not be
+# interleaved with concurrent readers).
+arm_config_lock = threading.Lock()
 
 arm_config: dict[str, str]
 arm_config_path: str = os.environ.get("ARM_CONFIG_FILE", "/etc/arm/config/arm.yaml")
