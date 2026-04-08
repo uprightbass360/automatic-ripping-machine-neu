@@ -6,7 +6,6 @@ and send_to_remote_db timeout.
 """
 import asyncio
 import threading
-import time
 import unittest.mock
 
 import pytest
@@ -136,6 +135,17 @@ class TestDatabaseUpdaterBackoff:
         debug_calls = [str(c) for c in mock_log.debug.call_args_list]
         assert any("<redacted>" in c for c in debug_calls)
         assert not any("secret123" in c for c in debug_calls)
+
+    def test_timeout_raises_runtime_error(self, app_context):
+        """Exhausting wait_time should raise RuntimeError, not return True."""
+        from arm.services.files import database_updater
+
+        job = unittest.mock.MagicMock()
+        with unittest.mock.patch("arm.services.files.db") as mock_db, \
+             unittest.mock.patch("arm.services.files.sleep"):
+            mock_db.session.commit.side_effect = Exception("database is locked")
+            with pytest.raises(RuntimeError, match="timed out"):
+                database_updater({"status": "x"}, job, wait_time=0.5)
 
 
 # =====================================================================
@@ -268,13 +278,21 @@ class TestArmConfigLock:
     def test_settings_update_uses_lock(self):
         """update_config code path acquires arm_config_lock around clear+update."""
         import arm.api.v1.settings  # ensure module is loaded
-        import arm.config.config as cfg
 
-        # Verify the lock usage is in the source code
         import inspect
         source = inspect.getsource(arm.api.v1.settings.update_config)
         assert "arm_config_lock" in source, (
             "update_config must use cfg.arm_config_lock"
+        )
+
+    def test_change_job_config_uses_lock(self):
+        """change_job_config applies config_updates under arm_config_lock."""
+        import arm.api.v1.jobs  # ensure module is loaded
+
+        import inspect
+        source = inspect.getsource(arm.api.v1.jobs.change_job_config)
+        assert "arm_config_lock" in source, (
+            "change_job_config must use cfg.arm_config_lock"
         )
 
 

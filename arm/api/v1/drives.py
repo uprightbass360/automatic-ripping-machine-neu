@@ -311,10 +311,14 @@ async def rescan_drives():
     """
     from arm.services.drives import drives_update
 
-    try:
+    def _do_rescan():
         before = SystemDrives.query.count()
-        removed = await asyncio.to_thread(drives_update)
+        removed = drives_update()
         after = SystemDrives.query.count()
+        return before, after, removed
+
+    try:
+        before, after, removed = await asyncio.to_thread(_do_rescan)
         log.info("Drive rescan: %d before, %d after, %d removed", before, after, removed)
         return {
             "success": True,
