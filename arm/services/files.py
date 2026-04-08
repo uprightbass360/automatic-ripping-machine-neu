@@ -69,7 +69,7 @@ def database_updater(args, job, wait_time=10):
                 raise RuntimeError(str(error)) from error
 
     log.warning("database_updater timed out after %.0fs", wait_time)
-    return True
+    raise RuntimeError(f"database_updater timed out after {wait_time:.0f}s")
 
 
 def make_dir(path):

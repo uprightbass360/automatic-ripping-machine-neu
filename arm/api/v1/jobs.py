@@ -1,9 +1,10 @@
-"""API v1 — Job endpoints.
+"""API v1 - Job endpoints.
 
-All handlers use sync def (not async def) so FastAPI runs them in a
-threadpool, preventing blocking the event loop during DB queries,
-external HTTP calls, or filesystem operations.
+Most handlers use sync def so FastAPI runs them in a threadpool.
+Heavy I/O endpoints (fix-permissions, remote DB send) use async def
+with asyncio.to_thread to avoid blocking the event loop.
 """
+import asyncio
 import json
 import math
 import re
@@ -286,6 +287,7 @@ def change_job_config(job_id: int, body: dict):
     config = job.config
     job_args = {}
     changes = []
+    config_updates = {}  # collected for atomic apply under lock
 
     valid_ripmethods = ('mkv', 'backup')
     valid_disctypes = ('dvd', 'bluray', 'bluray4k', 'music', 'data')
@@ -303,7 +305,7 @@ def change_job_config(job_id: int, body: dict):
                 status_code=400,
             )
         config.RIPMETHOD = val
-        cfg.arm_config["RIPMETHOD"] = val
+        config_updates["RIPMETHOD"] = val
         changes.append(f"Rip Method={val}")
 
     if 'DISCTYPE' in body:
@@ -319,7 +321,7 @@ def change_job_config(job_id: int, body: dict):
     if 'MAINFEATURE' in body:
         val = 1 if body['MAINFEATURE'] else 0
         config.MAINFEATURE = val
-        cfg.arm_config["MAINFEATURE"] = val
+        config_updates["MAINFEATURE"] = val
         changes.append(f"Main Feature={bool(val)}")
         # Re-flag tracks based on the new setting
         _auto_flag_tracks(job, mainfeature=bool(val))
@@ -327,13 +329,13 @@ def change_job_config(job_id: int, body: dict):
     if 'MINLENGTH' in body:
         val = str(int(body['MINLENGTH']))
         config.MINLENGTH = val
-        cfg.arm_config["MINLENGTH"] = val
+        config_updates["MINLENGTH"] = val
         changes.append(f"Min Length={val}")
 
     if 'MAXLENGTH' in body:
         val = str(int(body['MAXLENGTH']))
         config.MAXLENGTH = val
-        cfg.arm_config["MAXLENGTH"] = val
+        config_updates["MAXLENGTH"] = val
         changes.append(f"Max Length={val}")
 
     if 'AUDIO_FORMAT' in body:
@@ -344,7 +346,7 @@ def change_job_config(job_id: int, body: dict):
                 status_code=400,
             )
         config.AUDIO_FORMAT = val
-        cfg.arm_config["AUDIO_FORMAT"] = val
+        config_updates["AUDIO_FORMAT"] = val
         changes.append(f"Audio Format={val}")
 
     if 'RIP_SPEED_PROFILE' in body:
@@ -355,13 +357,13 @@ def change_job_config(job_id: int, body: dict):
                 status_code=400,
             )
         config.RIP_SPEED_PROFILE = val
-        cfg.arm_config["RIP_SPEED_PROFILE"] = val
+        config_updates["RIP_SPEED_PROFILE"] = val
         changes.append(f"Rip Speed={val}")
 
     if 'MUSIC_MULTI_DISC_SUBFOLDERS' in body:
         val = bool(body['MUSIC_MULTI_DISC_SUBFOLDERS'])
         config.MUSIC_MULTI_DISC_SUBFOLDERS = val
-        cfg.arm_config["MUSIC_MULTI_DISC_SUBFOLDERS"] = val
+        config_updates["MUSIC_MULTI_DISC_SUBFOLDERS"] = val
         changes.append(f"Multi-Disc Subfolders={val}")
 
     if 'MUSIC_DISC_FOLDER_PATTERN' in body:
@@ -372,11 +374,16 @@ def change_job_config(job_id: int, body: dict):
                 status_code=400,
             )
         config.MUSIC_DISC_FOLDER_PATTERN = val
-        cfg.arm_config["MUSIC_DISC_FOLDER_PATTERN"] = val
+        config_updates["MUSIC_DISC_FOLDER_PATTERN"] = val
         changes.append(f"Disc Folder Pattern={val}")
 
     if not changes:
         return JSONResponse({"success": False, "error": "No valid fields provided"}, status_code=400)
+
+    # Apply config updates atomically so concurrent readers never see partial state
+    if config_updates:
+        with cfg.arm_config_lock:
+            cfg.arm_config.update(config_updates)
 
     message = f"Parameters changed: {', '.join(changes)}"
     notification = Notifications(f"Job: {job.job_id} Config updated!", message)
@@ -389,14 +396,12 @@ def change_job_config(job_id: int, body: dict):
 @router.post('/jobs/{job_id}/fix-permissions')
 async def fix_job_permissions(job_id: int):
     """Fix file permissions for a job."""
-    import asyncio
     return await asyncio.to_thread(svc_files.fix_permissions, str(job_id))
 
 
 @router.post('/jobs/{job_id}/send')
 async def send_job(job_id: int):
     """Send a job to a remote database."""
-    import asyncio
     return await asyncio.to_thread(svc_files.send_to_remote_db, str(job_id))
 
 
