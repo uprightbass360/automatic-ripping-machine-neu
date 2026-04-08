@@ -748,7 +748,7 @@ def makemkv_mkv(job, rawpath):
         for msg in run(cmd, OutputType.MSG):
             # Mark tracks ripped in real-time as MakeMKV saves each title.
             # MSG code 3307 = FILE_ADDED: "File {name} was added as title #{N}"
-            if hasattr(msg, 'code') and int(msg.code) == MakeMKVMessageCode.FILE_ADDED:
+            if hasattr(msg, 'code') and int(msg.code) == MessageID.FILE_ADDED:
                 _mark_track_ripped_by_message(job, msg.message)
         # Final sweep: mark any remaining tracks whose files exist on disk
         _mark_ripped_from_disk(job, rawpath)
