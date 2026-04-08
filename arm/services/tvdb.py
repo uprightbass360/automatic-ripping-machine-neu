@@ -31,7 +31,7 @@ _TOKEN_LOCK = asyncio.Lock()
 
 
 async def _ensure_token() -> str:
-    """Obtain or reuse a TVDB bearer token (thread-safe via asyncio.Lock)."""
+    """Obtain or reuse a TVDB bearer token (serialized via asyncio.Lock)."""
     global _TOKEN, _TOKEN_EXPIRES
     async with _TOKEN_LOCK:
         if _TOKEN and time.time() < _TOKEN_EXPIRES:
