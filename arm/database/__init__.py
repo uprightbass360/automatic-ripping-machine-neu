@@ -239,27 +239,48 @@ class _DB:
             engine_kw['connect_args'] = connect_args
         self._engine = create_engine(db_uri, **engine_kw)
         if db_uri.startswith('sqlite'):
+            # Take full control of SQLite transaction handling.
+            #
+            # pysqlite (Python's sqlite3 module) has its own transaction
+            # management that conflicts with SQLAlchemy's: it defers
+            # BEGIN until the first DML statement and uses BEGIN DEFERRED
+            # by default.  This causes two problems:
+            #
+            # 1. Transaction upgrade deadlock: BEGIN DEFERRED starts a
+            #    read transaction. Upgrading to a write lock on the first
+            #    INSERT/UPDATE fails instantly with SQLITE_BUSY -
+            #    busy_timeout does NOT apply to lock upgrades.
+            #
+            # 2. Double-BEGIN: pysqlite and SQLAlchemy can both try to
+            #    emit BEGIN, causing "cannot start a transaction within
+            #    a transaction".
+            #
+            # Fix (per SQLAlchemy docs): disable pysqlite's transaction
+            # management entirely (isolation_level=None), then emit our
+            # own BEGIN IMMEDIATE via an event listener.  BEGIN IMMEDIATE
+            # acquires the write lock up front so busy_timeout works and
+            # concurrent writers queue instead of deadlocking.
+            #
+            # For in-memory databases (tests with StaticPool), we still
+            # disable pysqlite's management but use plain BEGIN (no
+            # contention with a single connection).
+
+            _is_file_db = ":memory:" not in db_uri
+
             @event.listens_for(self._engine, "connect")
             def _set_sqlite_pragma(dbapi_conn, connection_record):
+                # For file-backed databases: disable pysqlite's own
+                # transaction management so we can emit BEGIN IMMEDIATE
+                # ourselves.  For in-memory (tests): leave pysqlite's
+                # management alone (StaticPool + single connection).
+                if _is_file_db:
+                    dbapi_conn.isolation_level = None
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA busy_timeout=30000")
                 cursor.close()
 
-            # Use BEGIN IMMEDIATE for file-backed databases.  SQLite's
-            # default BEGIN DEFERRED starts a read transaction that must
-            # be upgraded to a write lock on the first write.  This
-            # upgrade fails instantly with SQLITE_BUSY (busy_timeout
-            # does NOT apply to lock upgrades), causing "database is
-            # locked" errors that cannot be retried.  BEGIN IMMEDIATE
-            # acquires the write lock up front, so busy_timeout works
-            # correctly and concurrent writers queue instead of
-            # deadlocking.
-            #
-            # Skip for in-memory databases (used in tests with
-            # StaticPool) where there's only one connection and no
-            # contention.
-            if ":memory:" not in db_uri:
+            if _is_file_db:
                 @event.listens_for(self._engine, "begin")
                 def _begin_immediate(conn):
                     conn.exec_driver_sql("BEGIN IMMEDIATE")

@@ -246,10 +246,12 @@ class TestRollbackOnError:
         assert result is not None
 
 
+@patch.object(Job, 'parse_udev')
+@patch.object(Job, 'get_pid')
 class TestRealConcurrency:
     """Test with actual concurrent SQLite writers."""
 
-    def test_concurrent_writes_succeed(self, file_db):
+    def test_concurrent_writes_succeed(self, mock_pid, mock_udev, file_db):
         """Two threads writing simultaneously should both succeed."""
         _, db_path = file_db
         errors = []
@@ -280,7 +282,7 @@ class TestRealConcurrency:
         assert not errors, f"Concurrent writes failed: {errors}"
         assert success_count["n"] == 10
 
-    def test_lock_during_long_transaction(self, file_db):
+    def test_lock_during_long_transaction(self, mock_pid, mock_udev, file_db):
         """A commit during another thread's long transaction should retry."""
         _, db_path = file_db
         barrier = threading.Barrier(2, timeout=10)
