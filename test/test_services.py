@@ -297,35 +297,26 @@ class TestDatabaseUpdater:
         assert job.status == "success"
         mock_db.session.commit.assert_called()
 
-    def test_locked_db_retries(self, app_context):
+    def test_commit_is_called(self, app_context):
+        """database_updater delegates commit to the session (RetrySession handles retries)."""
         from arm.services.files import database_updater
 
         job = MagicMock()
-        call_count = 0
-
-        def commit_side_effect():
-            nonlocal call_count
-            call_count += 1
-            if call_count < 3:
-                raise Exception("database is locked")
-
-        with patch("arm.services.files.db") as mock_db, \
-             patch("arm.services.files.sleep"):
-            mock_db.session.commit.side_effect = commit_side_effect
-            result = database_updater({"status": "x"}, job, wait_time=5)
+        with patch("arm.services.files.db") as mock_db:
+            result = database_updater({"status": "x"}, job)
 
         assert result is True
-        assert call_count == 3
+        mock_db.session.commit.assert_called_once()
 
-    def test_non_locked_error_raises(self, app_context):
+    def test_commit_error_propagates(self, app_context):
+        """Errors from commit propagate through database_updater."""
         from arm.services.files import database_updater
 
         job = MagicMock()
         with patch("arm.services.files.db") as mock_db:
             mock_db.session.commit.side_effect = Exception("some other error")
-            with pytest.raises(RuntimeError, match="some other error"):
-                database_updater({"status": "x"}, job, wait_time=2)
-            mock_db.session.rollback.assert_called()
+            with pytest.raises(Exception, match="some other error"):
+                database_updater({"status": "x"}, job)
 
 
 class TestMakeDir:

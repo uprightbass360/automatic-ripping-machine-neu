@@ -13,20 +13,27 @@ log = logging.getLogger(__name__)
 
 
 class SessionCleanupMiddleware(BaseHTTPMiddleware):
-    """Remove scoped DB sessions after each request.
+    """Ensure a clean DB session for every request.
 
     FastAPI runs sync def handlers in a threadpool.  AnyIO reuses threads,
     so scoped_session (keyed by thread ID) can leak uncommitted state from
     one request to the next on the same thread.
 
-    The rollback() before remove() is critical: if a request fails mid-flush
-    (e.g. SQLite "database is locked"), the session enters a
-    PendingRollbackError state.  Without an explicit rollback, every
-    subsequent request on the same thread will fail with the same error.
-    rollback() is a no-op when there is nothing to roll back.
+    Proactive rollback at the START of each request catches any
+    PendingRollbackError left by a previous request on this thread
+    (e.g. if RetrySession's commit timed out).  The rollback + remove
+    in the finally block cleans up after the current request.
     """
 
     async def dispatch(self, request: Request, call_next):
+        # Proactive cleanup: if this thread's session has a stale
+        # PendingRollbackError from a previous request, clear it now
+        # so this request starts with a clean session.
+        if db._engine is not None:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
         try:
             response = await call_next(request)
             return response

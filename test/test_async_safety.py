@@ -27,61 +27,24 @@ def client(app_context):
 class TestDatabaseUpdaterBackoff:
     """Test exponential backoff in database_updater."""
 
-    def test_backoff_increases_sleep_duration(self, app_context):
-        """Sleep durations should increase exponentially."""
+    def test_delegates_to_session_commit(self, app_context):
+        """database_updater calls db.session.commit() which handles retries."""
         from arm.services.files import database_updater
 
-        sleep_calls = []
-        call_count = 0
-
-        def commit_side_effect():
-            nonlocal call_count
-            call_count += 1
-            if call_count < 4:
-                raise Exception("database is locked")
-
-        def mock_sleep(duration):
-            sleep_calls.append(duration)
-
         job = unittest.mock.MagicMock()
-        with unittest.mock.patch("arm.services.files.db") as mock_db, \
-             unittest.mock.patch("arm.services.files.sleep", side_effect=mock_sleep):
-            mock_db.session.commit.side_effect = commit_side_effect
-            result = database_updater({"status": "x"}, job, wait_time=10)
+        with unittest.mock.patch("arm.services.files.db") as mock_db:
+            result = database_updater({"status": "x"}, job)
 
         assert result is True
-        assert len(sleep_calls) == 3
-        # Exponential: 0.1, 0.2, 0.4
-        assert sleep_calls[0] == pytest.approx(0.1)
-        assert sleep_calls[1] == pytest.approx(0.2)
-        assert sleep_calls[2] == pytest.approx(0.4)
+        mock_db.session.commit.assert_called_once()
 
-    def test_backoff_caps_at_two_seconds(self, app_context):
-        """Sleep duration should not exceed 2 seconds."""
-        from arm.services.files import database_updater
+    def test_retry_is_in_session_layer(self, app_context):
+        """Retry logic is now in RetrySession, not in database_updater."""
+        from arm.database import RetrySession
+        from sqlalchemy.orm import Session as BaseSession
 
-        sleep_calls = []
-        call_count = 0
-
-        def commit_side_effect():
-            nonlocal call_count
-            call_count += 1
-            if call_count < 20:
-                raise Exception("database is locked")
-
-        def mock_sleep(duration):
-            sleep_calls.append(duration)
-
-        job = unittest.mock.MagicMock()
-        with unittest.mock.patch("arm.services.files.db") as mock_db, \
-             unittest.mock.patch("arm.services.files.sleep", side_effect=mock_sleep):
-            mock_db.session.commit.side_effect = commit_side_effect
-            database_updater({"status": "x"}, job, wait_time=60)
-
-        # After enough doublings (0.1, 0.2, 0.4, 0.8, 1.6, 2.0, 2.0, ...),
-        # all subsequent sleeps should be capped at 2.0
-        for duration in sleep_calls:
-            assert duration <= 2.0
+        # Verify RetrySession overrides commit
+        assert RetrySession.commit is not BaseSession.commit
 
     def test_default_wait_time_is_ten(self, app_context):
         """API callers get 10s default, not the old 90s."""
@@ -135,17 +98,15 @@ class TestDatabaseUpdaterBackoff:
         assert any("<redacted>" in c for c in debug_calls)
         assert not any("secret123" in c for c in debug_calls)
 
-    def test_timeout_raises_runtime_error(self, app_context):
-        """Exhausting wait_time should raise RuntimeError, not return True."""
+    def test_commit_error_propagates(self, app_context):
+        """Database errors from commit propagate through database_updater."""
         from arm.services.files import database_updater
 
         job = unittest.mock.MagicMock()
-        with unittest.mock.patch("arm.services.files.db") as mock_db, \
-             unittest.mock.patch("arm.services.files.sleep"):
-            mock_db.session.commit.side_effect = Exception("database is locked")
-            with pytest.raises(RuntimeError, match="timed out"):
+        with unittest.mock.patch("arm.services.files.db") as mock_db:
+            mock_db.session.commit.side_effect = Exception("some db error")
+            with pytest.raises(Exception, match="some db error"):
                 database_updater({"status": "x"}, job, wait_time=0.5)
-            mock_db.session.rollback.assert_called_once()
 
 
 # =====================================================================

@@ -905,25 +905,17 @@ def database_updater(args, job, wait_time=90):
 
 
 def database_adder(obj_class):
-    """
-    Adds model item to db\n
-    Used to stop database locked error\n
+    """Add an ORM object to the session and commit.
+
+    Retry on SQLite BUSY is handled by :class:`~arm.database.RetrySession`
+    at the session level.  This function remains as a convenience wrapper.
+
     :param obj_class: Job/Config/Track/ etc
     :return: True if success
     """
-    for i in range(90):  # give up after the users wait period in seconds
-        try:
-            logging.debug(f"Trying to add {type(obj_class).__name__}")
-            db.session.add(obj_class)
-            db.session.commit()
-            break
-        except Exception as error:
-            if "locked" in str(error):
-                time.sleep(1)
-                logging.debug(f"database is locked - try {i}/90")
-            else:
-                logging.error(f"Error: {error}")
-                raise RuntimeError(str(error)) from error
+    logging.debug(f"Adding {type(obj_class).__name__} to database")
+    db.session.add(obj_class)
+    db.session.commit()
     logging.debug(f"successfully written {type(obj_class).__name__} to the database")
     return True
 
