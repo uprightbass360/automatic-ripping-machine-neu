@@ -8,7 +8,6 @@ import re
 import json
 import logging
 from pathlib import Path
-from time import sleep
 
 import requests
 
@@ -26,15 +25,20 @@ _SENSITIVE_KEYS = frozenset({
 
 
 def database_updater(args, job, wait_time=10):
-    """Try to commit attribute changes to the database with exponential backoff.
+    """Apply attribute changes to an ORM object and commit.
+
+    Retry and rollback on SQLite BUSY is now handled by
+    :class:`~arm.database.RetrySession` at the session level.
+    This function remains as a convenience wrapper for setting
+    attributes and committing in one call.
 
     :param args: Dict of attribute names to new values, or a non-dict to
         trigger a rollback (for backward compatibility with ripper callers).
     :param job: ORM object to update (Job, Config, Notification, etc.)
-    :param wait_time: Maximum seconds to retry on SQLite BUSY (default 10
-        for API callers; ripper callers may pass a higher value).
+    :param wait_time: Ignored (retained for call-site compatibility).
+        Retry timeout is now controlled by ``db.session.commit_timeout``.
     :returns: True on success, False if args is not a dict (rollback).
-    :raises RuntimeError: on non-lock database errors.
+    :raises: Any database error raised by the session commit.
     """
     if not isinstance(args, dict):
         db.session.rollback()
@@ -50,30 +54,9 @@ def database_updater(args, job, wait_time=10):
         else:
             log.debug("%s%s=%s", prefix, key, value)
 
-    elapsed = 0.0
-    backoff = 0.1
-    while elapsed < wait_time:
-        try:
-            db.session.commit()
-            log.debug("successfully written to the database")
-            return True
-        except Exception as error:
-            if "locked" in str(error):
-                sleep(backoff)
-                elapsed += backoff
-                log.debug(
-                    "database is locked - retrying in %.1fs (%.1f/%.0fs)",
-                    backoff, elapsed, wait_time,
-                )
-                backoff = min(backoff * 2, 2.0)
-            else:
-                log.debug("Error: %s", error)
-                db.session.rollback()
-                raise RuntimeError(str(error)) from error
-
-    log.warning("database_updater timed out after %.0fs", wait_time)
-    db.session.rollback()
-    raise RuntimeError(f"database_updater timed out after {wait_time:.0f}s")
+    db.session.commit()
+    log.debug("successfully written to the database")
+    return True
 
 
 def make_dir(path):

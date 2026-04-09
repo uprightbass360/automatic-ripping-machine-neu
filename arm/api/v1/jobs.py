@@ -33,6 +33,8 @@ _NOT_WAITING = "Job is not in waiting state"
 def _rip_folder_by_id(job_id: int):
     """Re-query job by ID in the thread's own session, then run rip_folder."""
     import logging
+    # Daemon threads are tolerant of delays - use the higher timeout
+    db.session.commit_timeout = 90
     try:
         job = Job.query.get(job_id)
         if not job:

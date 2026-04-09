@@ -153,6 +153,8 @@ def _prescan_and_wait(job_id: int):
     """
     from arm.ripper.makemkv import prep_mkv, prescan_track_info
 
+    # Daemon thread - use higher commit retry timeout
+    db.session.commit_timeout = 90
     try:
         job = Job.query.get(job_id)
         if not job:

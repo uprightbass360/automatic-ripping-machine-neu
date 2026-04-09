@@ -3,9 +3,16 @@
 Drop-in replacement for Flask-SQLAlchemy's ``db`` object.
 All existing code continues to use ``from arm.database import db``
 and call ``db.session``, ``db.Column``, ``Model.query``, etc.
+
+Includes a custom :class:`RetrySession` that automatically retries
+``commit()`` on SQLite BUSY ("database is locked") errors with
+exponential backoff, and rolls back on all other failures.  This
+makes every ``db.session.commit()`` in the codebase safe without
+requiring per-call-site exception handling.
 """
 import re
 import logging
+from time import sleep
 
 from sqlalchemy import (
     BigInteger, Column, Integer, String, Boolean, Float, Text,
@@ -14,7 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import (
     DeclarativeBase, relationship, backref,
-    scoped_session, sessionmaker,
+    scoped_session, sessionmaker, Session,
 )
 
 log = logging.getLogger(__name__)
@@ -53,6 +60,61 @@ class _QueryProperty:
 
 
 Base.query = _QueryProperty()
+
+
+# ---------------------------------------------------------------------------
+# RetrySession — auto-retry commit on SQLite BUSY
+# ---------------------------------------------------------------------------
+
+# Default retry budget for db.session.commit().  API callers get 10s
+# (fast failure for user-facing requests), ripper threads get 90s
+# (tolerant of long NFS I/O holding the lock).  The per-thread value
+# can be overridden via ``db.session.commit_timeout = 90``.
+_DEFAULT_COMMIT_TIMEOUT = 10.0
+
+
+class RetrySession(Session):
+    """Session subclass that retries ``commit()`` on SQLite BUSY errors.
+
+    When ``commit()`` raises an ``OperationalError`` containing
+    "database is locked", the session is rolled back and the commit is
+    retried with exponential backoff (0.1 s initial, 2.0 s cap) until
+    *commit_timeout* seconds have elapsed.
+
+    Non-lock errors are rolled back and re-raised immediately.
+
+    This makes every bare ``db.session.commit()`` in the codebase safe
+    without requiring per-call-site ``try / except / rollback`` logic.
+    """
+
+    #: Maximum seconds to retry before raising.  Set per-thread via
+    #: ``db.session.commit_timeout = <seconds>`` (e.g. ripper threads
+    #: set 90).  Defaults to ``_DEFAULT_COMMIT_TIMEOUT``.
+    commit_timeout: float = _DEFAULT_COMMIT_TIMEOUT
+
+    def commit(self):
+        elapsed = 0.0
+        backoff = 0.1
+        timeout = getattr(self, 'commit_timeout', _DEFAULT_COMMIT_TIMEOUT)
+        while True:
+            try:
+                super().commit()
+                return
+            except Exception as exc:
+                if "locked" in str(exc).lower() and elapsed < timeout:
+                    self.rollback()
+                    sleep(backoff)
+                    elapsed += backoff
+                    log.debug(
+                        "db commit: database locked, retrying in %.1fs "
+                        "(%.1f/%.0fs elapsed)",
+                        backoff, elapsed, timeout,
+                    )
+                    backoff = min(backoff * 2, 2.0)
+                else:
+                    log.warning("db commit failed: %s", exc)
+                    self.rollback()
+                    raise
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +181,7 @@ class _DB:
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA busy_timeout=30000")
                 cursor.close()
-        factory = sessionmaker(bind=self._engine)
+        factory = sessionmaker(bind=self._engine, class_=RetrySession)
         self._session_factory = scoped_session(factory)
         log.info("Database engine initialised: %s", db_uri)
 
