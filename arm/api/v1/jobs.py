@@ -251,7 +251,12 @@ def pause_waiting_job(job_id: int):
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
     new_val = not (getattr(job, 'manual_pause', False) or False)
-    svc_files.database_updater({"manual_pause": new_val}, job)
+    updates = {"manual_pause": new_val}
+    if not new_val:
+        # Resuming - reset wait_start_time so the UI countdown restarts from now
+        from datetime import datetime
+        updates["wait_start_time"] = datetime.now()
+    svc_files.database_updater(updates, job)
     return {"success": True, "job_id": job.job_id, "paused": new_val}
 
 
