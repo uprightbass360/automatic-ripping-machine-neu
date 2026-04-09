@@ -1,5 +1,43 @@
 # Changelog
 
+## [15.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.0.0...v15.1.0) (2026-04-09)
+
+
+### Features
+
+* add global defaults for prescan cache, retries, and disc enum timeout ([1077ccb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1077ccbb7c448310c256d0032705642a0e072290))
+* add per-drive prescan settings columns and migration ([b4c23c2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b4c23c259d1d6b31e2eb0ae44f49ca8bc6c8cde9))
+* add POST /jobs/{id}/tracks/auto-number endpoint ([b1f5cc3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b1f5cc3419294917173ea668ab7fb9089a80eb0c))
+* async API safety - prevent worker blocking and fix thread races ([e3c6f43](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e3c6f43ed3a3a6cf2d2b8b41cb9c091eb13de557))
+* auto-number episodes on series discs when TVDB matching unavailable ([6bd4778](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6bd477840d4cf77fd366154bdaffbb0829d776a0))
+* comprehensive abcde/cdparanoia output classifier ([1641579](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/16415794ce2e410430ebe95006d0ac5f6d8d759d))
+* extend drive API with prescan settings serialization and validation ([0a20c0c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0a20c0c01e09e2e80d96af133e993c4e80e70cac))
+* mark tracks ripped in real-time during MakeMKV rip ([b3f758c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b3f758c22979765f73351da2b551f8663fd6e74e))
+* parameterize prescan cache size and enum timeout (no longer hardcoded) ([0f89492](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0f8949256a7d0621e572f1fd7942b2c43176c40c))
+* stream abcde output through structured logging ([1592723](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/15927231d5daa7ef5b0c62b0c1adb519b7cd9f67))
+* use per-drive prescan overrides with global fallback in prescan loop ([f65602b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f65602bf688010f6dcf666b795cfd5d0d05c2d68))
+
+
+### Bug Fixes
+
+* accept explicit paused value in pause endpoint ([31806a4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/31806a4c4425f1cb2ed72d24b0b2e40a5bb8fe0c))
+* add pragma no cover for entry-point lock cleanup ([ec02174](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ec021748ea45ee8ecbe4c2d264ae28d728c54bd6))
+* address code review findings ([569b6be](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/569b6beaf2526cb1c9b62d6051a961d63194a77d))
+* address code review findings for async-api-safety ([833fd60](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/833fd60fef5d9d15bbb18bcfc699f9e2f3481d4c))
+* audio format tests race with background disk_usage_cache subprocess ([427a4df](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/427a4df912b1eac32ff1742d1f409a281f670e36))
+* create subdirectories as arm user to avoid root ownership on NFS ([fb5d1cb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fb5d1cb6d5c2c853ec1277314ed26c70fcc4e42f))
+* detect and break stale per-device lock files ([233c7f9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/233c7f98dcf6fd9ef790730deddb35052983006a))
+* handle TVDB API returning null data in resolve_tvdb_id ([7af59c5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7af59c5149498168ad6b22042fc89c84e203174d))
+* prevent DB lock on notification from rolling back title update ([97de83a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/97de83aa20a657a5cab96ac0210a6c72d24a98ea))
+* regression fixes - session cleanup on executor threads, log format ([4db2608](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4db26087d7c96f0ba058a07123365786818f0f9f))
+* remove pipe from exec in wrapper to fix flock release on job completion ([0a33ae9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0a33ae93b71c4ec4c65d3afe63fe6c60060d68c3))
+* remove stale per-device lock files on container startup ([208d2dd](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/208d2dd65d8192f6469adb7944788338050dde2f))
+* reset wait_start_time when resuming a paused job ([8712dab](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8712dab0f10799c9d65bd1f565fde7b1b09cefe5))
+* second review - rollback on timeout, unused import, docstring ([e184148](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e1841483c1672f83f360494afc6af755eb5aed2d))
+* set per-drive prescan mock attributes to None in prescan retry test ([2379d26](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2379d26ecdc4b228a8d1928d91fdc58781710e2d))
+* use correct enum name MessageID instead of MakeMKVMessageCode ([acdbbf7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/acdbbf73d61db840a48da0be917ae4c58e152855))
+* warn on startup when directories are not writable by arm user ([f4dd44d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f4dd44d1790b408a7f508f06a4d7cb36e00b83e0))
+
 ## [15.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v14.2.0...v15.0.0) (2026-04-06)
 
 
