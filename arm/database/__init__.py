@@ -76,10 +76,11 @@ _DEFAULT_COMMIT_TIMEOUT = 10.0
 class RetrySession(Session):
     """Session subclass that retries ``commit()`` on SQLite BUSY errors.
 
-    When ``commit()`` raises an ``OperationalError`` containing
-    "database is locked", the session is rolled back and the commit is
-    retried with exponential backoff (0.1 s initial, 2.0 s cap) until
-    *commit_timeout* seconds have elapsed.
+    When ``commit()`` raises an error containing "database is locked",
+    the session snapshots all dirty/new/deleted state, rolls back the
+    invalid transaction (required by SQLAlchemy), re-applies the
+    snapshot, and retries with exponential backoff (0.1 s initial,
+    2.0 s cap) until *commit_timeout* seconds have elapsed.
 
     Non-lock errors are rolled back and re-raised immediately.
 
@@ -92,6 +93,65 @@ class RetrySession(Session):
     #: set 90).  Defaults to ``_DEFAULT_COMMIT_TIMEOUT``.
     commit_timeout: float = _DEFAULT_COMMIT_TIMEOUT
 
+    @staticmethod
+    def _snapshot_dirty(session):
+        """Capture all pending mutations so they survive a rollback.
+
+        Returns a list of (obj, {attr: value}) tuples for dirty objects,
+        a list of new (transient) objects with their attribute dicts,
+        and a list of objects marked for deletion.
+        """
+        dirty = []
+        for obj in list(session.dirty):
+            state = {}
+            insp = getattr(obj, '__mapper__', None)
+            if insp is None:
+                continue
+            for attr in insp.columns:
+                key = attr.key
+                hist = getattr(
+                    obj.__class__, key
+                ).impl.get_history(
+                    obj._sa_instance_state, {}, passive=False
+                )
+                if hist.has_changes():
+                    state[key] = getattr(obj, key)
+            if state:
+                dirty.append((obj, state))
+
+        new = []
+        for obj in list(session.new):
+            attrs = {}
+            insp = getattr(obj, '__mapper__', None)
+            if insp is None:
+                continue
+            for attr in insp.columns:
+                val = getattr(obj, attr.key, None)
+                if val is not None:
+                    attrs[attr.key] = val
+            new.append((obj, attrs))
+
+        deleted = list(session.deleted)
+        return dirty, new, deleted
+
+    @staticmethod
+    def _restore_snapshot(session, dirty, new, deleted):
+        """Re-apply mutations captured by ``_snapshot_dirty``."""
+        for obj, attrs in dirty:
+            for key, val in attrs.items():
+                setattr(obj, key, val)
+        for obj, attrs in new:
+            # Re-add transient objects; restore their attributes
+            # (rollback may have expunged or reset them).
+            session.add(obj)
+            for key, val in attrs.items():
+                setattr(obj, key, val)
+        for obj in deleted:
+            try:
+                session.delete(obj)
+            except Exception:
+                pass  # Object may no longer be in session
+
     def commit(self):
         elapsed = 0.0
         backoff = 0.1
@@ -102,7 +162,11 @@ class RetrySession(Session):
                 return
             except Exception as exc:
                 if "locked" in str(exc).lower() and elapsed < timeout:
+                    # Snapshot dirty state before rollback destroys it
+                    dirty, new, deleted = self._snapshot_dirty(self)
                     self.rollback()
+                    # Re-apply so next commit attempt has the same mutations
+                    self._restore_snapshot(self, dirty, new, deleted)
                     sleep(backoff)
                     elapsed += backoff
                     log.debug(

@@ -111,6 +111,58 @@ class TestRetryOnLocked:
 
         assert call_count["n"] == 2  # 1 failure + 1 success
 
+    def test_dirty_state_preserved_across_retry(self, retry_db):
+        """Modified attributes must persist after retry, not revert to DB values."""
+        job = _make_job(title="Original", status="active")
+        db.session.add(job)
+        db.session.commit()
+
+        # Modify attributes
+        job.title = "Modified"
+        job.status = "ripping"
+
+        call_count = {"n": 0}
+        real_commit = BaseSession.commit
+
+        def locked_then_ok(session_self):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise OperationalError(
+                    "commit", {}, Exception("database is locked")
+                )
+            return real_commit(session_self)
+
+        with patch.object(BaseSession, 'commit', locked_then_ok):
+            db.session.commit()
+
+        # Verify the modified values persisted, not the originals
+        db.session.expire_all()
+        result = db.session.query(Job).first()
+        assert result.title == "Modified", f"Expected 'Modified', got '{result.title}'"
+        assert result.status == "ripping", f"Expected 'ripping', got '{result.status}'"
+
+    def test_new_object_survives_retry(self, retry_db):
+        """A newly added object must survive rollback+retry."""
+        job = _make_job(title="NewJob", status="success")
+        db.session.add(job)
+
+        call_count = {"n": 0}
+        real_commit = BaseSession.commit
+
+        def locked_then_ok(session_self):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise OperationalError(
+                    "commit", {}, Exception("database is locked")
+                )
+            return real_commit(session_self)
+
+        with patch.object(BaseSession, 'commit', locked_then_ok):
+            db.session.commit()
+
+        result = db.session.query(Job).filter_by(title="NewJob").first()
+        assert result is not None, "New object was lost after retry"
+
     def test_retries_with_backoff(self, retry_db):
         """Verify exponential backoff timing between retries."""
         lock_error = OperationalError(
