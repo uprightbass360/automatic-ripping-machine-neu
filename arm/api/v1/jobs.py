@@ -241,8 +241,15 @@ def start_waiting_job(job_id: int):
 
 
 @router.post('/jobs/{job_id}/pause')
-def pause_waiting_job(job_id: int):
-    """Toggle per-job pause for a job in 'waiting' status."""
+def pause_waiting_job(job_id: int, body: dict | None = None):
+    """Set or toggle per-job pause for a job in 'waiting' status.
+
+    If the request body contains {"paused": true/false}, use that value
+    explicitly.  Otherwise toggle the current manual_pause flag.
+    Explicit mode is needed when the UI wants to resume a job that is
+    paused by the global flag (manual_pause is already false, so a
+    blind toggle would set it to true instead of resuming).
+    """
     job = Job.query.get(job_id)
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
@@ -250,7 +257,11 @@ def pause_waiting_job(job_id: int):
     if job.status != JobState.MANUAL_WAIT_STARTED.value:
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
-    new_val = not (getattr(job, 'manual_pause', False) or False)
+    if body and "paused" in body:
+        new_val = bool(body["paused"])
+    else:
+        new_val = not (getattr(job, 'manual_pause', False) or False)
+
     updates = {"manual_pause": new_val}
     if not new_val:
         # Resuming - reset wait_start_time so the UI countdown restarts from now
