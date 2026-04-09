@@ -245,6 +245,25 @@ class _DB:
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA busy_timeout=30000")
                 cursor.close()
+
+            # Use BEGIN IMMEDIATE for file-backed databases.  SQLite's
+            # default BEGIN DEFERRED starts a read transaction that must
+            # be upgraded to a write lock on the first write.  This
+            # upgrade fails instantly with SQLITE_BUSY (busy_timeout
+            # does NOT apply to lock upgrades), causing "database is
+            # locked" errors that cannot be retried.  BEGIN IMMEDIATE
+            # acquires the write lock up front, so busy_timeout works
+            # correctly and concurrent writers queue instead of
+            # deadlocking.
+            #
+            # Skip for in-memory databases (used in tests with
+            # StaticPool) where there's only one connection and no
+            # contention.
+            if ":memory:" not in db_uri:
+                @event.listens_for(self._engine, "begin")
+                def _begin_immediate(conn):
+                    conn.exec_driver_sql("BEGIN IMMEDIATE")
+
         factory = sessionmaker(bind=self._engine, class_=RetrySession)
         self._session_factory = scoped_session(factory)
         log.info("Database engine initialised: %s", db_uri)
