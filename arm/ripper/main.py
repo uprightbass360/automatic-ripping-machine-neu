@@ -445,7 +445,7 @@ if __name__ == "__main__":
         # script holds flock on fd 9 which auto-releases when this
         # process exits, but the file itself would remain and confuse
         # stale-lock detection.  Best-effort removal (ignore errors).
-        try:
+        try:  # pragma: no cover — entry-point cleanup, not reachable in unit tests
             import os
             dev = args.devpath if args else None
             if dev:
