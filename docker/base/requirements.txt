@@ -15,7 +15,7 @@ pydvdid==1.1
 PyYAML==6.0.2
 pyudev==0.24.4
 requests==2.33.1
-SQLAlchemy==2.0.48
+SQLAlchemy==2.0.49
 structlog>=24.4.0
 urllib3==2.6.3
 uvicorn[standard]==0.42.0
