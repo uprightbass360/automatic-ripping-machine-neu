@@ -88,7 +88,9 @@ for dir in $SUBDIRS ; do
   # Verify the arm user can actually write to the directory.
   # On NFS with root_squash, mkdir-as-root + failed chown leaves
   # root-owned dirs that the arm user cannot write to.
-  if ! su -s /bin/sh arm -c "test -w '${thisDir}'" 2>/dev/null; then
+  # Skip check for media/transcode — it is intentionally mounted read-only
+  # from the transcoder work dir (for the file browser to show in-progress transcodes).
+  if [[ "$dir" != "media/transcode" ]] && ! su -s /bin/sh arm -c "test -w '${thisDir}'" 2>/dev/null; then
     WRITE_WARNINGS="${WRITE_WARNINGS}\n  [WARN] $thisDir is NOT writable by arm ($ARM_UID:$ARM_GID)"
   fi
 done
