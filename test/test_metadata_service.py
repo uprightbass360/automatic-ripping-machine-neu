@@ -997,6 +997,33 @@ class TestLookupCrc:
         assert result["found"] is False
         assert "error" in result
 
+    def test_poster_img_none_string_sanitized(self):
+        """CRC API returning poster_img='None' (string) should become empty string."""
+        from arm.services.metadata import lookup_crc
+        crc_resp = {
+            "success": True,
+            "results": {"0": {
+                "title": "Gods Not Dead 2", "year": "2016", "imdb_id": "tt4824308",
+                "tmdb_id": "None", "video_type": "movie", "disctype": "None",
+                "label": "Gods_Not_Dead_2", "poster_img": "None",
+                "hasnicetitle": "True", "validated": "False", "date_added": "2025-05-01",
+            }},
+        }
+        mock_resp = unittest.mock.MagicMock(spec=httpx.Response)
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = crc_resp
+        mock_resp.raise_for_status = unittest.mock.MagicMock()
+
+        with unittest.mock.patch('httpx.AsyncClient') as mock_cls:
+            ctx = unittest.mock.AsyncMock()
+            ctx.get = unittest.mock.AsyncMock(return_value=mock_resp)
+            mock_cls.return_value.__aenter__ = unittest.mock.AsyncMock(return_value=ctx)
+            mock_cls.return_value.__aexit__ = unittest.mock.AsyncMock(return_value=False)
+            result = _run(lookup_crc("90a40c808981776c"))
+
+        assert result["found"] is True
+        assert result["results"][0]["poster_url"] == ""
+
 
 # ---------------------------------------------------------------------------
 # test_configured_key

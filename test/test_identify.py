@@ -582,6 +582,91 @@ class TestIdentifyDvdCrc:
             result = identify_dvd(job)
         assert result is False
 
+    def test_crc_no_poster_falls_back_to_metadata(self):
+        """CRC match with no poster fetches it from OMDb/TMDb via IMDB ID."""
+        from arm.ripper.identify import identify_dvd
+
+        job = self._make_job()
+        crc_result = {
+            "found": True,
+            "results": [{
+                "title": "Gods Not Dead 2", "year": "2016",
+                "imdb_id": "tt4824308", "video_type": "movie",
+                "poster_url": "",
+            }]
+        }
+        details_result = {
+            "title": "God's Not Dead 2", "year": "2016",
+            "imdb_id": "tt4824308", "media_type": "movie",
+            "poster_url": "https://m.media-amazon.com/images/poster.jpg",
+        }
+        with unittest.mock.patch('arm.ripper.identify.pydvdid') as mock_dvdid, \
+             unittest.mock.patch('arm.services.metadata_sync.lookup_crc_sync',
+                                 return_value=crc_result), \
+             unittest.mock.patch('arm.services.metadata_sync.get_details_sync',
+                                 return_value=details_result) as mock_details, \
+             unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+            mock_dvdid.compute.return_value = "abc123"
+            mock_utils.extract_year.return_value = "2016"
+            result = identify_dvd(job)
+        assert result is True
+        mock_details.assert_called_once_with("tt4824308")
+        call_args = mock_utils.database_updater.call_args[0][0]
+        assert call_args["poster_url"] == "https://m.media-amazon.com/images/poster.jpg"
+
+    def test_crc_no_poster_no_imdb_skips_fallback(self):
+        """CRC match with no poster and no IMDB ID doesn't attempt fallback."""
+        from arm.ripper.identify import identify_dvd
+
+        job = self._make_job()
+        crc_result = {
+            "found": True,
+            "results": [{
+                "title": "Unknown Disc", "year": "2020",
+                "imdb_id": "", "video_type": "movie",
+                "poster_url": "",
+            }]
+        }
+        with unittest.mock.patch('arm.ripper.identify.pydvdid') as mock_dvdid, \
+             unittest.mock.patch('arm.services.metadata_sync.lookup_crc_sync',
+                                 return_value=crc_result), \
+             unittest.mock.patch('arm.services.metadata_sync.get_details_sync') as mock_details, \
+             unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+            mock_dvdid.compute.return_value = "abc123"
+            mock_utils.extract_year.return_value = "2020"
+            result = identify_dvd(job)
+        assert result is True
+        mock_details.assert_not_called()
+
+    def test_crc_poster_fallback_failure_still_succeeds(self):
+        """CRC match succeeds even when metadata poster fallback fails."""
+        from arm.ripper.identify import identify_dvd
+
+        job = self._make_job()
+        crc_result = {
+            "found": True,
+            "results": [{
+                "title": "Gods Not Dead 2", "year": "2016",
+                "imdb_id": "tt4824308", "video_type": "movie",
+                "poster_url": "",
+            }]
+        }
+        with unittest.mock.patch('arm.ripper.identify.pydvdid') as mock_dvdid, \
+             unittest.mock.patch('arm.services.metadata_sync.lookup_crc_sync',
+                                 return_value=crc_result), \
+             unittest.mock.patch('arm.services.metadata_sync.get_details_sync',
+                                 side_effect=Exception("API timeout")), \
+             unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+            mock_dvdid.compute.return_value = "abc123"
+            mock_utils.extract_year.return_value = "2016"
+            result = identify_dvd(job)
+        assert result is True
+        call_args = mock_utils.database_updater.call_args[0][0]
+        assert call_args["poster_url"] == ""
+
     def test_pydvdid_exception_returns_false(self):
         """pydvdid.compute() exception is caught, returns False."""
         from arm.ripper.identify import identify_dvd
