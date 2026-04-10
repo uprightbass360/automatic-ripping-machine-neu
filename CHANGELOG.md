@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.2.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.1...v15.2.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* skip writability check for read-only media/transcode mount ([8bdf193](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8bdf193db0022773970ccabbca4075919562a1a2))
+
 ## [15.2.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.0...v15.2.1) (2026-04-10)
 
 
