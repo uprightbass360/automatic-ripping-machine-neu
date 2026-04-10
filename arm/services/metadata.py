@@ -357,7 +357,7 @@ async def lookup_crc(crc64: str) -> dict[str, Any]:
             "video_type": entry.get("video_type", ""),
             "disctype": entry.get("disctype", ""),
             "label": entry.get("label", ""),
-            "poster_url": entry.get("poster_img", ""),
+            "poster_url": "" if entry.get("poster_img") in (None, "None", "N/A") else entry.get("poster_img", ""),
             "hasnicetitle": entry.get("hasnicetitle", ""),
             "validated": entry.get("validated", ""),
             "date_added": entry.get("date_added", ""),
