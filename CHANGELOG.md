@@ -1,5 +1,25 @@
 # Changelog
 
+## [15.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.1.0...v15.2.0) (2026-04-10)
+
+
+### Features
+
+* add RetrySession for automatic SQLite BUSY retry on all commits ([9996639](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9996639474c1ed7d892c32fb581b2e4b865a933b))
+
+
+### Bug Fixes
+
+* disable pysqlite transaction management for BEGIN IMMEDIATE ([a7cc73b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a7cc73b7b0ca8ba94e72b1c35f3043b99b56800f))
+* mark integration tests so CI skips them ([aa77ff5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/aa77ff505400bc2a5f6cf1e7a32bea09a6c4dff7))
+* preserve dirty state across RetrySession rollback+retry ([fe3f019](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fe3f019fcd7c2a75b695549ac5035b48b95b961c))
+* use BEGIN IMMEDIATE to prevent transaction upgrade deadlocks ([60cec7d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/60cec7d1b76bfeb59ad5598e653376cddc3cac2e))
+
+
+### Reverts
+
+* remove BEGIN IMMEDIATE - blocks reads during long writes ([d3edb7a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d3edb7abd71ec6b41aa90683bd20b588bf107297))
+
 ## [15.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.0.0...v15.1.0) (2026-04-09)
 
 
