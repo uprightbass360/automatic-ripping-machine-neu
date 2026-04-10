@@ -265,25 +265,12 @@ class _DB:
             # disable pysqlite's management but use plain BEGIN (no
             # contention with a single connection).
 
-            _is_file_db = ":memory:" not in db_uri
-
             @event.listens_for(self._engine, "connect")
             def _set_sqlite_pragma(dbapi_conn, connection_record):
-                # For file-backed databases: disable pysqlite's own
-                # transaction management so we can emit BEGIN IMMEDIATE
-                # ourselves.  For in-memory (tests): leave pysqlite's
-                # management alone (StaticPool + single connection).
-                if _is_file_db:
-                    dbapi_conn.isolation_level = None
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA journal_mode=WAL")
                 cursor.execute("PRAGMA busy_timeout=30000")
                 cursor.close()
-
-            if _is_file_db:
-                @event.listens_for(self._engine, "begin")
-                def _begin_immediate(conn):
-                    conn.exec_driver_sql("BEGIN IMMEDIATE")
 
         factory = sessionmaker(bind=self._engine, class_=RetrySession)
         self._session_factory = scoped_session(factory)
