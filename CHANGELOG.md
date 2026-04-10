@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.2.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.0...v15.2.1) (2026-04-10)
+
+
+### Bug Fixes
+
+* reset manual_start flag after wait loop exits ([003af25](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/003af255e2c618a61bc0d6ca97095dfbdbfcb9b6))
+
 ## [15.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.1.0...v15.2.0) (2026-04-10)
 
 
