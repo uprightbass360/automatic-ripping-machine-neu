@@ -1307,7 +1307,7 @@ def check_for_wait(job):
     database_updater({"status": JobState.MANUAL_WAIT_STARTED.value,
                       "wait_start_time": datetime.datetime.now()}, job)
     _poll_manual_wait(job)
-    database_updater({"status": JobState.IDLE.value}, job)
+    database_updater({"status": JobState.IDLE.value, "manual_start": False}, job)
 
 
 def get_drive_mode(devpath: str) -> str:

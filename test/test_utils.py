@@ -35,6 +35,31 @@ class TestCheckForWait:
 
         assert sample_job.status == "ready"  # JobState.IDLE.value
 
+    def test_manual_start_reset_after_wait(self, app_context, sample_job):
+        """manual_start must be reset to False after check_for_wait returns."""
+        from arm.ripper.utils import check_for_wait
+        from arm.database import db
+
+        call_count = 0
+        original_refresh = db.session.refresh
+
+        def fake_refresh(obj):
+            nonlocal call_count
+            original_refresh(obj)
+            call_count += 1
+            if call_count >= 1:
+                obj.manual_start = True
+                db.session.commit()
+
+        with unittest.mock.patch('arm.ripper.utils.time.sleep'), \
+             unittest.mock.patch('arm.ripper.utils.is_ripping_paused', return_value=True), \
+             unittest.mock.patch.object(db.session, 'refresh', side_effect=fake_refresh):
+            check_for_wait(sample_job)
+
+        # After the wait loop exits, manual_start should be cleared
+        # so subsequent UI refreshes don't see a stale True value
+        assert sample_job.manual_start is False
+
     def test_manual_pause_holds_job(self, app_context, sample_job):
         """manual_pause=True prevents timeout from proceeding."""
         from arm.ripper.utils import check_for_wait, database_updater
