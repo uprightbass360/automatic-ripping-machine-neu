@@ -47,15 +47,24 @@ def get_allowed_roots() -> dict[str, str]:
     return roots
 
 
-def _read_host_mounts() -> dict[str, str]:
-    """Parse /proc/self/mountinfo to map container paths → host source paths.
+class _MountInfo:
+    """Info about a single mount point."""
+    __slots__ = ('source', 'readonly')
+
+    def __init__(self, source: str, readonly: bool):
+        self.source = source
+        self.readonly = readonly
+
+
+def _read_host_mounts() -> dict[str, _MountInfo]:
+    """Parse /proc/self/mountinfo to map container paths → mount info.
 
     Handles Docker bind mounts (host path in field 3) and NFS mounts
     (remote path from the device field after the ``-`` separator).
 
-    Returns a dict of container_mount_point → source_path.
+    Returns a dict of container_mount_point → _MountInfo (source path + readonly flag).
     """
-    mounts: dict[str, str] = {}
+    mounts: dict[str, _MountInfo] = {}
     try:
         with open('/proc/self/mountinfo') as f:
             for line in f:
@@ -63,7 +72,9 @@ def _read_host_mounts() -> dict[str, str]:
                 if len(parts) < 10:
                     continue
                 mount_point = parts[4]
+                mount_opts = parts[5]  # per-mount options (ro/rw,relatime,...)
                 host_root = parts[3]  # root within the mounted filesystem
+                readonly = mount_opts.startswith('ro,') or mount_opts == 'ro'
 
                 # Locate the "-" separator to find fs-type and device
                 try:
@@ -77,18 +88,36 @@ def _read_host_mounts() -> dict[str, str]:
 
                 # Docker bind mounts: host_root is the actual host path
                 if host_root != '/' and fs_type not in ('proc', 'sysfs', 'tmpfs', 'devpts', 'cgroup', 'cgroup2'):
-                    mounts[mount_point] = host_root
+                    mounts[mount_point] = _MountInfo(host_root, readonly)
                 # NFS mounts: device is "host:/remote/path"
                 elif fs_type == 'nfs' and ':' in device:
                     remote_path = device.split(':', 1)[1]
-                    mounts[mount_point] = remote_path
+                    mounts[mount_point] = _MountInfo(remote_path, readonly)
     except OSError:
         pass
     return mounts
 
 
-def get_roots() -> list[dict[str, str]]:
-    """Return list of browsable root directories with labels and host paths."""
+def _find_mount_for_path(path: str, host_mounts: dict[str, _MountInfo]) -> tuple[str, _MountInfo] | tuple[str, None]:
+    """Find the best (longest) matching mount point for a given path."""
+    best_mount = ''
+    best_info = None
+    for mount_point, info in host_mounts.items():
+        if (path == mount_point or path.startswith(mount_point + '/')) and len(mount_point) > len(best_mount):
+            best_mount = mount_point
+            best_info = info
+    return best_mount, best_info
+
+
+def is_path_readonly(path: str) -> bool:
+    """Check if a path is on a read-only mount."""
+    host_mounts = _read_host_mounts()
+    _, info = _find_mount_for_path(str(Path(path).resolve()), host_mounts)
+    return info.readonly if info else False
+
+
+def get_roots() -> list[dict]:
+    """Return list of browsable root directories with labels, host paths, and readonly status."""
     labels = {
         'raw': 'Raw',
         'completed': 'Completed',
@@ -99,20 +128,17 @@ def get_roots() -> list[dict[str, str]]:
     host_mounts = _read_host_mounts()
     results = []
     for key, path in get_allowed_roots().items():
-        entry: dict[str, str] = {
+        entry: dict = {
             'key': key,
             'label': labels.get(key, key.title()),
             'path': path,
+            'readonly': False,
         }
-        # Find the best matching mount for this path
-        best_mount = ''
-        for mount_point in host_mounts:
-            if (path == mount_point or path.startswith(mount_point + '/')) and len(mount_point) > len(best_mount):
-                best_mount = mount_point
-        if best_mount:
-            host_base = host_mounts[best_mount]
-            suffix = path[len(best_mount):]
-            entry['host_path'] = host_base + suffix
+        mount_point, info = _find_mount_for_path(path, host_mounts)
+        if info:
+            suffix = path[len(mount_point):]
+            entry['host_path'] = info.source + suffix
+            entry['readonly'] = info.readonly
         results.append(entry)
     return results
 
@@ -258,6 +284,7 @@ def list_directory(path: str) -> dict:
         'path': resolved_str,
         'parent': parent,
         'entries': entries,
+        'readonly': is_path_readonly(resolved_str),
     }
 
 
