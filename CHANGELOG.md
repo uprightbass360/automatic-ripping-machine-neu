@@ -1,5 +1,14 @@
 # Changelog
 
+## [15.2.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.2...v15.2.3) (2026-04-11)
+
+
+### Bug Fixes
+
+* enable FLAC encoding defaults and add DVD poster fallback ([6b49c52](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6b49c52af88049a0ead45e3c549320819cbd51c3))
+* enable FLAC encoding defaults in abcde config ([80ba4ab](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/80ba4ab1460140f837c10c1f4f67fe68f08a43f2))
+* fetch poster from OMDb/TMDb when CRC64 record has none ([542f258](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/542f2581509ced391729086d7722a62977c00a29))
+
 ## [15.2.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.1...v15.2.2) (2026-04-10)
 
 
