@@ -461,6 +461,17 @@ def identify_dvd(job):
             hit = crc_result["results"][0]
             logging.info("Found crc64 id from online API")
             logging.info(f"title is {hit['title']}")
+            poster = hit.get('poster_url') or None
+            # CRC entries often lack poster art — fall back to OMDb/TMDb
+            if not poster and hit.get('imdb_id'):
+                try:
+                    from arm.services.metadata_sync import get_details_sync
+                    details = get_details_sync(hit['imdb_id'])
+                    if details and details.get('poster_url'):
+                        poster = details['poster_url']
+                        logging.info("Fetched poster from metadata provider for %s", hit['imdb_id'])
+                except Exception as e:
+                    logging.warning("Poster fallback failed for %s: %s", hit['imdb_id'], e)
             args = {
                 'title': hit['title'],
                 'title_auto': hit['title'],
@@ -470,8 +481,8 @@ def identify_dvd(job):
                 'imdb_id_auto': hit['imdb_id'],
                 'video_type': hit['video_type'],
                 'video_type_auto': hit['video_type'],
-                'poster_url': hit['poster_url'],
-                'poster_url_auto': hit['poster_url'],
+                'poster_url': poster,
+                'poster_url_auto': poster,
                 'hasnicetitle': True
             }
             utils.database_updater(args, job)
