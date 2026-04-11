@@ -3,6 +3,7 @@
 Covers job_dupe_check(), check_for_dupe_folder(), find_file(), scan_emby(),
 check_for_wait(), duplicate_run_check(), and MusicBrainz helper functions.
 """
+import io
 import os
 import unittest.mock
 
@@ -686,11 +687,9 @@ class TestMakeMkvRunParserFragility:
             'MSG:1005,0,1,"MakeMKV started","","""\n',  # valid MSG
         ]
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(fake_stdout)
+        mock_proc.stdout = io.StringIO("".join(fake_stdout))
         mock_proc.returncode = 0
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = unittest.mock.MagicMock(return_value=False)
 
         with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
              unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
@@ -704,11 +703,9 @@ class TestMakeMkvRunParserFragility:
 
         fake_stdout = ['Some error output\n']
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(fake_stdout)
+        mock_proc.stdout = io.StringIO("".join(fake_stdout))
         mock_proc.returncode = 1
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = unittest.mock.MagicMock(return_value=False)
 
         with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
              unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
@@ -724,11 +721,9 @@ class TestMakeMkvRunParserFragility:
             'Using direct disc access mode\n',
         ]
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(fake_stdout)
+        mock_proc.stdout = io.StringIO("".join(fake_stdout))
         mock_proc.returncode = 0
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = unittest.mock.MagicMock(return_value=False)
 
         with unittest.mock.patch('shutil.which', return_value='/usr/bin/makemkvcon'), \
              unittest.mock.patch('subprocess.Popen', return_value=mock_proc):

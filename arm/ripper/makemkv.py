@@ -1701,7 +1701,15 @@ def run(options, select):
     cmd += list(options)
     buffer = []
     logging.debug(f"command: '{' '.join(cmd)}'")
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True) as proc:
+    # Do NOT use `with Popen(...) as proc:` here.  The context manager
+    # calls proc.wait() during generator cleanup (__del__/close), which
+    # blocks while MakeMKV finishes writing files to disk.  If a SIGTERM
+    # arrives during that wait, Python silently swallows the exception
+    # (PEP 342) and the process dies without logging.  Instead, manage
+    # the process lifecycle explicitly so proc.wait() runs in the main
+    # execution path where signal handlers work normally.
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
+    try:
         logging.debug(f"PID {proc.pid}: command: '{' '.join(cmd)}'")
         for line in proc.stdout:
             line = line.rstrip(os.linesep)
@@ -1729,6 +1737,13 @@ def run(options, select):
                 logging.debug(data)
             if msg_type in select:
                 yield data
+    finally:
+        # Explicitly wait for the process in a finally block so it runs
+        # in the caller's execution context, not during GC.  This ensures
+        # SIGTERM handlers fire properly and any errors are logged.
+        logging.info("Waiting for MakeMKV process (PID %d) to finish...", proc.pid)
+        proc.stdout.close()
+        proc.wait()
     if proc.returncode:
         raise MakeMkvRuntimeError(proc.returncode, cmd, output=os.linesep.join(buffer))
     logging.info("MakeMKV exits gracefully.")
