@@ -537,8 +537,11 @@ def update_job(job, search_results):
     if 'Search' not in search_results:
         return None
 
-    # Use the disc label for matching; fall back to current title if no label
-    raw_label = job.label or job.title or ''
+    # Prefer the expanded title for matching (e.g. "The Girl With The Dragon
+    # Tattoo") over the raw disc label (e.g. "TGWTDT") — the title was used
+    # for the OMDb/TMDb search, so matching against it produces better scores.
+    # Fall back to label only when no title is set.
+    raw_label = job.title or job.label or ''
 
     # disc_year from prior identification (bdmt_eng.xml timestamp, CRC64 lookup)
     disc_year = str(job.year_auto) if job.year_auto else None
