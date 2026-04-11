@@ -440,6 +440,23 @@ def identify_bluray(job):
     return True
 
 
+def _resolve_poster(hit: dict) -> str:
+    """Return poster URL from CRC hit, falling back to OMDb/TMDb."""
+    poster = hit.get('poster_url') or None
+    if poster or not hit.get('imdb_id'):
+        return poster or ''
+    logging.info("CRC64 record has no poster, fetching from metadata provider")
+    try:
+        from arm.services.metadata_sync import get_details_sync
+        details = get_details_sync(hit['imdb_id'])
+        if details and details.get('poster_url'):
+            logging.info("Poster fetched from metadata provider: %s", details['poster_url'])
+            return details['poster_url']
+    except Exception as exc:
+        logging.warning("Metadata poster fallback failed: %s", exc)
+    return ''
+
+
 def identify_dvd(job):
     """Try to identify DVD via CRC64 online database lookup (Phase 3).
 
@@ -461,18 +478,7 @@ def identify_dvd(job):
             hit = crc_result["results"][0]
             logging.info("Found crc64 id from online API")
             logging.info(f"title is {hit['title']}")
-            poster = hit.get('poster_url') or None
-            # CRC64 DB often has no poster — fall back to OMDb/TMDb if we have an IMDB ID
-            if not poster and hit.get('imdb_id'):
-                logging.info("CRC64 record has no poster, fetching from metadata provider")
-                try:
-                    from arm.services.metadata_sync import get_details_sync
-                    details = get_details_sync(hit['imdb_id'])
-                    if details and details.get('poster_url'):
-                        poster = details['poster_url']
-                        logging.info(f"Poster fetched from metadata provider: {poster}")
-                except Exception as exc:
-                    logging.warning(f"Metadata poster fallback failed: {exc}")
+            poster = _resolve_poster(hit)
             args = {
                 'title': hit['title'],
                 'title_auto': hit['title'],
@@ -482,8 +488,8 @@ def identify_dvd(job):
                 'imdb_id_auto': hit['imdb_id'],
                 'video_type': hit['video_type'],
                 'video_type_auto': hit['video_type'],
-                'poster_url': poster or '',
-                'poster_url_auto': poster or '',
+                'poster_url': poster,
+                'poster_url_auto': poster,
                 'hasnicetitle': True
             }
             utils.database_updater(args, job)
