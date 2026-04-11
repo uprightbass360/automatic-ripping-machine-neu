@@ -3,6 +3,7 @@
 Verifies that key MakeMKV events are logged at INFO (visible in production)
 and that rsync progress lines are logged at DEBUG (not flooding structured logs).
 """
+import io
 import logging
 import os
 import subprocess
@@ -21,11 +22,9 @@ class TestMakeMKVLogLevels:
         # Mock makemkvcon to emit a TCOUNT line
         mock_stdout = "TCOUNT:3\n"
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(mock_stdout.splitlines(keepends=True))
+        mock_proc.stdout = io.StringIO(mock_stdout)
         mock_proc.returncode = 0
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = lambda s, *a: None
 
         with (
             unittest.mock.patch("subprocess.Popen", return_value=mock_proc),
@@ -45,11 +44,9 @@ class TestMakeMKVLogLevels:
 
         mock_stdout = 'MSG:5010,0,0,"Copy complete - 1 titles saved.","%1 titles saved.","1"\n'
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(mock_stdout.splitlines(keepends=True))
+        mock_proc.stdout = io.StringIO(mock_stdout)
         mock_proc.returncode = 0
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = lambda s, *a: None
 
         with (
             unittest.mock.patch("subprocess.Popen", return_value=mock_proc),
@@ -69,11 +66,9 @@ class TestMakeMKVLogLevels:
 
         mock_stdout = "PRGV:100,200,65536\n"
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(mock_stdout.splitlines(keepends=True))
+        mock_proc.stdout = io.StringIO(mock_stdout)
         mock_proc.returncode = 0
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = lambda s, *a: None
 
         with (
             unittest.mock.patch("subprocess.Popen", return_value=mock_proc),
@@ -95,11 +90,9 @@ class TestMakeMKVLogLevels:
 
         mock_stdout = 'SINFO:0,0,1,6201,"Video"\n'
         mock_proc = unittest.mock.MagicMock()
-        mock_proc.stdout = iter(mock_stdout.splitlines(keepends=True))
+        mock_proc.stdout = io.StringIO(mock_stdout)
         mock_proc.returncode = 0
         mock_proc.pid = 12345
-        mock_proc.__enter__ = lambda s: s
-        mock_proc.__exit__ = lambda s, *a: None
 
         with (
             unittest.mock.patch("subprocess.Popen", return_value=mock_proc),
