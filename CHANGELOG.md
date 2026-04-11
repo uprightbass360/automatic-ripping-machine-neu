@@ -1,5 +1,17 @@
 # Changelog
 
+## [15.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.3...v15.3.0) (2026-04-11)
+
+
+### Features
+
+* expose read-only mount status in file browser API ([d7754f7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d7754f78fc0f8c903d8e992096d36cf8289f9967))
+
+
+### Bug Fixes
+
+* match OMDb results against expanded title, not raw disc label ([2280fe3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2280fe368366b76c9881c0d5bc6216a3e27c9eb4))
+
 ## [15.2.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.2...v15.2.3) (2026-04-11)
 
 
