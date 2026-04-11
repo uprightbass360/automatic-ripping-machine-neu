@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.3.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.3.0...v15.3.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* prevent silent ripper death during MakeMKV file write ([ea7d121](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ea7d121ac3628ce26abe0339b9704e0db303d344))
+
 ## [15.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.2.3...v15.3.0) (2026-04-11)
 
 
