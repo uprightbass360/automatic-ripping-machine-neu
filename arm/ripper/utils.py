@@ -699,6 +699,15 @@ def rip_music(job, logfile):
 
         config_to_use = tmp_config or (abcfile if os.path.isfile(abcfile) else None)
 
+        # Clean up any stale abcde workdirs from crashed rips — prevents
+        # abcde from resuming partial/corrupt data instead of starting fresh.
+        import glob
+        for stale in glob.glob('/home/arm/abcde.*'):
+            if os.path.isdir(stale):
+                logging.info("Removing stale abcde workdir: %s", stale)
+                import shutil
+                shutil.rmtree(stale, ignore_errors=True)
+
         # Build command as a list (no shell redirection - we capture stdout/stderr
         # directly and feed it through structured logging).
         cmd = ['abcde', '-d', str(job.devpath)]
