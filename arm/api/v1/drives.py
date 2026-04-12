@@ -478,10 +478,26 @@ def eject_drive(drive_id: int, body: dict = {}):
 
     try:
         drive.eject(method=method)
-        return {"success": True, "drive_id": drive.drive_id, "method": method}
     except Exception as e:
         log.error("Drive %s eject(%s) failed: %s", drive_id, method, e)
         return JSONResponse(
             {"success": False, "error": "Failed to control drive tray"},
             status_code=500,
         )
+
+    # After closing the tray, trigger a rescan so ARM picks up the disc.
+    # eject --trayclose doesn't generate a udev change event, so without
+    # this the disc would go undetected until the next periodic rescan.
+    if method in ('close', 'toggle'):
+        devname = os.path.basename(drive.mount or '')
+        if devname:
+            wrapper = "/opt/arm/scripts/docker/rescan_drive.sh"
+            if os.path.isfile(wrapper):
+                log.info("Triggering rescan for %s after tray close", devname)
+                subprocess.Popen(
+                    [wrapper, devname],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+
+    return {"success": True, "drive_id": drive.drive_id, "method": method}
