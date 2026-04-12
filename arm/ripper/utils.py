@@ -593,7 +593,6 @@ def _apply_track_phases(job, grabbing, encoding, tagging):
                     changed = True
             elif tn in encoding:
                 if t.status != "encoding":
-                    t.ripped = True
                     t.status = "encoding"
                     changed = True
             elif tn in grabbing:
