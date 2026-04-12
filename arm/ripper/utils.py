@@ -506,14 +506,38 @@ def _stream_abcde_output(proc, job):
 
     Each line is classified by severity and logged as a structured JSON entry.
     Returns a list of error lines found in the output (for post-rip checking).
+
+    Raises TimeoutError if no output is received within the configured
+    CD_RIP_TIMEOUT (default 600 seconds / 10 minutes).  This catches
+    cdparanoia hangs on bad sectors that would otherwise block forever.
     """
+    import select
+
+    timeout = int(cfg.arm_config.get("CD_RIP_TIMEOUT", 600))
+
     seen_grabbing: set[int] = set()
     seen_encoding: set[int] = set()
     seen_tagging: set[int] = set()
     error_lines: list[str] = []
     last_phase_update = 0
 
-    for raw_line in proc.stdout:
+    while True:
+        # Wait for output with timeout — detects cdparanoia hangs
+        ready, _, _ = select.select([proc.stdout], [], [], timeout)
+        if not ready:
+            logging.error(
+                "CD rip stalled — no output for %d seconds. Killing abcde.", timeout
+            )
+            proc.kill()
+            proc.wait()
+            raise TimeoutError(
+                f"CD rip timed out after {timeout}s of no output (cdparanoia hang?)"
+            )
+
+        raw_line = proc.stdout.readline()
+        if not raw_line:
+            break  # EOF — process exited
+
         line = raw_line.rstrip('\n\r')
         if not line:
             continue
@@ -740,6 +764,12 @@ def rip_music(job, logfile):
             args = {"status": JobState.IDLE.value}
             database_updater(args, job)
             return True
+        except TimeoutError as te:
+            err = str(te)
+            args = {"status": JobState.FAILURE.value, "errors": err}
+            database_updater(args, job)
+            _update_music_tracks(job, ripped=False, status="fail")
+            logging.error(err)
         except subprocess.CalledProcessError as ab_error:
             err = f"Call to abcde failed with code: {ab_error.returncode}"
             args = {"status": JobState.FAILURE.value, "errors": err}
