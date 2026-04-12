@@ -136,6 +136,11 @@ AUDIO_FORMAT: "flac"
 #               Use only for pristine discs. ~5-10x faster.
 RIP_SPEED_PROFILE: "fast"
 
+# Maximum seconds to wait for output from cdparanoia during a CD rip.
+# If no output is received within this time, the rip is killed and marked failed.
+# Increase for scratched discs that need many retries. Set 0 to disable.
+CD_RIP_TIMEOUT: 600
+
 # Enable per-disc subfolders for multi-CD album rips.
 # When true, multi-disc sets produce: Artist/Album/Disc 1/track.flac, Disc 2/track.flac, etc.
 # When false, all discs are mixed into one folder.

@@ -357,33 +357,58 @@ def identify(job):
     """
     logging.debug("Identify Entry point --- job ----")
 
-    # Music CDs are already identified during setup() via MusicBrainz —
-    # skip mount/identify since audio CDs have no filesystem and mount hangs.
+    # Music CDs have no filesystem — nothing to mount or probe.
     if job.disctype == "music":
-        logging.info("Disc already identified as music — skipping filesystem identification")
+        logging.info("Disc identified as music — skipping filesystem identification")
         return
 
+    # Phase 1: Try to mount the disc.
     mounted = check_mount(job)
 
-    if not mounted and job.disctype is None:
+    # Phase 2: If mount failed, re-read udev in case properties weren't
+    # ready when parse_udev() first ran during Job creation.
+    if not mounted and job.disctype in (None, "unknown"):
+        logging.info("Mount failed with disctype=%s — re-reading udev properties", job.disctype)
+        time.sleep(3)
+        job.parse_udev()
+        if job.disctype not in (None, "unknown"):
+            logging.info("Re-read udev identified disc as: %s", job.disctype)
+            utils.database_updater({"disctype": job.disctype}, job)
+
+    # If we still can't identify the disc, give up.
+    if job.disctype in (None, "unknown"):
         raise RipperException(
-            f"Could not mount {job.devpath} — drive may be empty, "
+            f"Could not mount or identify {job.devpath} — drive may be empty, "
             f"still spinning up, or the device no longer exists"
         )
 
-    try:
-        if mounted:
+    # Music detected via udev re-read — no filesystem to inspect.
+    if job.disctype == "music":
+        logging.info("Disc identified as music via udev — skipping filesystem identification")
+        return
+
+    # Phase 3: Filesystem-based identification (only when mounted).
+    if not mounted:
+        logging.warning(
+            "Disc identified as %s via udev but not mounted — "
+            "title lookup requires manual identification from the UI",
+            job.disctype,
+        )
+        return
+
+    if mounted:
+        try:
             job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
 
-        if job.disctype in ["dvd", "bluray", "bluray4k"]:
-            logging.info("Disc identified as video")
-            if cfg.arm_config["GET_VIDEO_TITLE"]:
-                _identify_video_title(job)
-    finally:
-        result = subprocess.run(["umount", job.devpath],
-                                stderr=subprocess.PIPE, text=True)
-        if result.returncode != 0 and result.stderr:
-            logging.debug(f"umount {job.devpath}: {result.stderr.strip()}")
+            if job.disctype in ["dvd", "bluray", "bluray4k"]:
+                logging.info("Disc identified as video")
+                if cfg.arm_config["GET_VIDEO_TITLE"]:
+                    _identify_video_title(job)
+        finally:
+            result = subprocess.run(["umount", job.devpath],
+                                    stderr=subprocess.PIPE, text=True)
+            if result.returncode != 0 and result.stderr:
+                logging.debug(f"umount {job.devpath}: {result.stderr.strip()}")
 
 
 # ── Disc-specific identification ────────────────────────────────────────
