@@ -87,7 +87,7 @@ ARM_CONFIG_PATH=/etc/arm/config
 ### 2. Start the stack
 
 ```bash
-# CPU-only (all three services)
+# CPU-only transcoding (default — works on any hardware)
 docker compose up -d
 
 # With NVIDIA GPU for transcoding
@@ -101,6 +101,32 @@ This pulls versioned images for all three services:
 | ARM ripper | `uprightbass360/automatic-ripping-machine` | 8080 |
 | UI dashboard | `uprightbass360/arm-ui` | 8888 |
 | Transcoder | `uprightbass360/arm-transcoder` | 5000 |
+
+### GPU Transcoding
+
+The transcoder image tag determines GPU support. Set `TRANSCODER_VERSION` in your `.env`:
+
+| GPU | `.env` setting | Additional setup |
+|-----|---------------|-----------------|
+| **None (CPU)** | `TRANSCODER_VERSION=latest` | None — uses software x265 |
+| **NVIDIA** | `TRANSCODER_VERSION=latest-nvidia` | Use `docker-compose.gpu.yml` overlay, install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) |
+| **Intel (QSV)** | `TRANSCODER_VERSION=latest-intel` | Add `/dev/dri` device to transcoder (see below) |
+| **AMD (VAAPI)** | `TRANSCODER_VERSION=latest-amd` | Add `/dev/dri` device to transcoder (see below) |
+
+**Intel / AMD setup:** The transcoder needs access to `/dev/dri` for hardware encoding. Create a `docker-compose.override.yml`:
+
+```yaml
+services:
+  arm-transcoder:
+    devices:
+      - /dev/dri:/dev/dri
+```
+
+Then start normally with `docker compose up -d`. The override is automatically applied.
+
+The transcoder auto-detects the GPU at startup and selects the right encoder and presets. You do **not** need to set `VIDEO_ENCODER` manually — leave it as `x265` and the auto-resolver will upgrade it if GPU hardware is found.
+
+> **Common issue:** If transcoding fails with `HandBrake failed with exit code 3` or `Error creating a MFX session`, verify you're using the correct image tag for your GPU and that `/dev/dri` is accessible inside the container.
 
 ### 3. Verify
 
