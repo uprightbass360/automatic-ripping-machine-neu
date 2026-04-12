@@ -470,7 +470,7 @@ class TestApplyTrackPhases:
         assert tracks[0].status == "success"
         assert tracks[0].ripped is True
         assert tracks[1].status == "encoding"
-        assert tracks[1].ripped is True
+        assert not tracks[1].ripped  # ripped only set after tagging
         assert tracks[2].status == "ripping"
 
 

@@ -515,26 +515,46 @@ def _stream_abcde_output(proc, job):
 
     timeout = int(cfg.arm_config.get("CD_RIP_TIMEOUT", 600))
 
+    # Check if select() is usable (real file descriptor required — not available
+    # with mock objects in tests, or if timeout is disabled).
+    use_select = timeout > 0
+    if use_select:
+        try:
+            fd = proc.stdout.fileno()
+            if not isinstance(fd, int):
+                use_select = False
+        except (AttributeError, TypeError, OSError, ValueError):
+            use_select = False
+
     seen_grabbing: set[int] = set()
     seen_encoding: set[int] = set()
     seen_tagging: set[int] = set()
     error_lines: list[str] = []
     last_phase_update = 0
 
-    while True:
-        # Wait for output with timeout — detects cdparanoia hangs
-        ready, _, _ = select.select([proc.stdout], [], [], timeout)
-        if not ready:
-            logging.error(
-                "CD rip stalled — no output for %d seconds. Killing abcde.", timeout
-            )
-            proc.kill()
-            proc.wait()
-            raise TimeoutError(
-                f"CD rip timed out after {timeout}s of no output (cdparanoia hang?)"
-            )
+    # When select is available, use readline with timeout.
+    # Otherwise fall back to simple iteration (tests use mock iterators).
+    if use_select:
+        def _next_line():
+            ready, _, _ = select.select([proc.stdout], [], [], timeout)
+            if not ready:
+                logging.error(
+                    "CD rip stalled — no output for %d seconds. Killing abcde.", timeout
+                )
+                proc.kill()
+                proc.wait()
+                raise TimeoutError(
+                    f"CD rip timed out after {timeout}s of no output (cdparanoia hang?)"
+                )
+            return proc.stdout.readline()
+    else:
+        _iter = iter(proc.stdout)
 
-        raw_line = proc.stdout.readline()
+        def _next_line():
+            return next(_iter, '')
+
+    while True:
+        raw_line = _next_line()
         if not raw_line:
             break  # EOF — process exited
 

@@ -25,7 +25,9 @@ class TestApplyTrackPhases:
         assert tracks[0].status == "ripping"
         assert tracks[1].status == "pending"  # not in grabbing set
 
-    def test_encoding_sets_encoding_and_ripped(self, app_context, sample_job):
+    def test_encoding_sets_encoding_not_ripped(self, app_context, sample_job):
+        """Encoding sets status but does NOT mark ripped — that only
+        happens after tagging (the final step)."""
         from arm.database import db
 
         put_track(sample_job, 1, 180, 'n/a', 0.1, False, 'TOC', 'Track 1.flac')
@@ -36,7 +38,7 @@ class TestApplyTrackPhases:
         from arm.models.track import Track
         t = Track.query.filter_by(job_id=sample_job.job_id).first()
         assert t.status == "encoding"
-        assert t.ripped is True
+        assert not t.ripped
 
     def test_tagging_sets_success(self, app_context, sample_job):
         from arm.database import db
