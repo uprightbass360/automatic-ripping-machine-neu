@@ -943,8 +943,10 @@ class TestIdentifyUnmount:
                 ["umount", "/dev/sr0"], stderr=subprocess.PIPE, text=True
             )
 
-    def test_umount_called_when_not_mounted(self):
-        """umount is called even if disc was not successfully mounted."""
+    def test_umount_not_called_when_not_mounted(self):
+        """umount is NOT called when disc was never mounted — unmounted
+        discs return early with a warning instead of going through the
+        filesystem identification + umount path."""
         from arm.ripper.identify import identify
 
         job = unittest.mock.MagicMock()
@@ -954,7 +956,7 @@ class TestIdentifyUnmount:
         with unittest.mock.patch('arm.ripper.identify.check_mount', return_value=False), \
              unittest.mock.patch('arm.ripper.identify.subprocess.run') as mock_run:
             identify(job)
-            mock_run.assert_called_once()
+            mock_run.assert_not_called()
 
 
 class TestMatcherIntegration:
