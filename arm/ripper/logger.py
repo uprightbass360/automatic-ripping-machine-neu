@@ -105,6 +105,15 @@ def setup_job_log(job):
     log_file = log_filename(job.job_id)
     log_full = os.path.join(cfg.arm_config['LOGPATH'], log_file)
 
+    # Truncate any stale log from a previous job with the same ID.
+    # SQLite does not use AUTOINCREMENT so deleted job IDs can be reused,
+    # leaving orphaned logs that pollute the new job's progress parsing.
+    # TODO: Add AUTOINCREMENT to job.job_id via alembic migration to
+    # prevent ID reuse entirely (see memory: autoincrement-followup).
+    if os.path.isfile(log_full):
+        with open(log_full, 'w'):
+            pass  # truncate
+
     job.logfile = log_file
 
     # Swap the file handler to the per-job log file.
