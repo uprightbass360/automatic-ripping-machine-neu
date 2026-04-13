@@ -5,7 +5,9 @@ The main runner for Automatic Ripping Machine
 For help please visit https://github.com/uprightbass360/automatic-ripping-machine-neu
 """
 import argparse  # noqa: E402
+import faulthandler
 import logging  # noqa: E402
+import os
 import sys
 import time  # noqa: E402
 import datetime  # noqa: E402
@@ -13,8 +15,20 @@ import re  # noqa: E402
 from argparse import Namespace
 from importlib.util import find_spec
 from pathlib import Path
-from signal import signal, SIGTERM, SIGPIPE, SIG_IGN
+from signal import signal, SIGTERM, SIGPIPE, SIGHUP, SIGUSR1, SIGUSR2, SIG_IGN
 from typing import Optional
+
+# Enable faulthandler early -- writes C-level tracebacks on SIGSEGV, SIGBUS,
+# SIGABRT, SIGFPE to stderr. Also dumps all thread stacks on SIGUSR1.
+faulthandler.enable(all_threads=True)
+_fault_file = None
+try:
+    _fault_file = open("/home/arm/logs/faulthandler.log", "a")
+    faulthandler.enable(file=_fault_file, all_threads=True)
+    faulthandler.register(SIGUSR1, file=_fault_file, all_threads=True)
+    print(f"[ARM] faulthandler enabled, PID={os.getpid()}", file=_fault_file, flush=True)
+except Exception:
+    faulthandler.enable(all_threads=True)  # fallback to stderr
 
 import pyudev  # noqa: E402
 
@@ -250,11 +264,16 @@ def setup():
     global log_file
 
     def signal_handler(_signal, _frame_type):
-        raise utils.RipperException("Received SIGTERM")
+        import traceback
+        logging.critical("Received signal %s in %s:%d\n%s",
+                         _signal, _frame_type.f_code.co_filename, _frame_type.f_lineno,
+                         "".join(traceback.format_stack(_frame_type)))
+        raise utils.RipperException(f"Received signal {_signal}")
 
     # Handle SIGTERM so we can exit gracefully. Without this, no except: or finally: blocks are
     # run and the program exits immediately, potentially leaving the database in an invalid state.
     signal(SIGTERM, signal_handler)
+    signal(SIGHUP, signal_handler)
 
     # Explicitly ignore SIGPIPE. Python sets SIG_IGN at startup, but
     # MakeMKV child processes can reset signal dispositions. A broken pipe
