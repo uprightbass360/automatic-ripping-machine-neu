@@ -1,5 +1,15 @@
 # Changelog
 
+## [15.4.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.1...v15.4.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* add faulthandler + heartbeat instrumentation for silent rip deaths ([c322340](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c322340230a44a29ffbe6882f25f5c4cdb4f5ba8))
+* bake udev.conf into image + env var override at runtime ([1c9a7f9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1c9a7f980eb53bcf0ecc33ce26696e8f96a0ad7c))
+* increase udev event_timeout to prevent SIGKILL of rip processes ([1e9d5a9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1e9d5a9705a6960a65153796940d56b03b1e1e1f))
+* make udev event_timeout configurable via UDEV_EVENT_TIMEOUT env var ([019ccfb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/019ccfbf8865608fcfacdcc535ea7176ed0e988b))
+
 ## [15.4.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.0...v15.4.1) (2026-04-13)
 
 
