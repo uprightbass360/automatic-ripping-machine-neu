@@ -1714,9 +1714,19 @@ def run(options, select):
     # ripper process via process-group signal delivery.
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, start_new_session=True)
     try:
-        logging.debug(f"PID {proc.pid}: command: '{' '.join(cmd)}'")
+        logging.info(f"MakeMKV subprocess started: PID {proc.pid}")
+        line_count = 0
+        import time as _time
+        _heartbeat_path = f"/home/arm/logs/progress/.makemkv_heartbeat_{proc.pid}"
         for line in proc.stdout:
             line = line.rstrip(os.linesep)
+            line_count += 1
+            # Touch heartbeat file so external monitors can detect hangs vs deaths
+            try:
+                with open(_heartbeat_path, "w") as _hb:
+                    _hb.write(f"{_time.time()} line={line_count}\n")
+            except OSError:
+                pass
             logging.debug(line)
             if proc.returncode:
                 buffer.append(line)
@@ -1741,13 +1751,27 @@ def run(options, select):
                 logging.debug(data)
             if msg_type in select:
                 yield data
+        logging.info("MakeMKV stdout exhausted after %d lines, proc.poll()=%s", line_count, proc.poll())
+    except GeneratorExit:
+        logging.info("MakeMKV run() generator closed (GeneratorExit), proc.poll()=%s", proc.poll())
+        raise
+    except Exception as exc:
+        logging.error("MakeMKV run() exception: %s (proc.poll()=%s)", exc, proc.poll(), exc_info=True)
+        raise
     finally:
         # Explicitly wait for the process in a finally block so it runs
         # in the caller's execution context, not during GC.  This ensures
         # SIGTERM handlers fire properly and any errors are logged.
-        logging.info("Waiting for MakeMKV process (PID %d) to finish...", proc.pid)
+        logging.info("Entering finally: waiting for MakeMKV process (PID %d), proc.poll()=%s", proc.pid, proc.poll())
         proc.stdout.close()
+        logging.info("stdout closed, calling proc.wait()...")
         proc.wait()
+        logging.info("proc.wait() returned, returncode=%s", proc.returncode)
+        # Clean up heartbeat file
+        try:
+            os.remove(_heartbeat_path)
+        except OSError:
+            pass
     if proc.returncode:
         raise MakeMkvRuntimeError(proc.returncode, cmd, output=os.linesep.join(buffer))
     logging.info("MakeMKV exits gracefully.")
