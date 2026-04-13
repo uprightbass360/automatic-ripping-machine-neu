@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.4.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.0...v15.4.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* isolate makemkvcon in own process group + ignore SIGPIPE ([6f39e0d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6f39e0d66f47b8ae5eef598c93dfd7b7b5342ca7))
+
 ## [15.4.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.3.1...v15.4.0) (2026-04-13)
 
 
