@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.4.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.2...v15.4.3) (2026-04-13)
+
+
+### Bug Fixes
+
+* detect disc type from filesystem when udev properties unavailable ([f5c0a5d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f5c0a5d24dcb9f17a77435a9d2f9b6d421399bcc))
+
 ## [15.4.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.1...v15.4.2) (2026-04-13)
 
 
