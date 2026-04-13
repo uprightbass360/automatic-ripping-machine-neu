@@ -1,5 +1,24 @@
 # Changelog
 
+## [15.4.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.3.1...v15.4.0) (2026-04-13)
+
+
+### Features
+
+* add CD_RIP_TIMEOUT to kill stalled cdparanoia rips ([298f0d5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/298f0d5fb56bbbcec96aac9376d9d926711b842a))
+
+
+### Bug Fixes
+
+* add disc_number to MusicBrainz detail tracks for multi-disc filtering ([79f8f23](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/79f8f233c3e3db54a37f9cc3c6fa4cbb82df7eb9))
+* clean up stale abcde workdirs to prevent resuming crashed rips ([fb6e3aa](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fb6e3aac868d67829f53c7f56d6426f9a9137db6))
+* handle mock stdout in CD_RIP_TIMEOUT select(), update test assertions ([a8ea9d6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a8ea9d65475bb4428bf365de511294977d385864))
+* only mark CD tracks as ripped after tagging, not during encoding ([9cdcff2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9cdcff22017bde6bb2db5d6089c8024f4fb046e1))
+* place m3u playlist inside album folder instead of music root ([6b1aaab](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6b1aaaba567af34de7f4b8b0d84bd0fff871c811))
+* re-read udev after mount failure to detect disc type ([7291e1b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7291e1be6c81f7922772f6608e847ef329186882))
+* trigger rescan after tray close to detect inserted disc ([cf1e6b0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/cf1e6b0934604fd7efc7830ada9fd2b898f100e0))
+* truncate stale log files when job ID is reused ([888a8f4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/888a8f4b053d66cdef66e05e8983ccdffe7037ac))
+
 ## [15.3.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.3.0...v15.3.1) (2026-04-11)
 
 
