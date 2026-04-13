@@ -1,0 +1,682 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "ARM" [ref=e7]
+      - separator [ref=e8]
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+          - text: Dashboard
+        - link "Notifications 41" [ref=e13] [cursor=pointer]:
+          - /url: /notifications
+          - img [ref=e14]
+          - text: Notifications
+          - generic [ref=e16]: "41"
+        - link "Logs" [ref=e17] [cursor=pointer]:
+          - /url: /logs
+          - img [ref=e18]
+          - text: Logs
+        - link "Files" [ref=e20] [cursor=pointer]:
+          - /url: /files
+          - img [ref=e21]
+          - text: Files
+        - link "Transcoder" [ref=e23] [cursor=pointer]:
+          - /url: /transcoder
+          - img [ref=e24]
+          - text: Transcoder
+        - link "Settings" [ref=e26] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e27]
+          - text: Settings
+      - separator [ref=e29]
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - button "Ripper" [ref=e33] [cursor=pointer]
+          - button "Transcoder" [ref=e34] [cursor=pointer]
+          - button "GPU" [ref=e35] [cursor=pointer]
+        - paragraph [ref=e36]: Intel(R) N97
+        - paragraph [ref=e37]: 15.2 GB RAM
+        - generic [ref=e38]:
+          - generic [ref=e40]:
+            - generic [ref=e41]: CPU
+            - generic [ref=e42]: 1.9% 39°C
+          - generic [ref=e47]:
+            - generic [ref=e48]: Mem
+            - generic [ref=e49]: 1.4 / 15.2 GB
+        - generic [ref=e53]:
+          - paragraph [ref=e54]: Storage
+          - link "Raw 1739.1 GB free" [ref=e55] [cursor=pointer]:
+            - /url: /files?path=%2Fhome%2Farm%2Fscratch%2Fraw
+            - generic [ref=e56]:
+              - generic [ref=e57]: Raw
+              - generic [ref=e58]: 1739.1 GB free
+          - link "Transcode 14623.8 GB free" [ref=e62] [cursor=pointer]:
+            - /url: /files?path=%2Fhome%2Farm%2Fmedia%2Ftranscode
+            - generic [ref=e63]:
+              - generic [ref=e64]: Transcode
+              - generic [ref=e65]: 14623.8 GB free
+          - link "Completed 14623.8 GB free" [ref=e69] [cursor=pointer]:
+            - /url: /files?path=%2Fhome%2Farm%2Fmedia%2Fcompleted
+            - generic [ref=e70]:
+              - generic [ref=e71]: Completed
+              - generic [ref=e72]: 14623.8 GB free
+  - generic [ref=e76]:
+    - banner [ref=e77]:
+      - generic [ref=e78]:
+        - generic [ref=e79]:
+          - link "ARM" [ref=e80] [cursor=pointer]:
+            - /url: /settings#system
+            - generic [ref=e82]: ARM
+          - link "DB" [ref=e83] [cursor=pointer]:
+            - /url: /settings#system
+            - generic [ref=e85]: DB
+          - link "Transcode" [ref=e86] [cursor=pointer]:
+            - /url: /transcoder
+            - generic [ref=e88]: Transcode
+          - link "Key" [ref=e89] [cursor=pointer]:
+            - /url: /settings#ripping/makemkv
+            - generic [ref=e91]: Key
+        - generic [ref=e93]:
+          - link "1 drive" [ref=e94] [cursor=pointer]:
+            - /url: /settings#drives
+          - link "41 notifications" [ref=e95] [cursor=pointer]:
+            - /url: /notifications
+      - generic [ref=e96]:
+        - button "Auto-Start" [ref=e97] [cursor=pointer]: Auto-Start
+        - button "Quick actions" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+    - main [ref=e105]:
+      - generic [ref=e106]:
+        - heading "Transcoder" [level=1] [ref=e107]
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - generic [ref=e112]: Workers 0/1 active
+            - generic [ref=e113]: "Queue: 0 pending"
+          - generic [ref=e117]:
+            - paragraph [ref=e118]: Worker 0
+            - paragraph [ref=e119]: Idle
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - paragraph [ref=e122]: Pending
+            - paragraph [ref=e123]: "0"
+          - generic [ref=e124]:
+            - paragraph [ref=e125]: Processing
+            - paragraph [ref=e126]: "0"
+          - generic [ref=e127]:
+            - paragraph [ref=e128]: Completed
+            - paragraph [ref=e129]: "20"
+          - generic [ref=e130]:
+            - paragraph [ref=e131]: Failed
+            - paragraph [ref=e132]: "0"
+          - generic [ref=e133]:
+            - paragraph [ref=e134]: Cancelled
+            - paragraph [ref=e135]: "0"
+        - generic [ref=e136]:
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: GPU
+            - generic [ref=e139]: nvidia
+          - generic [ref=e140]:
+            - generic [ref=e141]:
+              - paragraph [ref=e142]: Load
+              - paragraph [ref=e143]: 0%
+            - generic [ref=e144]:
+              - paragraph [ref=e145]: Encoder
+              - paragraph [ref=e146]: 0%
+            - generic [ref=e147]:
+              - paragraph [ref=e148]: VRAM
+              - paragraph [ref=e149]: 0.0/ 6.0 GB
+            - generic [ref=e150]:
+              - paragraph [ref=e151]: Temperature
+              - paragraph [ref=e152]: 48°C
+            - generic [ref=e153]:
+              - paragraph [ref=e154]: Power
+              - paragraph [ref=e155]:
+                - text: "10"
+                - generic [ref=e156]: / 130 W
+            - generic [ref=e157]:
+              - paragraph [ref=e158]: Core Clock
+              - paragraph [ref=e159]: 300MHz
+            - generic [ref=e160]:
+              - paragraph [ref=e161]: Memory Clock
+              - paragraph [ref=e162]: 405MHz
+        - generic [ref=e163]:
+          - heading "Transcode Jobs" [level=2] [ref=e164]
+          - generic [ref=e165]:
+            - button "all" [ref=e166] [cursor=pointer]
+            - button "pending" [ref=e167] [cursor=pointer]
+            - button "processing" [ref=e168] [cursor=pointer]
+            - button "completed" [ref=e169] [cursor=pointer]
+            - button "failed" [ref=e170] [cursor=pointer]
+          - generic [ref=e171]:
+            - generic [ref=e173]:
+              - img [ref=e175]
+              - generic [ref=e179]:
+                - generic [ref=e180]:
+                  - generic [ref=e181]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e182]
+                    - generic [ref=e183]: Completed
+                  - generic [ref=e184]:
+                    - button "Re-transcode" [active] [ref=e185] [cursor=pointer]
+                    - button "Delete" [ref=e186] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1775232967" [ref=e188]: Code Conspiracy Storm Trooper_1775232967
+                - generic [ref=e189]:
+                  - generic [ref=e190]: Disc
+                  - generic [ref=e191]:
+                    - img "DVD" [ref=e192]
+                    - text: DVD
+                  - generic [ref=e193]: 2 tracks
+                - generic [ref=e194]:
+                  - generic [ref=e195]: Queued 10h ago
+                  - generic [ref=e196]: Started 10h ago
+                  - generic [ref=e197]: Took 7m 29s
+                - button "Recent Log 8 entries" [ref=e200] [cursor=pointer]:
+                  - img [ref=e201]
+                  - generic [ref=e203]: Recent Log
+                  - generic [ref=e204]: 8 entries
+                - paragraph [ref=e205]:
+                  - generic [ref=e206]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e207]: Code Conspiracy Storm Trooper
+            - generic [ref=e209]:
+              - img [ref=e211]
+              - generic [ref=e215]:
+                - generic [ref=e216]:
+                  - generic [ref=e217]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e218]
+                    - generic [ref=e219]: Completed
+                  - generic [ref=e220]:
+                    - button "Re-transcode" [ref=e221] [cursor=pointer]
+                    - button "Delete" [ref=e222] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1775232168" [ref=e224]: Code Conspiracy Storm Trooper_1775232168
+                - generic [ref=e225]:
+                  - generic [ref=e226]: Disc
+                  - generic [ref=e227]:
+                    - img "DVD" [ref=e228]
+                    - text: DVD
+                  - generic [ref=e229]: 2 tracks
+                - generic [ref=e230]:
+                  - generic [ref=e231]: Queued 11h ago
+                  - generic [ref=e232]: Started 11h ago
+                  - generic [ref=e233]: Took 7m 29s
+                - button "Recent Log 8 entries" [ref=e236] [cursor=pointer]:
+                  - img [ref=e237]
+                  - generic [ref=e239]: Recent Log
+                  - generic [ref=e240]: 8 entries
+                - paragraph [ref=e241]:
+                  - generic [ref=e242]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e243]: Code Conspiracy Storm Trooper
+            - generic [ref=e245]:
+              - img [ref=e247]
+              - generic [ref=e251]:
+                - generic [ref=e252]:
+                  - generic [ref=e253]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e254]
+                    - generic [ref=e255]: Completed
+                  - generic [ref=e256]:
+                    - button "Re-transcode" [ref=e257] [cursor=pointer]
+                    - button "Delete" [ref=e258] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1775179659" [ref=e260]: Code Conspiracy Storm Trooper_1775179659
+                - generic [ref=e261]:
+                  - generic [ref=e262]: Disc
+                  - generic [ref=e263]:
+                    - img "DVD" [ref=e264]
+                    - text: DVD
+                  - generic [ref=e265]: 2 tracks
+                - generic [ref=e266]:
+                  - generic [ref=e267]: Queued 1d ago
+                  - generic [ref=e268]: Started 1d ago
+                  - generic [ref=e269]: Took 7m 31s
+                - button "Recent Log 8 entries" [ref=e272] [cursor=pointer]:
+                  - img [ref=e273]
+                  - generic [ref=e275]: Recent Log
+                  - generic [ref=e276]: 8 entries
+                - paragraph [ref=e277]:
+                  - generic [ref=e278]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e279]: Code Conspiracy Storm Trooper
+            - generic [ref=e281]:
+              - img [ref=e283]
+              - generic [ref=e287]:
+                - generic [ref=e288]:
+                  - generic [ref=e289]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e290]
+                    - generic [ref=e291]: Completed
+                  - generic [ref=e292]:
+                    - button "Re-transcode" [ref=e293] [cursor=pointer]
+                    - button "Delete" [ref=e294] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1775090964" [ref=e296]: Code Conspiracy Storm Trooper_1775090964
+                - generic [ref=e297]:
+                  - generic [ref=e298]: Disc
+                  - generic [ref=e299]:
+                    - img "DVD" [ref=e300]
+                    - text: DVD
+                  - generic [ref=e301]: 2 tracks
+                - generic [ref=e302]:
+                  - generic [ref=e303]: Queued 2d ago
+                  - generic [ref=e304]: Started 2d ago
+                  - generic [ref=e305]: Took 7m 29s
+                - generic [ref=e307]: Log not found or transcoder offline
+                - paragraph [ref=e308]:
+                  - generic [ref=e309]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e310]: Code Conspiracy Storm Trooper
+            - generic [ref=e312]:
+              - img [ref=e314]
+              - generic [ref=e318]:
+                - generic [ref=e319]:
+                  - generic [ref=e320]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e321]
+                    - generic [ref=e322]: Completed
+                  - generic [ref=e323]:
+                    - button "Re-transcode" [ref=e324] [cursor=pointer]
+                    - button "Delete" [ref=e325] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1775082039" [ref=e327]: Code Conspiracy Storm Trooper_1775082039
+                - generic [ref=e328]:
+                  - generic [ref=e329]: Disc
+                  - generic [ref=e330]:
+                    - img "DVD" [ref=e331]
+                    - text: DVD
+                  - generic [ref=e332]: 2 tracks
+                - generic [ref=e333]:
+                  - generic [ref=e334]: Queued 2d ago
+                  - generic [ref=e335]: Started 2d ago
+                  - generic [ref=e336]: Took 7m 29s
+                - generic [ref=e338]: Log not found or transcoder offline
+                - paragraph [ref=e339]:
+                  - generic [ref=e340]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e341]: Code Conspiracy Storm Trooper
+            - generic [ref=e343]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e344]'
+              - generic [ref=e345]:
+                - generic [ref=e346]:
+                  - generic [ref=e347]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e348]'
+                    - generic [ref=e349]: Completed
+                  - generic [ref=e350]:
+                    - button "Re-transcode" [ref=e351] [cursor=pointer]
+                    - button "Delete" [ref=e352] [cursor=pointer]
+                - generic [ref=e353]:
+                  - generic [ref=e354]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker_1774985353" [ref=e355]': "Kolchak: The Night Stalker_1774985353"
+                - generic [ref=e356]:
+                  - generic [ref=e357]: Series
+                  - generic [ref=e358]:
+                    - img "4K UHD" [ref=e359]
+                    - text: 4K UHD
+                  - generic [ref=e360]: 5 tracks
+                - generic [ref=e361]:
+                  - generic [ref=e362]: Queued 3d ago
+                  - generic [ref=e363]: Started 3d ago
+                  - generic [ref=e364]: Took 36m 34s
+                - generic [ref=e366]: Log not found or transcoder offline
+                - paragraph [ref=e367]:
+                  - generic [ref=e368]: →
+                  - generic "/data/completed/TV/0.Rips/Kolchak - The Night Stalker/Season 01" [ref=e369]: Season 01
+            - generic [ref=e371]:
+              - img [ref=e373]
+              - generic [ref=e377]:
+                - generic [ref=e378]:
+                  - generic [ref=e379]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e380]
+                    - generic [ref=e381]: Completed
+                  - generic [ref=e382]:
+                    - button "Re-transcode" [ref=e383] [cursor=pointer]
+                    - button "Delete" [ref=e384] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1774980039" [ref=e386]: Code Conspiracy Storm Trooper_1774980039
+                - generic [ref=e387]:
+                  - generic [ref=e388]: Disc
+                  - generic [ref=e389]:
+                    - img "DVD" [ref=e390]
+                    - text: DVD
+                  - generic [ref=e391]: 2 tracks
+                - generic [ref=e392]:
+                  - generic [ref=e393]: Queued 3d ago
+                  - generic [ref=e394]: Started 3d ago
+                  - generic [ref=e395]: Took 7m 28s
+                - generic [ref=e397]: Log not found or transcoder offline
+                - paragraph [ref=e398]:
+                  - generic [ref=e399]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e400]: Code Conspiracy Storm Trooper
+            - generic [ref=e402]:
+              - img [ref=e404]
+              - generic [ref=e408]:
+                - generic [ref=e409]:
+                  - generic [ref=e410]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e411]
+                    - generic [ref=e412]: Completed
+                  - generic [ref=e413]:
+                    - button "Re-transcode" [ref=e414] [cursor=pointer]
+                    - button "Delete" [ref=e415] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1774967786" [ref=e417]: Code Conspiracy Storm Trooper_1774967786
+                - generic [ref=e418]:
+                  - generic [ref=e419]: Disc
+                  - generic [ref=e420]:
+                    - img "DVD" [ref=e421]
+                    - text: DVD
+                  - generic [ref=e422]: 2 tracks
+                - generic [ref=e423]:
+                  - generic [ref=e424]: Queued 3d ago
+                  - generic [ref=e425]: Started 3d ago
+                  - generic [ref=e426]: Took 7m 30s
+                - generic [ref=e428]: Log not found or transcoder offline
+                - paragraph [ref=e429]:
+                  - generic [ref=e430]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e431]: Code Conspiracy Storm Trooper
+            - generic [ref=e433]:
+              - img [ref=e435]
+              - generic [ref=e439]:
+                - generic [ref=e440]:
+                  - generic [ref=e441]:
+                    - heading "Code Conspiracy Storm Trooper" [level=3] [ref=e442]
+                    - generic [ref=e443]: Completed
+                  - generic [ref=e444]:
+                    - button "Re-transcode" [ref=e445] [cursor=pointer]
+                    - button "Delete" [ref=e446] [cursor=pointer]
+                - generic "/data/raw/Code Conspiracy Storm Trooper_1774921391" [ref=e448]: Code Conspiracy Storm Trooper_1774921391
+                - generic [ref=e449]:
+                  - generic [ref=e450]: Disc
+                  - generic [ref=e451]:
+                    - img "DVD" [ref=e452]
+                    - text: DVD
+                  - generic [ref=e453]: 2 tracks
+                - generic [ref=e454]:
+                  - generic [ref=e455]: Queued 4d ago
+                  - generic [ref=e456]: Started 4d ago
+                  - generic [ref=e457]: Took 7m 29s
+                - generic [ref=e459]: Log not found or transcoder offline
+                - paragraph [ref=e460]:
+                  - generic [ref=e461]: →
+                  - generic "/data/completed/Movies/0.Rips/Code Conspiracy Storm Trooper" [ref=e462]: Code Conspiracy Storm Trooper
+            - generic [ref=e464]:
+              - img [ref=e466]
+              - generic [ref=e470]:
+                - generic [ref=e471]:
+                  - generic [ref=e472]:
+                    - heading "The Sender And The Invader" [level=3] [ref=e473]
+                    - generic [ref=e474]: Completed
+                  - generic [ref=e475]:
+                    - button "Re-transcode" [ref=e476] [cursor=pointer]
+                    - button "Delete" [ref=e477] [cursor=pointer]
+                - generic "/data/raw/The Sender And The Invader" [ref=e479]: The Sender And The Invader
+                - generic [ref=e480]:
+                  - generic [ref=e481]: Disc
+                  - generic [ref=e482]:
+                    - img "DVD" [ref=e483]
+                    - text: DVD
+                  - generic [ref=e484]: 2 tracks
+                - generic [ref=e485]:
+                  - generic [ref=e486]: Queued 4d ago
+                  - generic [ref=e487]: Started 4d ago
+                  - generic [ref=e488]: Took 7m 35s
+                - generic [ref=e490]: Log not found or transcoder offline
+                - paragraph [ref=e491]:
+                  - generic [ref=e492]: →
+                  - generic "/data/completed/Movies/0.Rips/The Sender And The Invader" [ref=e493]: The Sender And The Invader
+            - generic [ref=e495]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e496]'
+              - generic [ref=e497]:
+                - generic [ref=e498]:
+                  - generic [ref=e499]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e500]'
+                    - generic [ref=e501]: Completed
+                  - generic [ref=e502]:
+                    - button "Re-transcode" [ref=e503] [cursor=pointer]
+                    - button "Delete" [ref=e504] [cursor=pointer]
+                - generic [ref=e505]:
+                  - generic [ref=e506]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker_1774762099" [ref=e507]': "Kolchak: The Night Stalker_1774762099"
+                - generic [ref=e508]:
+                  - generic [ref=e509]: Series
+                  - generic [ref=e510]:
+                    - img "4K UHD" [ref=e511]
+                    - text: 4K UHD
+                  - generic [ref=e512]: 5 tracks
+                - generic [ref=e513]:
+                  - generic [ref=e514]: Queued 5d ago
+                  - generic [ref=e515]: Started 5d ago
+                  - generic [ref=e516]: Took 37m 13s
+                - generic [ref=e518]: Log not found or transcoder offline
+                - paragraph [ref=e519]:
+                  - generic [ref=e520]: →
+                  - generic "/data/completed/TV/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e521]: Season 01
+            - generic [ref=e523]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e524]'
+              - generic [ref=e525]:
+                - generic [ref=e526]:
+                  - generic [ref=e527]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e528]'
+                    - generic [ref=e529]: Completed
+                  - generic [ref=e530]:
+                    - button "Re-transcode" [ref=e531] [cursor=pointer]
+                    - button "Delete" [ref=e532] [cursor=pointer]
+                - generic [ref=e533]:
+                  - generic [ref=e534]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker_1774656122" [ref=e535]': "Kolchak: The Night Stalker_1774656122"
+                - generic [ref=e536]:
+                  - generic [ref=e537]: Series
+                  - generic [ref=e538]:
+                    - img "4K UHD" [ref=e539]
+                    - text: 4K UHD
+                  - generic [ref=e540]: 5 tracks
+                - generic [ref=e541]:
+                  - generic [ref=e542]: Queued 7d ago
+                  - generic [ref=e543]: Started 7d ago
+                  - generic [ref=e544]: Took 36m 12s
+                - generic [ref=e546]: Log not found or transcoder offline
+                - paragraph [ref=e547]:
+                  - generic [ref=e548]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e549]: Season 01
+            - generic [ref=e551]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e552]'
+              - generic [ref=e553]:
+                - generic [ref=e554]:
+                  - generic [ref=e555]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e556]'
+                    - generic [ref=e557]: Completed
+                  - generic [ref=e558]:
+                    - button "Re-transcode" [ref=e559] [cursor=pointer]
+                    - button "Delete" [ref=e560] [cursor=pointer]
+                - generic [ref=e561]:
+                  - generic [ref=e562]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e563]': "Kolchak: The Night Stalker"
+                - generic [ref=e564]:
+                  - generic [ref=e565]: Series
+                  - generic [ref=e566]:
+                    - img "4K UHD" [ref=e567]
+                    - text: 4K UHD
+                  - generic [ref=e568]: 5 tracks
+                - generic [ref=e569]:
+                  - generic [ref=e570]: Queued 7d ago
+                  - generic [ref=e571]: Started 7d ago
+                  - generic [ref=e572]: Took 36m 13s
+                - generic [ref=e574]: Log not found or transcoder offline
+                - paragraph [ref=e575]:
+                  - generic [ref=e576]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e577]: Season 01
+            - generic [ref=e579]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e580]'
+              - generic [ref=e581]:
+                - generic [ref=e582]:
+                  - generic [ref=e583]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e584]'
+                    - generic [ref=e585]: Completed
+                  - generic [ref=e586]:
+                    - button "Re-transcode" [ref=e587] [cursor=pointer]
+                    - button "Delete" [ref=e588] [cursor=pointer]
+                - generic [ref=e589]:
+                  - generic [ref=e590]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e591]': "Kolchak: The Night Stalker"
+                - generic [ref=e592]:
+                  - generic [ref=e593]: Series
+                  - generic [ref=e594]:
+                    - img "4K UHD" [ref=e595]
+                    - text: 4K UHD
+                  - generic [ref=e596]: 5 tracks
+                - generic [ref=e597]:
+                  - generic [ref=e598]: Queued 7d ago
+                  - generic [ref=e599]: Started 7d ago
+                  - generic [ref=e600]: Took 36m 26s
+                - generic [ref=e602]: Log not found or transcoder offline
+                - paragraph [ref=e603]:
+                  - generic [ref=e604]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e605]: Season 01
+            - generic [ref=e607]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e608]'
+              - generic [ref=e609]:
+                - generic [ref=e610]:
+                  - generic [ref=e611]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e612]'
+                    - generic [ref=e613]: Completed
+                  - generic [ref=e614]:
+                    - button "Re-transcode" [ref=e615] [cursor=pointer]
+                    - button "Delete" [ref=e616] [cursor=pointer]
+                - generic [ref=e617]:
+                  - generic [ref=e618]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e619]': "Kolchak: The Night Stalker"
+                - generic [ref=e620]:
+                  - generic [ref=e621]: Series
+                  - generic [ref=e622]:
+                    - img "4K UHD" [ref=e623]
+                    - text: 4K UHD
+                  - generic [ref=e624]: 5 tracks
+                - generic [ref=e625]:
+                  - generic [ref=e626]: Queued 7d ago
+                  - generic [ref=e627]: Started 7d ago
+                  - generic [ref=e628]: Took 36m 26s
+                - generic [ref=e630]: Log not found or transcoder offline
+                - paragraph [ref=e631]:
+                  - generic [ref=e632]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e633]: Season 01
+            - generic [ref=e635]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e636]'
+              - generic [ref=e637]:
+                - generic [ref=e638]:
+                  - generic [ref=e639]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e640]'
+                    - generic [ref=e641]: Completed
+                  - generic [ref=e642]:
+                    - button "Re-transcode" [ref=e643] [cursor=pointer]
+                    - button "Delete" [ref=e644] [cursor=pointer]
+                - generic [ref=e645]:
+                  - generic [ref=e646]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e647]': "Kolchak: The Night Stalker"
+                - generic [ref=e648]:
+                  - generic [ref=e649]: Series
+                  - generic [ref=e650]:
+                    - img "4K UHD" [ref=e651]
+                    - text: 4K UHD
+                  - generic [ref=e652]: 5 tracks
+                - generic [ref=e653]:
+                  - generic [ref=e654]: Queued 7d ago
+                  - generic [ref=e655]: Started 7d ago
+                  - generic [ref=e656]: Took 35m 54s
+                - generic [ref=e658]: Log not found or transcoder offline
+                - paragraph [ref=e659]:
+                  - generic [ref=e660]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e661]: Season 01
+            - generic [ref=e663]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e664]'
+              - generic [ref=e665]:
+                - generic [ref=e666]:
+                  - generic [ref=e667]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e668]'
+                    - generic [ref=e669]: Completed
+                  - generic [ref=e670]:
+                    - button "Re-transcode" [ref=e671] [cursor=pointer]
+                    - button "Delete" [ref=e672] [cursor=pointer]
+                - generic [ref=e673]:
+                  - generic [ref=e674]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e675]': "Kolchak: The Night Stalker"
+                - generic [ref=e676]:
+                  - generic [ref=e677]: Series
+                  - generic [ref=e678]:
+                    - img "4K UHD" [ref=e679]
+                    - text: 4K UHD
+                  - generic [ref=e680]: 5 tracks
+                - generic [ref=e681]:
+                  - generic [ref=e682]: Queued 8d ago
+                  - generic [ref=e683]: Started 8d ago
+                  - generic [ref=e684]: Took 36m 2s
+                - generic [ref=e686]: Log not found or transcoder offline
+                - paragraph [ref=e687]:
+                  - generic [ref=e688]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e689]: Season 01
+            - generic [ref=e691]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e692]'
+              - generic [ref=e693]:
+                - generic [ref=e694]:
+                  - generic [ref=e695]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e696]'
+                    - generic [ref=e697]: Completed
+                  - generic [ref=e698]:
+                    - button "Re-transcode" [ref=e699] [cursor=pointer]
+                    - button "Delete" [ref=e700] [cursor=pointer]
+                - generic [ref=e701]:
+                  - generic [ref=e702]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e703]': "Kolchak: The Night Stalker"
+                - generic [ref=e704]:
+                  - generic [ref=e705]: Series
+                  - generic [ref=e706]:
+                    - img "4K UHD" [ref=e707]
+                    - text: 4K UHD
+                  - generic [ref=e708]: 5 tracks
+                - generic [ref=e709]:
+                  - generic [ref=e710]: Queued 8d ago
+                  - generic [ref=e711]: Started 8d ago
+                  - generic [ref=e712]: Took 36m 43s
+                - generic [ref=e714]: Log not found or transcoder offline
+                - paragraph [ref=e715]:
+                  - generic [ref=e716]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e717]: Season 01
+            - generic [ref=e719]:
+              - 'img "Kolchak: The Night Stalker folder import" [ref=e720]'
+              - generic [ref=e721]:
+                - generic [ref=e722]:
+                  - generic [ref=e723]:
+                    - 'heading "Kolchak: The Night Stalker folder import" [level=3] [ref=e724]'
+                    - generic [ref=e725]: Completed
+                  - generic [ref=e726]:
+                    - button "Re-transcode" [ref=e727] [cursor=pointer]
+                    - button "Delete" [ref=e728] [cursor=pointer]
+                - generic [ref=e729]:
+                  - generic [ref=e730]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e731]': "Kolchak: The Night Stalker"
+                - generic [ref=e732]:
+                  - generic [ref=e733]: Series
+                  - generic [ref=e734]:
+                    - img "4K UHD" [ref=e735]
+                    - text: 4K UHD
+                  - generic [ref=e736]: 6 tracks
+                - generic [ref=e737]:
+                  - generic [ref=e738]: Queued 8d ago
+                  - generic [ref=e739]: Started 8d ago
+                  - generic [ref=e740]: Took 38m 17s
+                - generic [ref=e742]: Log not found or transcoder offline
+                - paragraph [ref=e743]:
+                  - generic [ref=e744]: →
+                  - generic "/data/completed/tv/0.Rips/Kolchak- The Night Stalker/Season 01" [ref=e745]: Season 01
+            - generic [ref=e747]:
+              - 'img "Kolchak: The Night Stalker" [ref=e748]'
+              - generic [ref=e749]:
+                - generic [ref=e750]:
+                  - generic [ref=e751]:
+                    - 'heading "Kolchak: The Night Stalker" [level=3] [ref=e752]'
+                    - generic [ref=e753]: Completed
+                  - generic [ref=e754]:
+                    - button "Re-transcode" [ref=e755] [cursor=pointer]
+                    - button "Delete" [ref=e756] [cursor=pointer]
+                - generic [ref=e757]:
+                  - generic [ref=e758]: "1974"
+                  - 'generic "/data/raw/Kolchak: The Night Stalker" [ref=e759]': "Kolchak: The Night Stalker"
+                - generic [ref=e760]:
+                  - generic [ref=e761]: Series
+                  - generic [ref=e762]:
+                    - img "4K UHD" [ref=e763]
+                    - text: 4K UHD
+                  - generic [ref=e764]: 5 tracks
+                - generic [ref=e765]:
+                  - generic [ref=e766]: Queued 9d ago
+                  - generic [ref=e767]: Started 9d ago
+                  - generic [ref=e768]: Took 36m 44s
+                - generic [ref=e770]: Log not found or transcoder offline
+                - paragraph [ref=e771]:
+                  - generic [ref=e772]: →
+                  - generic "/data/completed/TV/Rips/Kolchak- The Night Stalker/Season 01" [ref=e773]: Season 01

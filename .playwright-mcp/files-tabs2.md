@@ -1,0 +1,89 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "ARM" [ref=e7]
+      - separator [ref=e8]
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /
+          - img [ref=e11]
+          - text: Dashboard
+        - link "Notifications 11" [ref=e13] [cursor=pointer]:
+          - /url: /notifications
+          - img [ref=e14]
+          - text: Notifications
+          - generic [ref=e16]: "11"
+        - link "Logs" [ref=e17] [cursor=pointer]:
+          - /url: /logs
+          - img [ref=e18]
+          - text: Logs
+        - link "Files" [ref=e20] [cursor=pointer]:
+          - /url: /files
+          - img [ref=e21]
+          - text: Files
+        - link "Transcoder" [ref=e23] [cursor=pointer]:
+          - /url: /transcoder
+          - img [ref=e24]
+          - text: Transcoder
+        - link "Settings" [ref=e26] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e27]
+          - text: Settings
+      - separator [ref=e29]
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - button "Ripper" [ref=e33] [cursor=pointer]
+          - button "Transcoder" [ref=e34] [cursor=pointer]
+        - paragraph [ref=e35]: AMD Ryzen 9 9900X 12-Core Processor
+        - paragraph [ref=e36]: 30.2 GB RAM
+        - generic [ref=e37]:
+          - generic [ref=e39]
+          - generic [ref=e46]
+        - generic [ref=e52]:
+          - paragraph [ref=e53]: Storage
+          - link "Raw 846.8 GB free" [ref=e54] [cursor=pointer]:
+            - /url: /files?path=%2Fhome%2Farm%2Fmedia%2Fraw
+          - link "Transcode 846.8 GB free" [ref=e61] [cursor=pointer]:
+            - /url: /files?path=%2Fhome%2Farm%2Fmedia%2Ftranscode
+          - link "Completed 846.8 GB free" [ref=e68] [cursor=pointer]:
+            - /url: /files?path=%2Fhome%2Farm%2Fmedia%2Fcompleted
+  - generic [ref=e75]:
+    - banner [ref=e76]:
+      - generic [ref=e77]:
+        - generic [ref=e78]:
+          - link "ARM" [ref=e79] [cursor=pointer]:
+            - /url: /settings#system
+          - link "DB" [ref=e82] [cursor=pointer]:
+            - /url: /settings#system
+          - link "Transcode" [ref=e85] [cursor=pointer]:
+            - /url: /transcoder
+          - link "Key" [ref=e88] [cursor=pointer]:
+            - /url: /settings#ripping/makemkv
+        - generic [ref=e92]:
+          - link "0 drives" [ref=e93] [cursor=pointer]:
+            - /url: /settings#drives
+          - generic [ref=e94]: 2 ripping
+          - link "11 notifications" [ref=e95] [cursor=pointer]:
+            - /url: /notifications
+      - generic [ref=e96]:
+        - button "Auto-Start" [ref=e97] [cursor=pointer]: Auto-Start
+        - button "Quick actions" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+    - main [ref=e105]:
+      - generic [ref=e106]:
+        - heading "Files" [level=1] [ref=e107]
+        - generic [ref=e108]: "Warning: Modify files at your own risk. This will not update database records and will cause issues for any in-progress rips or transcodes."
+        - navigation "File root tabs" [ref=e110]:
+          - button "Raw" [ref=e111] [cursor=pointer]
+          - button "Transcode" [ref=e112] [cursor=pointer]
+          - button "Completed" [ref=e113] [cursor=pointer]
+          - button "Music" [ref=e114] [cursor=pointer]
+          - button "Ingress" [ref=e115] [cursor=pointer]
+        - group [ref=e116]:
+          - generic "Paths" [ref=e117] [cursor=pointer]
+        - generic [ref=e118]:
+          - navigation [ref=e119]
+          - generic [ref=e121]
+        - generic [ref=e135]:
+          - button ".." [ref=e136] [cursor=pointer]
+          - table [ref=e139]

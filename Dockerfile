@@ -46,8 +46,6 @@ COPY ./scripts/docker/runit/start_udev.sh /etc/my_init.d/start_udev.sh
 
 # Modified udev for container
 COPY ./scripts/docker/custom_udev /etc/init.d/udev
-# Increase udev event_timeout (default 180s kills rip processes via SIGKILL)
-COPY ./setup/udev.conf /etc/udev/udev.conf
 
 # Override base image healthcheck with faster hostname -i resolution
 COPY ./docker/base/scripts/healthcheck.sh /healthcheck.sh

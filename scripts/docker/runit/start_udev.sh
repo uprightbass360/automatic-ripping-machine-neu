@@ -5,6 +5,16 @@
 # we timeout and continue. ARM can still function without udev for
 # disc detection since udev rules are on the host.
 
+# Generate udev.conf with configurable event_timeout.
+# Default 180s kills rip processes via SIGKILL; ARM needs hours for Blu-ray rips.
+UDEV_EVENT_TIMEOUT="${UDEV_EVENT_TIMEOUT:-7200}"
+cat > /etc/udev/udev.conf <<EOF
+# Generated at container startup from UDEV_EVENT_TIMEOUT env var
+event_timeout=${UDEV_EVENT_TIMEOUT}
+timeout_signal=SIGTERM
+EOF
+echo "udev.conf: event_timeout=${UDEV_EVENT_TIMEOUT}, timeout_signal=SIGTERM"
+
 echo "Trying to start udev"
 timeout 30 /etc/init.d/udev start > /dev/null 2>&1 || {
     echo "WARNING: udev start timed out or failed - continuing without udev"

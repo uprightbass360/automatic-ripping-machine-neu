@@ -1,0 +1,40 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - img "ARM" [ref=e7]
+      - separator [ref=e8]
+      - navigation [ref=e9]:
+        - link "Dashboard" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "Notifications 41" [ref=e13] [cursor=pointer]:
+          - /url: /notifications
+        - link "Logs" [ref=e17] [cursor=pointer]:
+          - /url: /logs
+        - link "Files" [ref=e20] [cursor=pointer]:
+          - /url: /files
+        - link "Transcoder" [ref=e23] [cursor=pointer]:
+          - /url: /transcoder
+        - link "Settings" [ref=e26] [cursor=pointer]:
+          - /url: /settings
+      - separator [ref=e29]
+      - generic [ref=e31]:
+        - generic [ref=e32]
+        - paragraph [ref=e36]: Intel(R) N97
+        - paragraph [ref=e37]: 15.2 GB RAM
+        - generic [ref=e38]
+        - generic [ref=e53]
+  - generic [ref=e76]:
+    - banner [ref=e77]:
+      - generic [ref=e78]:
+        - generic [ref=e79]
+        - generic [ref=e93]
+      - generic [ref=e96]:
+        - button "Auto-Start" [ref=e97] [cursor=pointer]: Auto-Start
+        - button "Quick actions" [ref=e101] [cursor=pointer]
+    - main [ref=e105]:
+      - generic [ref=e106]:
+        - heading "Transcoder" [level=1] [ref=e107]
+        - generic [ref=e108]
+        - generic [ref=e120]
+        - generic [ref=e136]
+        - generic [ref=e163]
