@@ -292,6 +292,7 @@ async def get_music_details(release_id: str) -> dict[str, Any] | None:
     tracks_list: list[dict[str, Any]] = []
     track_count = 0
     for medium in media:
+        disc_num = medium.get("position")
         for track in medium.get("tracks", []):
             recording = track.get("recording", {})
             length_ms = track.get("length") or recording.get("length")
@@ -299,6 +300,7 @@ async def get_music_details(release_id: str) -> dict[str, Any] | None:
                 "number": track.get("number", ""),
                 "title": recording.get("title", track.get("title", "")),
                 "length_ms": length_ms,
+                "disc_number": disc_num,
             })
         track_count += medium.get("track-count", 0)
 
@@ -317,6 +319,7 @@ async def get_music_details(release_id: str) -> dict[str, Any] | None:
         "catalog_number": _extract_catalog_number(label_info),
         "barcode": data.get("barcode") or None,
         "status": data.get("status"),
+        "disc_count": len(media),
         "tracks": tracks_list,
     }
 
