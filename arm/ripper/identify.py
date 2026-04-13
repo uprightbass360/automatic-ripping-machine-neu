@@ -365,15 +365,27 @@ def identify(job):
     # Phase 1: Try to mount the disc.
     mounted = check_mount(job)
 
-    # Phase 2: If mount failed, re-read udev in case properties weren't
-    # ready when parse_udev() first ran during Job creation.
-    if not mounted and job.disctype in (None, "unknown"):
-        logging.info("Mount failed with disctype=%s — re-reading udev properties", job.disctype)
-        time.sleep(3)
-        job.parse_udev()
-        if job.disctype not in (None, "unknown"):
-            logging.info("Re-read udev identified disc as: %s", job.disctype)
-            utils.database_updater({"disctype": job.disctype}, job)
+    # Phase 2: Resolve disctype if still unknown.
+    # Try multiple sources: filesystem probing (when mounted), then udev re-read.
+    if job.disctype in (None, "unknown"):
+        if mounted:
+            # 2a: Filesystem-based detection — handles container restart when
+            # udev properties aren't populated but the disc is readable.
+            logging.info("Mount succeeded but disctype=%s — detecting from filesystem", job.disctype)
+            job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
+            if job.disctype not in (None, "unknown"):
+                logging.info("Filesystem detection identified disc as: %s", job.disctype)
+                utils.database_updater({"disctype": job.disctype}, job)
+
+        # 2b: Re-read udev — properties may have become available since
+        # the initial parse_udev() during Job creation.
+        if job.disctype in (None, "unknown"):
+            logging.info("Re-reading udev properties for %s (disctype=%s)", job.devpath, job.disctype)
+            time.sleep(3)
+            job.parse_udev()
+            if job.disctype not in (None, "unknown"):
+                logging.info("Re-read udev identified disc as: %s", job.disctype)
+                utils.database_updater({"disctype": job.disctype}, job)
 
     # If we still can't identify the disc, give up.
     if job.disctype in (None, "unknown"):
@@ -382,9 +394,9 @@ def identify(job):
             f"still spinning up, or the device no longer exists"
         )
 
-    # Music detected via udev re-read — no filesystem to inspect.
+    # Music CDs have no filesystem — nothing more to do.
     if job.disctype == "music":
-        logging.info("Disc identified as music via udev — skipping filesystem identification")
+        logging.info("Disc identified as music — skipping filesystem identification")
         return
 
     # Phase 3: Filesystem-based identification (only when mounted).
@@ -396,19 +408,19 @@ def identify(job):
         )
         return
 
-    if mounted:
-        try:
-            job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
+    try:
+        # Refine disctype from filesystem if not already done in Phase 2a.
+        job.get_disc_type(utils.find_file("HVDVD_TS", job.mountpoint))
 
-            if job.disctype in ["dvd", "bluray", "bluray4k"]:
-                logging.info("Disc identified as video")
-                if cfg.arm_config["GET_VIDEO_TITLE"]:
-                    _identify_video_title(job)
-        finally:
-            result = subprocess.run(["umount", job.devpath],
-                                    stderr=subprocess.PIPE, text=True)
-            if result.returncode != 0 and result.stderr:
-                logging.debug(f"umount {job.devpath}: {result.stderr.strip()}")
+        if job.disctype in ["dvd", "bluray", "bluray4k"]:
+            logging.info("Disc identified as video")
+            if cfg.arm_config["GET_VIDEO_TITLE"]:
+                _identify_video_title(job)
+    finally:
+        result = subprocess.run(["umount", job.devpath],
+                                stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0 and result.stderr:
+            logging.debug(f"umount {job.devpath}: {result.stderr.strip()}")
 
 
 # ── Disc-specific identification ────────────────────────────────────────
