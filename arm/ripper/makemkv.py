@@ -1708,7 +1708,11 @@ def run(options, select):
     # (PEP 342) and the process dies without logging.  Instead, manage
     # the process lifecycle explicitly so proc.wait() runs in the main
     # execution path where signal handlers work normally.
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
+    # start_new_session=True puts makemkvcon in its own process group
+    # so it cannot send signals (e.g. SIGPIPE) to the Python parent
+    # when it exits.  Without this, makemkvcon's exit can kill the
+    # ripper process via process-group signal delivery.
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, start_new_session=True)
     try:
         logging.debug(f"PID {proc.pid}: command: '{' '.join(cmd)}'")
         for line in proc.stdout:

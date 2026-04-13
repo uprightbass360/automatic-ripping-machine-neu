@@ -13,7 +13,7 @@ import re  # noqa: E402
 from argparse import Namespace
 from importlib.util import find_spec
 from pathlib import Path
-from signal import signal, SIGTERM
+from signal import signal, SIGTERM, SIGPIPE, SIG_IGN
 from typing import Optional
 
 import pyudev  # noqa: E402
@@ -255,6 +255,11 @@ def setup():
     # Handle SIGTERM so we can exit gracefully. Without this, no except: or finally: blocks are
     # run and the program exits immediately, potentially leaving the database in an invalid state.
     signal(SIGTERM, signal_handler)
+
+    # Explicitly ignore SIGPIPE. Python sets SIG_IGN at startup, but
+    # MakeMKV child processes can reset signal dispositions. A broken pipe
+    # (e.g. MakeMKV closing stdout while Python reads) must not kill us.
+    signal(SIGPIPE, SIG_IGN)
 
     # Get arguments from arg parser
     args = entry()
