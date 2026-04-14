@@ -303,18 +303,27 @@ async def drive_diagnostic():
 
 
 @router.post('/drives/rescan')
-async def rescan_drives():
+async def rescan_drives(force: bool = False):
     """Re-detect optical drives and update the database.
 
     Python-level only - refreshes the drive inventory in the DB
     by scanning /sys and udev. Does NOT trigger rips.
+
+    With ``force=true``, deletes all non-processing drive records
+    before rescanning. Useful when stale entries accumulate from
+    previous container runs or drive reconnections.
     """
     from arm.services.drives import drives_update
 
     def _do_rescan():
         try:
+            if force:
+                for d in SystemDrives.query.all():
+                    if not d.processing:
+                        db.session.delete(d)
+                db.session.commit()
             before = SystemDrives.query.count()
-            removed = drives_update()
+            removed = drives_update(startup=force)
             after = SystemDrives.query.count()
             return before, after, removed
         finally:
