@@ -202,3 +202,6 @@ MagicMock/
 
 # Root-level screenshots (keep curated ones under screenshots/)
 /*.png
+
+# Playwright MCP session artifacts
+.playwright-mcp/
