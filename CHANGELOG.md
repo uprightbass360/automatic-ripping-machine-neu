@@ -1,5 +1,12 @@
 # Changelog
 
+## [15.5.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.3...v15.5.0) (2026-04-15)
+
+
+### Features
+
+* add force parameter to drives/rescan endpoint ([b2555e1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b2555e164b97cc136a2810883555379020581143))
+
 ## [15.4.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.2...v15.4.3) (2026-04-13)
 
 
