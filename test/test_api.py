@@ -464,6 +464,20 @@ class TestApiDrivesRescan:
         assert response.status_code == 500
         assert response.json()["success"] is False
 
+    def test_rescan_force_deletes_non_processing(self, client, app_context):
+        d_idle = unittest.mock.MagicMock(processing=False)
+        d_busy = unittest.mock.MagicMock(processing=True)
+        with unittest.mock.patch("arm.services.drives.drives_update", return_value=0), \
+             unittest.mock.patch("arm.api.v1.drives.SystemDrives") as mock_sd, \
+             unittest.mock.patch("arm.api.v1.drives.db") as mock_db:
+            mock_sd.query.all.return_value = [d_idle, d_busy]
+            mock_sd.query.count.side_effect = [1, 1]
+            response = client.post('/api/v1/drives/rescan?force=true')
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+        mock_db.session.delete.assert_called_once_with(d_idle)
+        mock_db.session.commit.assert_called()
+
 
 class TestApiDriveScan:
     """Test POST /api/v1/drives/{drive_id}/scan endpoint."""
