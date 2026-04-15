@@ -189,3 +189,7 @@ dev-data/config/arm.yaml
 dev-data/makemkv/
 deploy/*.env
 docker-compose.override.yml
+
+# Claude Code
+.claude/
+.superpowers/
