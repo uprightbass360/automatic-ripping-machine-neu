@@ -731,13 +731,13 @@ def get_naming_variables():
 
 
 TRANSCODE_OVERRIDE_KEYS = {
-    'video_encoder', 'video_quality', 'audio_encoder', 'subtitle_mode',
-    'handbrake_preset', 'handbrake_preset_4k', 'handbrake_preset_dvd',
-    'handbrake_preset_file', 'delete_source', 'output_extension',
+    'preset_slug',
+    'overrides',
+    'delete_source',
+    'output_extension',
 }
 
-# Type validation: int-valued, bool-valued, rest are strings
-_INT_KEYS = {'video_quality'}
+# Type validation: bool-valued, rest are strings
 _BOOL_KEYS = {'delete_source'}
 
 
@@ -751,7 +751,7 @@ def _coerce_bool(value):
 
 
 def _validate_transcode_overrides(body):
-    """Validate and coerce transcode override values. Returns (overrides, errors)."""
+    """Validate and coerce transcode override values."""
     overrides = {}
     errors = []
     for key, value in body.items():
@@ -760,13 +760,13 @@ def _validate_transcode_overrides(body):
             continue
         if value is None or value == '':
             continue
-        if key in _INT_KEYS:
-            try:
-                overrides[key] = int(value)
-            except (ValueError, TypeError):
-                errors.append(f"{key} must be an integer")
-        elif key in _BOOL_KEYS:
+        if key in _BOOL_KEYS:
             overrides[key] = _coerce_bool(value)
+        elif key == 'overrides':
+            if not isinstance(value, dict):
+                errors.append("overrides must be a dict")
+                continue
+            overrides[key] = value
         else:
             overrides[key] = str(value)
     return overrides, errors

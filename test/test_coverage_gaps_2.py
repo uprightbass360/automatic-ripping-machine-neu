@@ -142,14 +142,14 @@ class TestBuildWebhookPayload:
         """Transcode overrides JSON is included in payload."""
         from arm.ripper.utils import _build_webhook_payload
 
-        overrides = {"video_encoder": "nvenc_h265", "video_quality": 22}
+        overrides = {"preset_slug": "nvidia_balanced", "overrides": {"shared": {"video_quality": 22}}}
         sample_job.transcode_overrides = json.dumps(overrides)
         db.session.commit()
 
         payload = _build_webhook_payload("Rip done", "body", sample_job, "raw_dir")
         assert "config_overrides" in payload
-        assert payload["config_overrides"]["video_encoder"] == "nvenc_h265"
-        assert payload["config_overrides"]["video_quality"] == 22
+        assert payload["config_overrides"]["preset_slug"] == "nvidia_balanced"
+        assert payload["config_overrides"]["overrides"]["shared"]["video_quality"] == 22
 
     def test_job_is_none(self):
         """When job is None, payload has only basic fields."""
