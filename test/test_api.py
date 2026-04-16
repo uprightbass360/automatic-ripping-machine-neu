@@ -2035,7 +2035,7 @@ class TestApiTranscodeConfig:
 
     def test_transcode_config_not_found(self, client):
         response = client.patch('/api/v1/jobs/99999/transcode-config',
-                                 json={"video_encoder": "x265"})
+                                 json={"preset_slug": "cpu_balanced"})
         assert response.status_code == 404
 
     def test_transcode_config_empty_body(self, client, sample_job, app_context):
@@ -2055,13 +2055,56 @@ class TestApiTranscodeConfig:
     def test_transcode_config_valid(self, client, sample_job, app_context):
         response = client.patch(
             f'/api/v1/jobs/{sample_job.job_id}/transcode-config',
-            json={"video_encoder": "nvenc_h265", "video_quality": "22"}
+            json={"preset_slug": "nvidia_balanced", "delete_source": "true"}
         )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
-        assert data["overrides"]["video_encoder"] == "nvenc_h265"
-        assert data["overrides"]["video_quality"] == 22
+        assert data["overrides"]["preset_slug"] == "nvidia_balanced"
+        assert data["overrides"]["delete_source"] is True
+
+
+class TestTranscodeOverridesNewShape:
+    """Unit tests for the preset-based transcode override validation."""
+
+    def test_validate_preset_slug(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        body = {"preset_slug": "nvidia_balanced"}
+        overrides, errors = _validate_transcode_overrides(body)
+        assert not errors
+        assert overrides["preset_slug"] == "nvidia_balanced"
+
+    def test_validate_overrides_dict(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        body = {
+            "preset_slug": "nvidia_balanced",
+            "overrides": {"shared": {"audio_encoder": "aac"}, "tiers": {"uhd": {"video_quality": 18}}},
+        }
+        overrides, errors = _validate_transcode_overrides(body)
+        assert not errors
+        assert overrides["preset_slug"] == "nvidia_balanced"
+        assert overrides["overrides"]["tiers"]["uhd"]["video_quality"] == 18
+
+    def test_reject_old_flat_keys(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        body = {"video_encoder": "nvenc_h265"}
+        overrides, errors = _validate_transcode_overrides(body)
+        assert len(errors) == 1
+        assert "Unknown key" in errors[0]
+
+    def test_overrides_must_be_dict(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        body = {"overrides": "not_a_dict"}
+        overrides, errors = _validate_transcode_overrides(body)
+        assert len(errors) == 1
+        assert "dict" in errors[0]
+
+    def test_delete_source_still_works(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        body = {"delete_source": "true"}
+        overrides, errors = _validate_transcode_overrides(body)
+        assert not errors
+        assert overrides["delete_source"] is True
 
 
 class TestApiTranscodeCallback:
@@ -2629,12 +2672,12 @@ class TestApiRetranscodeInfo:
     def test_retranscode_info_with_overrides(self, client, sample_job, app_context):
         import json
         from arm.database import db
-        sample_job.transcode_overrides = json.dumps({"video_encoder": "nvenc_h265"})
+        sample_job.transcode_overrides = json.dumps({"preset_slug": "nvidia_balanced"})
         db.session.commit()
 
         response = client.get(f'/api/v1/jobs/{sample_job.job_id}/retranscode-info')
         data = response.json()
-        assert data["config_overrides"] == {"video_encoder": "nvenc_h265"}
+        assert data["config_overrides"] == {"preset_slug": "nvidia_balanced"}
 
     def test_retranscode_info_multi_title(self, client, sample_job, app_context):
         from arm.models.track import Track
