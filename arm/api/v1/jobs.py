@@ -1004,6 +1004,32 @@ def skip_and_finalize(job_id: int):
         )
 
 
+@router.post('/jobs/{job_id}/force-complete')
+def force_complete(job_id: int):
+    """Mark a job as complete without moving files.
+
+    Use when the transcoder already processed the job but the callback
+    to ARM failed — the files are already in the right place, we just
+    need to update the status.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
+
+    if job.status == JobState.SUCCESS.value:
+        return {"success": True, "message": "Job is already complete"}
+
+    previous_status = job.status
+    job.status = JobState.SUCCESS.value
+    notification = Notifications(
+        f"Job: {job.job_id} force-completed",
+        f"'{job.title}' marked complete (was: {previous_status})",
+    )
+    db.session.add(notification)
+    db.session.commit()
+    return {"success": True, "message": f"Job marked complete (was: {previous_status})"}
+
+
 @router.post('/jobs/{job_id}/tvdb-match')
 def tvdb_match(job_id: int, body: dict):
     """Run TVDB episode matching for a job.

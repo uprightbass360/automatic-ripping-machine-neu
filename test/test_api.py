@@ -210,6 +210,51 @@ class TestSkipAndFinalize:
         assert sample_job.status == "success"
 
 
+class TestForceComplete:
+    """Test POST /api/v1/jobs/<id>/force-complete endpoint."""
+
+    def test_force_complete_waiting_transcode(self, client, sample_job, app_context):
+        """TRANSCODE_WAITING job should be marked SUCCESS without moving files."""
+        from arm.ripper.utils import database_updater
+        from arm.database import db
+        database_updater({"status": "waiting_transcode"}, sample_job)
+
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/force-complete')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "waiting_transcode" in data["message"]
+        db.session.refresh(sample_job)
+        assert sample_job.status == "success"
+
+    def test_force_complete_already_success(self, client, sample_job, app_context):
+        """Already-complete job should return success without error."""
+        from arm.ripper.utils import database_updater
+        database_updater({"status": "success"}, sample_job)
+
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/force-complete')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "already" in data["message"].lower()
+
+    def test_force_complete_not_found(self, client):
+        """Non-existent job should return 404."""
+        response = client.post('/api/v1/jobs/99999/force-complete')
+        assert response.status_code == 404
+
+    def test_force_complete_failed_job(self, client, sample_job, app_context):
+        """Even a failed job can be force-completed."""
+        from arm.ripper.utils import database_updater
+        from arm.database import db
+        database_updater({"status": "fail"}, sample_job)
+
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/force-complete')
+        assert response.status_code == 200
+        db.session.refresh(sample_job)
+        assert sample_job.status == "success"
+
+
 class TestApiJobLog:
     """Test GET /api/v1/jobs/<id>/log endpoint."""
 
