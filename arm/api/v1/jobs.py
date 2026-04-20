@@ -966,6 +966,43 @@ def transcode_callback(job_id: int, body: dict):
     return {"success": True, "job_id": job.job_id, "status": job.status}
 
 
+@router.post('/jobs/{job_id}/skip-and-finalize')
+def skip_and_finalize(job_id: int):
+    """Skip transcoding and finalize a job's output directly.
+
+    Only allowed when the job is in TRANSCODE_WAITING or TRANSCODE_ACTIVE state.
+    Moves ripped files to the final output path and marks the job as SUCCESS.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
+
+    allowed = {JobState.TRANSCODE_WAITING.value, JobState.TRANSCODE_ACTIVE.value}
+    if job.status not in allowed:
+        return JSONResponse(
+            {"success": False, "error": f"Job is in '{job.status}' state, expected transcode_waiting or transcode_active"},
+            status_code=409,
+        )
+
+    try:
+        from arm.ripper.naming import finalize_output
+        finalize_output(job)
+        job.status = JobState.SUCCESS.value
+        notification = Notifications(
+            f"Job: {job.job_id} finalized without transcoding",
+            f"'{job.title}' skipped transcoding and finalized successfully",
+        )
+        db.session.add(notification)
+        db.session.commit()
+        return {"success": True, "message": "Job finalized without transcoding"}
+    except Exception as exc:
+        db.session.rollback()
+        return JSONResponse(
+            {"success": False, "error": f"Finalization failed: {exc}"},
+            status_code=500,
+        )
+
+
 @router.post('/jobs/{job_id}/tvdb-match')
 def tvdb_match(job_id: int, body: dict):
     """Run TVDB episode matching for a job.

@@ -158,6 +158,58 @@ class TestApiJobSend:
             assert response.status_code == 200
 
 
+class TestSkipAndFinalize:
+    """Test POST /api/v1/jobs/<id>/skip-and-finalize endpoint."""
+
+    def test_skip_and_finalize_success(self, client, sample_job, app_context):
+        """TRANSCODE_WAITING job should finalize and become SUCCESS."""
+        from arm.ripper.utils import database_updater
+        from arm.database import db
+        database_updater({"status": "waiting_transcode"}, sample_job)
+
+        with unittest.mock.patch('arm.ripper.naming.finalize_output'):
+            response = client.post(f'/api/v1/jobs/{sample_job.job_id}/skip-and-finalize')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert "finalized" in data["message"].lower()
+        db.session.refresh(sample_job)
+        assert sample_job.status == "success"
+
+    def test_skip_and_finalize_wrong_state(self, client, sample_job, app_context):
+        """Job in VIDEO_RIPPING state should return 409."""
+        from arm.ripper.utils import database_updater
+        database_updater({"status": "ripping"}, sample_job)
+
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/skip-and-finalize')
+        assert response.status_code == 409
+        data = response.json()
+        assert data["success"] is False
+
+    def test_skip_and_finalize_not_found(self, client):
+        """Non-existent job should return 404."""
+        response = client.post('/api/v1/jobs/99999/skip-and-finalize')
+        assert response.status_code == 404
+        data = response.json()
+        assert data["success"] is False
+
+    def test_skip_and_finalize_transcoding_active(self, client, sample_job, app_context):
+        """TRANSCODE_ACTIVE job should also finalize successfully."""
+        from arm.ripper.utils import database_updater
+        from arm.database import db
+        database_updater({"status": "transcoding"}, sample_job)
+
+        with unittest.mock.patch('arm.ripper.naming.finalize_output'):
+            response = client.post(f'/api/v1/jobs/{sample_job.job_id}/skip-and-finalize')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        db.session.refresh(sample_job)
+        assert sample_job.status == "success"
+
+
 class TestApiJobLog:
     """Test GET /api/v1/jobs/<id>/log endpoint."""
 
