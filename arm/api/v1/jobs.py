@@ -997,8 +997,9 @@ def skip_and_finalize(job_id: int):
         return {"success": True, "message": "Job finalized without transcoding"}
     except Exception as exc:
         db.session.rollback()
+        logging.error("skip-and-finalize failed for job %s: %s", job_id, exc)
         return JSONResponse(
-            {"success": False, "error": f"Finalization failed: {exc}"},
+            {"success": False, "error": "Finalization failed"},
             status_code=500,
         )
 
