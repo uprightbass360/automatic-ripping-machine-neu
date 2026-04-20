@@ -68,6 +68,11 @@ usermod -a -G render arm
 # read-only filesystem (e.g. rescan_drive.sh mounted with :ro).
 chown -R --quiet arm:arm /opt/arm || true
 
+# Fix /home/arm ownership after usermod changes the UID.
+# The image bakes /home/arm as UID 1000; if ARM_UID differs,
+# the directory must be re-owned before the access check.
+chown arm:arm "$ARM_HOME" 2>/dev/null || true
+
 # Check ownership of the ARM home folder
 check_folder_ownership "/home/arm"
 
