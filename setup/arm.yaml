@@ -161,7 +161,12 @@ RIP_POSTER: false
 ########################
 
 # Patterns for display titles and folder names.
-# Available variables: {title}, {year}, {artist}, {album}, {season}, {episode}, {label}
+# Available variables:
+#   All types: {title}, {year}, {label}, {disc_number}, {disc_total}
+#   TV series: {show} (always the series name), {season}, {episode}, {episode_name}
+#   Music:     {artist}, {album}
+# For TV: {title} may be the episode title on multi-title discs.
+#          Use {show} if you always want the series name.
 # Use / in folder patterns to create nested directories.
 
 # Movie naming
@@ -169,8 +174,8 @@ MOVIE_TITLE_PATTERN: "{title} ({year})"
 MOVIE_FOLDER_PATTERN: "{title} ({year})"
 
 # TV series naming
-TV_TITLE_PATTERN: "{title} S{season}E{episode}"
-TV_FOLDER_PATTERN: "{title}/Season {season}"
+TV_TITLE_PATTERN: "{show} S{season}E{episode}"
+TV_FOLDER_PATTERN: "{show}/Season {season}"
 
 # Music naming
 MUSIC_TITLE_PATTERN: "{artist} - {album}"

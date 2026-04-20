@@ -13,8 +13,8 @@ _TITLE_YEAR_PATTERN = '{title} ({year})'
 DEFAULTS = {
     'MOVIE_TITLE_PATTERN':  _TITLE_YEAR_PATTERN,
     'MOVIE_FOLDER_PATTERN': _TITLE_YEAR_PATTERN,
-    'TV_TITLE_PATTERN':     '{title} S{season}E{episode}',
-    'TV_FOLDER_PATTERN':    '{title}/Season {season}',
+    'TV_TITLE_PATTERN':     '{show} S{season}E{episode}',
+    'TV_FOLDER_PATTERN':    '{show}/Season {season}',
     'MUSIC_TITLE_PATTERN':  '{artist} - {album}',
     'MUSIC_FOLDER_PATTERN': '{artist}/{album} ({year})',
 }
@@ -22,16 +22,18 @@ DEFAULTS = {
 # Canonical list of variables available in naming patterns.
 # This is the single source of truth — UI, validation, and config docs derive from this.
 PATTERN_VARIABLES = {
-    'title':      'Disc title (prefers manual over auto-detected)',
-    'year':       'Release year',
-    'artist':     'Music artist name',
-    'album':      'Music album name',
-    'season':     'TV season number (zero-padded to 2 digits)',
-    'episode':    'TV episode number (zero-padded to 2 digits)',
-    'label':      'Original disc label from drive',
-    'video_type': 'Media type: movie, series, or music',
-    'disc_number': 'Disc number in a multi-disc set',
-    'disc_total':  'Total number of discs in the set',
+    'title':        'Disc title (may be episode title on multi-title TV discs)',
+    'show':         'Series/show name (always the job-level title, never overridden by track)',
+    'year':         'Release year',
+    'artist':       'Music artist name',
+    'album':        'Music album name',
+    'season':       'TV season number (zero-padded to 2 digits)',
+    'episode':      'TV episode number (zero-padded to 2 digits)',
+    'episode_name': 'TV episode title from TVDB (track-level only)',
+    'label':        'Original disc label from drive',
+    'video_type':   'Media type: movie, series, or music',
+    'disc_number':  'Disc number in a multi-disc set',
+    'disc_total':   'Total number of discs in the set',
 }
 
 # Frozen set for fast validation — derived from PATTERN_VARIABLES
@@ -70,11 +72,13 @@ def _build_variables(job):
 
     return _SafeDict({
         'title': title,
+        'show': title,  # Always the job-level title (show name for TV)
         'year': year,
         'artist': artist,
         'album': album,
         'season': season,
         'episode': episode,
+        'episode_name': '',  # Populated at track level from TVDB
         'label': getattr(job, 'label', '') or '',
         'video_type': getattr(job, 'video_type', '') or '',
         'disc_number': str(getattr(job, 'disc_number', '') or ''),
@@ -155,10 +159,19 @@ def render_folder(job, config_dict=None):
 
 
 def _build_track_variables(track, job):
-    """Build variables for a track, starting from job defaults and overriding with track-level fields."""
+    """Build variables for a track, starting from job defaults and overriding with track-level fields.
+
+    {show} always stays as the job-level title (series name for TV).
+    {title} is overridden by per-track title when available.
+    {episode_name} is populated from TVDB-matched episode name.
+    """
     variables = _build_variables(job)
     if getattr(track, 'title', None):
         variables['title'] = track.title
+    # {show} is never overridden — always the job-level show/series name
+    ep_name = getattr(track, 'episode_name', None)
+    if ep_name:
+        variables['episode_name'] = ep_name
     if getattr(track, 'year', None):
         variables['year'] = track.year
     track_video_type = getattr(track, 'video_type', None)
