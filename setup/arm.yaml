@@ -379,6 +379,7 @@ BASH_SCRIPT: ""
 # the transcoder service.  When true, TRANSCODER_URL is ignored and jobs
 # go straight to SUCCESS after ripping.
 # Per-job override: the review panel toggle overrides this default.
+# v16+ breaking change: replaces the old TRANSCODER_URL empty-check behavior.
 SKIP_TRANSCODE: false
 
 # URL of the arm-transcoder webhook endpoint.
