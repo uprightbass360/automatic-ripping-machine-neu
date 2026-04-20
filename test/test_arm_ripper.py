@@ -154,3 +154,67 @@ class TestRipVisualMedia:
                 if 'rip complete' in str(c).lower()
             ]
             assert len(rip_complete_calls) == 0
+
+
+class TestSkipTranscode:
+    """Test _post_rip_handoff() SKIP_TRANSCODE decision logic."""
+
+    def _make_job(self, skip_transcode=None, notify_rip=False):
+        job = unittest.mock.MagicMock()
+        job.title = "Test Movie"
+        job.config.SKIP_TRANSCODE = skip_transcode
+        job.config.NOTIFY_RIP = notify_rip
+        return job
+
+    def test_skip_transcode_true_finalizes_locally(self):
+        from arm.ripper.arm_ripper import _post_rip_handoff
+
+        job = self._make_job(skip_transcode=True)
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
+             unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': 'http://transcoder:5000/webhook/arm', 'SKIP_TRANSCODE': False}), \
+             unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
+            _post_rip_handoff(job)
+            mock_finalize.assert_called_once_with(job)
+            mock_utils.transcoder_notify.assert_not_called()
+
+    def test_skip_transcode_false_notifies_transcoder(self):
+        from arm.ripper.arm_ripper import _post_rip_handoff
+
+        job = self._make_job(skip_transcode=False)
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
+             unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': 'http://transcoder:5000/webhook/arm', 'SKIP_TRANSCODE': False}), \
+             unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
+            _post_rip_handoff(job)
+            mock_finalize.assert_not_called()
+            mock_utils.transcoder_notify.assert_called_once()
+
+    def test_skip_transcode_no_url_finalizes_locally(self):
+        from arm.ripper.arm_ripper import _post_rip_handoff
+
+        job = self._make_job(skip_transcode=False)
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
+             unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': '', 'SKIP_TRANSCODE': False}), \
+             unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
+            _post_rip_handoff(job)
+            mock_finalize.assert_called_once_with(job)
+            mock_utils.transcoder_notify.assert_not_called()
+
+    def test_per_job_override_skip(self):
+        from arm.ripper.arm_ripper import _post_rip_handoff
+
+        # Global says don't skip, but per-job says skip
+        job = self._make_job(skip_transcode=True)
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
+             unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': 'http://transcoder:5000/webhook/arm', 'SKIP_TRANSCODE': False}), \
+             unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
+            _post_rip_handoff(job)
+            mock_finalize.assert_called_once_with(job)
+            mock_utils.transcoder_notify.assert_not_called()

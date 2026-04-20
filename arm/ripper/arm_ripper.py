@@ -17,6 +17,45 @@ import arm.constants as constants  # noqa E402
 from arm.models.job import JobState  # noqa E402
 
 
+def _post_rip_handoff(job):
+    """Decide whether to hand off to the transcoder or finalize locally.
+
+    Decision logic:
+      1. If TRANSCODER_URL is empty → finalize locally (no transcoder at all).
+      2. If the per-job config has SKIP_TRANSCODE set (not None) → use it.
+      3. Otherwise fall back to the global SKIP_TRANSCODE (default False).
+
+    When skipping: finalize output, set SUCCESS, commit.
+    When not skipping: fire the transcoder webhook.
+    Always handles NOTIFY_RIP notification.
+    """
+    import arm.config.config as cfg
+    from arm.ripper.naming import finalize_output
+
+    transcoder_url = cfg.arm_config.get('TRANSCODER_URL', '')
+
+    # Determine skip_transcode value: per-job override > global config
+    if job.config.SKIP_TRANSCODE is not None:
+        skip = job.config.SKIP_TRANSCODE
+    else:
+        skip = cfg.arm_config.get('SKIP_TRANSCODE', False)
+
+    if not transcoder_url or skip:
+        reason = "SKIP_TRANSCODE is enabled" if skip else "No transcoder configured"
+        logging.info("%s - finalizing output locally", reason)
+        finalize_output(job)
+        job.status = JobState.SUCCESS.value
+        db.session.commit()
+    else:
+        utils.transcoder_notify(
+            cfg.arm_config, constants.NOTIFY_TITLE,
+            f"{job.title} rip complete.", job,
+        )
+
+    if job.config.NOTIFY_RIP:
+        utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
+
+
 def rip_visual_media(have_dupes, job, logfile, protection):
     """
     Main ripping function for dvd and Blu-rays, movies or series.
@@ -58,28 +97,7 @@ def rip_visual_media(have_dupes, job, logfile, protection):
     # Persist raw_path to DB — this is the actual directory on disk
     utils.database_updater({'raw_path': makemkv_out_path}, job)
 
-    # Determine whether to hand off to transcoder or finalize locally
-    import arm.config.config as cfg
-    transcoder_url = cfg.arm_config.get('TRANSCODER_URL', '')
-
-    if transcoder_url:
-        # Always notify the transcoder after rip - this is a pipeline trigger,
-        # separate from user notifications.
-        utils.transcoder_notify(
-            cfg.arm_config, constants.NOTIFY_TITLE,
-            f"{job.title} rip complete.", job,
-        )
-        if job.config.NOTIFY_RIP:
-            utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
-    else:
-        # No transcoder - finalize output locally
-        from arm.ripper.naming import finalize_output
-        logging.info("No transcoder configured - finalizing output locally")
-        finalize_output(job)
-        job.status = JobState.SUCCESS.value
-        db.session.commit()
-        if job.config.NOTIFY_RIP:
-            utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
+    _post_rip_handoff(job)
     logging.info("************* Ripping with MakeMKV completed *************")
 
     # Report errors if any
