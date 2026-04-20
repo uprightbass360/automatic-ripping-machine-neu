@@ -39,16 +39,15 @@ class TestRipFolder:
         return job
 
     @patch("arm.ripper.folder_ripper.db")
-    @patch("arm.ripper.folder_ripper.utils.transcoder_notify")
     @patch("arm.ripper.folder_ripper._reconcile_filenames")
     @patch("arm.ripper.makemkv.run")
     @patch("arm.ripper.folder_ripper.prescan_track_info")
     @patch("arm.ripper.folder_ripper.prep_mkv")
     def test_happy_path_all_mode(
         self, mock_prep, mock_prescan, mock_run,
-        mock_reconcile, mock_notify, mock_db, tmp_path
+        mock_reconcile, mock_db, tmp_path
     ):
-        """No transcoder configured - finalize_output runs, status is success."""
+        """Post-rip handoff is called after rip completes."""
         from arm.ripper.folder_ripper import rip_folder
 
         rawpath = tmp_path / "raw" / "Test Movie"
@@ -59,7 +58,7 @@ class TestRipFolder:
 
         with patch("arm.ripper.folder_ripper.setup_rawpath", return_value=str(rawpath)), \
              patch("arm.ripper.folder_ripper.cfg") as mock_cfg, \
-             patch("arm.ripper.naming.finalize_output") as mock_finalize:
+             patch("arm.ripper.arm_ripper._post_rip_handoff") as mock_handoff:
             mock_cfg.arm_config = {"TRANSCODER_URL": ""}
             rip_folder(job)
 
@@ -70,19 +69,16 @@ class TestRipFolder:
         assert args[0] is job
         assert args[1] == str(rawpath)
         assert "title_map" in kwargs
-        mock_notify.assert_not_called()
-        mock_finalize.assert_called_once_with(job)
-        assert job.status == "success"
+        mock_handoff.assert_called_once_with(job)
 
     @patch("arm.ripper.folder_ripper.db")
-    @patch("arm.ripper.folder_ripper.utils.transcoder_notify")
     @patch("arm.ripper.folder_ripper._reconcile_filenames")
     @patch("arm.ripper.makemkv.run")
     @patch("arm.ripper.folder_ripper.prescan_track_info")
     @patch("arm.ripper.folder_ripper.prep_mkv")
     def test_happy_path_with_transcoder_notify(
         self, mock_prep, mock_prescan, mock_run,
-        mock_reconcile, mock_notify, mock_db, tmp_path
+        mock_reconcile, mock_db, tmp_path
     ):
         from arm.ripper.folder_ripper import rip_folder
 
@@ -93,22 +89,21 @@ class TestRipFolder:
         mock_run.return_value = iter([])
 
         with patch("arm.ripper.folder_ripper.setup_rawpath", return_value=str(rawpath)), \
-             patch("arm.ripper.folder_ripper.cfg") as mock_cfg:
+             patch("arm.ripper.folder_ripper.cfg") as mock_cfg, \
+             patch("arm.ripper.arm_ripper._post_rip_handoff") as mock_handoff:
             mock_cfg.arm_config = {"TRANSCODER_URL": "http://transcoder:8080"}
             rip_folder(job)
 
-        mock_notify.assert_called_once()
-        assert job.status == "waiting_transcode"
+        mock_handoff.assert_called_once_with(job)
 
     @patch("arm.ripper.folder_ripper.db")
-    @patch("arm.ripper.folder_ripper.utils.transcoder_notify")
     @patch("arm.ripper.folder_ripper._reconcile_filenames")
     @patch("arm.ripper.makemkv.run")
     @patch("arm.ripper.folder_ripper.prescan_track_info")
     @patch("arm.ripper.folder_ripper.prep_mkv")
     def test_tracks_marked_ripped_only_if_file_exists(
         self, mock_prep, mock_prescan, mock_run,
-        mock_reconcile, mock_notify, mock_db, tmp_path
+        mock_reconcile, mock_db, tmp_path
     ):
         """Only tracks whose filename exists on disk should be marked ripped."""
         from arm.ripper.folder_ripper import rip_folder
@@ -133,7 +128,7 @@ class TestRipFolder:
         mock_run.return_value = iter([])
 
         with patch("arm.ripper.folder_ripper.cfg") as mock_cfg, mock_setup, \
-             patch("arm.ripper.naming.finalize_output"):
+             patch("arm.ripper.arm_ripper._post_rip_handoff"):
             mock_cfg.arm_config = {"TRANSCODER_URL": ""}
             rip_folder(job)
 

@@ -337,8 +337,7 @@ class TestFolderRipperTitleMap:
              patch("arm.ripper.folder_ripper.prep_mkv"), \
              patch("arm.ripper.folder_ripper.prescan_track_info"), \
              patch("arm.ripper.folder_ripper._reconcile_filenames") as m_reconcile, \
-             patch("arm.ripper.folder_ripper.utils.transcoder_notify"), \
-             patch("arm.ripper.naming.finalize_output"), \
+             patch("arm.ripper.arm_ripper._post_rip_handoff"), \
              patch("arm.ripper.folder_ripper.db"), \
              patch("arm.ripper.folder_ripper.cfg") as mock_cfg:
             mock_cfg.arm_config = {"TRANSCODER_URL": ""}
