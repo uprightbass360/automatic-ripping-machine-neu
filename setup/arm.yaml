@@ -374,6 +374,13 @@ PO_APP_KEY: ""
 BASH_SCRIPT: ""
 
 ## Transcoder Integration
+
+# Skip transcoding — finalize ripped files directly without sending to
+# the transcoder service.  When true, TRANSCODER_URL is ignored and jobs
+# go straight to SUCCESS after ripping.
+# Per-job override: the review panel toggle overrides this default.
+SKIP_TRANSCODE: false
+
 # URL of the arm-transcoder webhook endpoint.
 # Default works with docker-compose (same machine). For remote transcoder,
 # use the host IP/hostname (e.g. http://192.168.0.92:5000/webhook/arm).
