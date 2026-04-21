@@ -442,15 +442,10 @@ if __name__ == "__main__":
             job.errors = str(error)
         # Possibly add cleanup section here for failed job files
     else:
-        if job:
-            # If external transcoder is configured and this was a video disc,
-            # mark as waiting_transcode — the transcoder callback will set
-            # the final status (success/fail) when it finishes.
-            if (job.disctype in ("dvd", "bluray", "bluray4k")
-                    and cfg.arm_config.get("TRANSCODER_URL")):
-                job.status = JobState.TRANSCODE_WAITING.value
-            else:
-                job.status = JobState.SUCCESS.value
+        # Success path: _post_rip_handoff has already committed the correct
+        # terminal status (SUCCESS / TRANSCODE_WAITING / FAILURE). Nothing
+        # to do here.
+        pass
     finally:
         if job:
             final_status = job.status
