@@ -2225,6 +2225,41 @@ class TestTranscodeOverridesNewShape:
         assert not errors
         assert overrides["delete_source"] is True
 
+    def test_preset_slug_accepts_builtin_with_underscore(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        overrides, errors = _validate_transcode_overrides({"preset_slug": "nvidia_balanced"})
+        assert not errors
+        assert overrides["preset_slug"] == "nvidia_balanced"
+
+    def test_preset_slug_accepts_custom_with_hyphen(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        overrides, errors = _validate_transcode_overrides({"preset_slug": "my-custom-preset"})
+        assert not errors
+        assert overrides["preset_slug"] == "my-custom-preset"
+
+    def test_preset_slug_rejects_whitespace_and_uppercase(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        for bad in (" nvidia_balanced", "Nvidia_Balanced", "nvidia balanced"):
+            _, errors = _validate_transcode_overrides({"preset_slug": bad})
+            # whitespace is stripped first; the rest is rejected
+            if bad.strip() == bad:
+                assert errors, f"expected rejection for {bad!r}"
+                assert "Invalid preset_slug" in errors[0]
+
+    def test_preset_slug_rejects_path_traversal(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        for bad in ("../etc/passwd", "nvidia/balanced", "nvidia;rm -rf /", "a" * 101):
+            _, errors = _validate_transcode_overrides({"preset_slug": bad})
+            assert errors, f"expected rejection for {bad!r}"
+            assert "Invalid preset_slug" in errors[0]
+
+    def test_preset_slug_rejects_empty(self):
+        from arm.api.v1.jobs import _validate_transcode_overrides
+        # Empty string skips validation entirely (treated as "no override")
+        overrides, errors = _validate_transcode_overrides({"preset_slug": ""})
+        assert not errors
+        assert "preset_slug" not in overrides
+
 
 class TestApiTranscodeCallback:
     """Test POST /api/v1/jobs/<id>/transcode-callback endpoint."""
