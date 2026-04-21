@@ -328,6 +328,41 @@ def sample_notifications(app_context):
 # --- Drive fixtures ---
 
 @pytest.fixture
+def transcoder_notify_job():
+    """Minimal Job mock with attributes transcoder_notify reads."""
+    job = unittest.mock.MagicMock()
+    job.job_id = 1
+    job.raw_path = '/home/arm/media/raw/Movie'
+    job.video_type = 'movie'
+    job.year = '2024'
+    job.disctype = 'bluray'
+    job.status = 'active'
+    job.poster_url = ''
+    job.title = 'Movie'
+    job.multi_title = False
+    job.transcode_overrides = None
+    return job
+
+
+@pytest.fixture
+def transcoder_notify_patches():
+    """Patch httpx.Client, _build_webhook_payload, and db for transcoder_notify tests.
+
+    Yields the mocked httpx.Client instance so tests can assert on .post calls.
+    """
+    mock_resp = unittest.mock.MagicMock()
+    mock_resp.status_code = 200
+
+    with unittest.mock.patch('httpx.Client') as mock_client_cls, \
+         unittest.mock.patch('arm.ripper.utils._build_webhook_payload',
+                             return_value={"title": "test"}), \
+         unittest.mock.patch('arm.ripper.utils.db'):
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        mock_client.post.return_value = mock_resp
+        yield mock_client
+
+
+@pytest.fixture
 def sample_drives(app_context):
     """Create test drives: 2 active, 1 stale."""
     from arm.models.system_drives import SystemDrives
