@@ -272,7 +272,14 @@ def transcoder_notify(cfg, title, body, job=None):
             db.session.commit()
 
     payload = _build_webhook_payload(title, body, job, raw_basename)
-    headers = {"Content-Type": "application/json"}
+    # X-Api-Version pins the webhook contract. Transcoders on v2 accept this
+    # header (and still accept unversioned requests for back-compat). Older
+    # transcoders that only speak v1 must reject v2 explicitly so payload
+    # shape mismatches fail loudly instead of silently dropping fields.
+    headers = {
+        "Content-Type": "application/json",
+        "X-Api-Version": "2",
+    }
     secret = cfg.get('TRANSCODER_WEBHOOK_SECRET', '')
     if secret:
         headers["X-Webhook-Secret"] = secret
