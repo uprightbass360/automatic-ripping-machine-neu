@@ -65,6 +65,8 @@ More screenshots and theme examples in the [UI project README](https://github.co
 
 ## Quick Start
 
+> For a detailed walkthrough (udev rules, MakeMKV registration, first-run config, troubleshooting), see [docs/setup.md](docs/setup.md).
+
 ### 1. Clone and configure
 
 ```bash
@@ -170,7 +172,7 @@ cp .env.example .env  # edit as needed
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 ```
 
-The dev overlay builds from sibling repos and bind-mounts source for hot-reload. See `CLAUDE.md` for details.
+The dev overlay builds from sibling repos and bind-mounts source for hot-reload. See [docs/setup.md](docs/setup.md) for details.
 
 > **Note:** `components/ui/` and `components/transcoder/` are git submodules managed by CI. Do not build from them during development.
 
