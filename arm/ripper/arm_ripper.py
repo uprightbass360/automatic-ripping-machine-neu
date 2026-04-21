@@ -18,16 +18,20 @@ from arm.models.job import JobState  # noqa E402
 
 
 def _post_rip_handoff(job):
-    """Decide whether to hand off to the transcoder or finalize locally.
+    """Single source of truth for post-rip job status.
 
-    Decision logic:
-      1. If TRANSCODER_URL is empty → finalize locally (no transcoder at all).
-      2. If the per-job config has SKIP_TRANSCODE set (not None) → use it.
-      3. Otherwise fall back to the global SKIP_TRANSCODE (default False).
+    Handles all four terminal outcomes:
+      A. SKIP_TRANSCODE=true (per-job or global) -> finalize locally, SUCCESS
+      B. No TRANSCODER_URL configured -> finalize locally, SUCCESS
+      C. Handoff succeeds -> TRANSCODE_WAITING (transcoder callback sets final)
+      D. Handoff fails -> FAILURE (not TRANSCODE_WAITING - failed handoff should
+         not look like a pending one)
 
-    When skipping: finalize output, set SUCCESS, commit.
-    When not skipping: fire the transcoder webhook.
-    Always handles NOTIFY_RIP notification.
+    Decision precedence for skip:
+      1. Per-job config.SKIP_TRANSCODE (if not None)
+      2. Global SKIP_TRANSCODE (default False)
+
+    Always fires NOTIFY_RIP when enabled.
     """
     import arm.config.config as cfg
     from arm.ripper.naming import finalize_output
@@ -47,10 +51,19 @@ def _post_rip_handoff(job):
         job.status = JobState.SUCCESS.value
         db.session.commit()
     else:
-        utils.transcoder_notify(
-            cfg.arm_config, constants.NOTIFY_TITLE,
-            f"{job.title} rip complete.", job,
-        )
+        # Hand off to transcoder. Status is TRANSCODE_WAITING on success;
+        # FAILURE if the webhook send raises (unreachable, 5xx, etc.).
+        try:
+            utils.transcoder_notify(
+                cfg.arm_config, constants.NOTIFY_TITLE,
+                f"{job.title} rip complete.", job,
+            )
+            job.status = JobState.TRANSCODE_WAITING.value
+        except Exception as exc:
+            logging.error("Transcoder handoff failed for job %s: %s", job.job_id, exc)
+            job.status = JobState.FAILURE.value
+            job.errors = f"Transcoder handoff failed: {exc}"
+        db.session.commit()
 
     if job.config.NOTIFY_RIP:
         utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
