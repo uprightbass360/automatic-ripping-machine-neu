@@ -35,7 +35,7 @@ def mock_job():
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
-@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "https://transcoder", "SKIP_TRANSCODE": False})
 def test_skip_true_with_transcoder_configured_sets_success(
     mock_db, mock_finalize, mock_notify, mock_job,
 ):
@@ -52,7 +52,7 @@ def test_skip_true_with_transcoder_configured_sets_success(
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
-@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "https://transcoder", "SKIP_TRANSCODE": False})
 def test_skip_false_with_transcoder_configured_sets_waiting(
     mock_db, mock_finalize, mock_notify, mock_job,
 ):
@@ -91,7 +91,7 @@ def test_no_transcoder_configured_sets_success(
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
-@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "https://transcoder", "SKIP_TRANSCODE": False})
 def test_transcoder_notify_returns_false_sets_failure(
     mock_db, mock_finalize, mock_notify, mock_job,
 ):
@@ -114,7 +114,7 @@ def test_transcoder_notify_returns_false_sets_failure(
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
-@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "https://transcoder", "SKIP_TRANSCODE": False})
 def test_notify_rip_skipped_on_handoff_failure(
     mock_db, mock_finalize, mock_transcoder_notify, mock_notify, mock_job,
 ):
@@ -133,7 +133,7 @@ def test_notify_rip_skipped_on_handoff_failure(
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
-@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "https://transcoder", "SKIP_TRANSCODE": False})
 def test_notify_rip_fires_on_successful_handoff(
     mock_db, mock_finalize, mock_transcoder_notify, mock_notify, mock_job,
 ):
@@ -151,7 +151,7 @@ def test_notify_rip_fires_on_successful_handoff(
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
-@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": True})
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "https://transcoder", "SKIP_TRANSCODE": True})
 def test_global_skip_used_when_per_job_is_none(
     mock_db, mock_finalize, mock_notify, mock_job,
 ):
