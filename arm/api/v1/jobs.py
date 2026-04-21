@@ -740,6 +740,14 @@ TRANSCODE_OVERRIDE_KEYS = {
 # Type validation: bool-valued, rest are strings
 _BOOL_KEYS = {'delete_source'}
 
+# Slug format: 1-100 chars, lowercase alphanumerics separated by hyphens or
+# underscores. Accepts both built-in scheme slugs (underscore-separated, e.g.
+# "nvidia_balanced") and user-created custom slugs (hyphen-separated from the
+# transcoder's _slugify). Prevents empty strings, path-traversal attempts,
+# whitespace, and gibberish from silently hitting the transcoder and falling
+# through to the scheme default.
+_SLUG_RE = re.compile(r'^[a-z0-9]+(?:[-_][a-z0-9]+)*$')
+
 
 def _coerce_bool(value):
     """Coerce a value to boolean."""
@@ -767,6 +775,15 @@ def _validate_transcode_overrides(body):
                 errors.append("overrides must be a dict")
                 continue
             overrides[key] = value
+        elif key == 'preset_slug':
+            slug = str(value).strip()
+            if not (1 <= len(slug) <= 100) or not _SLUG_RE.fullmatch(slug):
+                errors.append(
+                    f"Invalid preset_slug format: {slug!r}. Must be 1-100 "
+                    "lowercase alphanumerics separated by single hyphens."
+                )
+                continue
+            overrides[key] = slug
         else:
             overrides[key] = str(value)
     return overrides, errors
