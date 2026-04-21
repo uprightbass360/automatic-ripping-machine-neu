@@ -1,5 +1,34 @@
 # Changelog
 
+## [16.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.5.0...v16.0.0) (2026-04-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* TRANSCODE_OVERRIDE_KEYS changed from flat fields (video_encoder, video_quality, handbrake_preset, etc.) to preset_slug + overrides dict. SKIP_TRANSCODE replaces TRANSCODER_URL empty-check as the control for whether jobs are transcoded.
+
+### Features
+
+* add {show} and {episode_name} naming pattern variables ([a6c2f9a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a6c2f9a4f006013de0f06213ef30b44e7c68a105))
+* add force-complete endpoint to mark stuck jobs as success ([e5ee173](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e5ee173ada9f5a3bbff27c8af41b7acbb8806cc0))
+* add SKIP_TRANSCODE config default to arm.yaml templates ([b9c8066](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b9c80662fbde17c6041174cd27650b5dd23374c5))
+* add skip-and-finalize endpoint for stuck transcode jobs ([0647f48](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0647f48948c658935ebfba36b1d455eb5b70c30e))
+* breaking change - preset-based transcode system replaces flat config ([b258786](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b258786be1de59216eb3b6a62fa0bfe8a4ea6e3f))
+* **migration:** drop legacy transcode_overrides shapes on upgrade ([c7abbef](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c7abbefb133c8146199f9c3006b1668bbe5fba03))
+* replace flat transcode override keys with preset-based shape ([b21ab60](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b21ab60ffd5c1a3589333cb1bd399185a96ca06f))
+* send X-Api-Version: 2 on transcoder webhook POST ([c1261ba](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c1261bad00453cd76eac183cc4fcbcff9d94485f))
+* use SKIP_TRANSCODE as source of truth for transcoder handoff ([0d5ffe7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0d5ffe712dbb6c3ade70fca9db164115f250e7ea))
+
+
+### Bug Fixes
+
+* _post_rip_handoff writes TRANSCODE_WAITING and FAILURE ([693087c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/693087c293bd2bba86b9d0de8cabb9d8c899b4ec))
+* chown /home/arm after usermod to fix non-default UID startup ([d9baafd](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d9baafd5565f26eef7503e61d52197f6bf005df2))
+* remove main.py dual-writer that clobbered SKIP_TRANSCODE success ([b9f4b3a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b9f4b3a3ce13f5bc97ed7344f7ac3f4f1c070000))
+* **security:** avoid leaking exception details in skip-and-finalize response ([f682168](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f68216838ddc9909dfef8b1e21a47c9cb2e794c4))
+* skip-and-finalize rejects non-waiting states ([9af9ff2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9af9ff27a29d5c171cbffb3c740fc81ed198f544))
+* transcoder_notify returns bool so FAILURE path is reachable ([6094d01](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6094d0189d5642b85513a2c96e64d13a7cf8370e))
+
 ## [15.5.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.4.3...v15.5.0) (2026-04-15)
 
 
