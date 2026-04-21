@@ -4,7 +4,10 @@ Covers the four post-rip outcomes:
   A. SKIP_TRANSCODE=true + transcoder configured -> SUCCESS + finalize_output
   B. SKIP_TRANSCODE=false + transcoder configured -> TRANSCODE_WAITING + webhook
   C. No transcoder configured -> SUCCESS + finalize_output
-  D. Webhook send fails -> FAILURE
+  D. transcoder_notify returns False -> FAILURE
+
+Also covers NOTIFY_RIP gating: 'rip complete' notification fires only
+on non-failure outcomes.
 
 These tests exercise the helper directly without patching it in isolation,
 catching the dual-writer bug in arm/ripper/main.py.
@@ -59,6 +62,7 @@ def test_skip_false_with_transcoder_configured_sets_waiting(
     only fires the webhook but does not write TRANSCODE_WAITING.
     """
     mock_job.config.SKIP_TRANSCODE = False
+    mock_notify.return_value = True
 
     _post_rip_handoff(mock_job)
 
@@ -88,20 +92,60 @@ def test_no_transcoder_configured_sets_success(
 @patch("arm.ripper.naming.finalize_output")
 @patch("arm.ripper.arm_ripper.db")
 @patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
-def test_webhook_failure_sets_failure_status(
+def test_transcoder_notify_returns_false_sets_failure(
     mock_db, mock_finalize, mock_notify, mock_job,
 ):
-    """Outcome D: webhook send raises -> job marked FAILURE, not WAITING.
+    """Outcome D: transcoder_notify returns False -> job marked FAILURE.
 
-    A failed handoff should not look like a pending one.
+    transcoder_notify swallows its own transport exceptions and returns
+    False on failure; the caller branches on the return value.
     """
     mock_job.config.SKIP_TRANSCODE = False
-    mock_notify.side_effect = Exception("transcoder unreachable")
+    mock_notify.return_value = False
 
     _post_rip_handoff(mock_job)
 
     assert mock_job.status == JobState.FAILURE.value
+    assert "Transcoder handoff failed" in (mock_job.errors or "")
     mock_finalize.assert_not_called()
+
+
+@patch("arm.ripper.arm_ripper.utils.notify")
+@patch("arm.ripper.arm_ripper.utils.transcoder_notify")
+@patch("arm.ripper.naming.finalize_output")
+@patch("arm.ripper.arm_ripper.db")
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+def test_notify_rip_skipped_on_handoff_failure(
+    mock_db, mock_finalize, mock_transcoder_notify, mock_notify, mock_job,
+):
+    """NOTIFY_RIP should not fire 'rip complete' when handoff failed."""
+    mock_job.config.SKIP_TRANSCODE = False
+    mock_job.config.NOTIFY_RIP = True
+    mock_transcoder_notify.return_value = False
+
+    _post_rip_handoff(mock_job)
+
+    assert mock_job.status == JobState.FAILURE.value
+    mock_notify.assert_not_called()
+
+
+@patch("arm.ripper.arm_ripper.utils.notify")
+@patch("arm.ripper.arm_ripper.utils.transcoder_notify")
+@patch("arm.ripper.naming.finalize_output")
+@patch("arm.ripper.arm_ripper.db")
+@patch("arm.config.config.arm_config", {"TRANSCODER_URL": "http://transcoder", "SKIP_TRANSCODE": False})
+def test_notify_rip_fires_on_successful_handoff(
+    mock_db, mock_finalize, mock_transcoder_notify, mock_notify, mock_job,
+):
+    """NOTIFY_RIP should fire on successful handoff (TRANSCODE_WAITING)."""
+    mock_job.config.SKIP_TRANSCODE = False
+    mock_job.config.NOTIFY_RIP = True
+    mock_transcoder_notify.return_value = True
+
+    _post_rip_handoff(mock_job)
+
+    assert mock_job.status == JobState.TRANSCODE_WAITING.value
+    mock_notify.assert_called_once()
 
 
 @patch("arm.ripper.arm_ripper.utils.transcoder_notify")

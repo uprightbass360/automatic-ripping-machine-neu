@@ -51,21 +51,22 @@ def _post_rip_handoff(job):
         job.status = JobState.SUCCESS.value
         db.session.commit()
     else:
-        # Hand off to transcoder. Status is TRANSCODE_WAITING on success;
-        # FAILURE if the webhook send raises (unreachable, 5xx, etc.).
-        try:
-            utils.transcoder_notify(
-                cfg.arm_config, constants.NOTIFY_TITLE,
-                f"{job.title} rip complete.", job,
-            )
+        # Hand off to transcoder. transcoder_notify returns False on any
+        # transport failure, non-2xx response, or auth failure - it logs
+        # the specific cause internally. Status is TRANSCODE_WAITING on
+        # success; FAILURE on handoff failure (not TRANSCODE_WAITING -
+        # a failed handoff should not look like a pending one).
+        if utils.transcoder_notify(
+            cfg.arm_config, constants.NOTIFY_TITLE,
+            f"{job.title} rip complete.", job,
+        ):
             job.status = JobState.TRANSCODE_WAITING.value
-        except Exception as exc:
-            logging.error("Transcoder handoff failed for job %s: %s", job.job_id, exc)
+        else:
             job.status = JobState.FAILURE.value
-            job.errors = f"Transcoder handoff failed: {exc}"
+            job.errors = "Transcoder handoff failed (see transcoder logs)"
         db.session.commit()
 
-    if job.config.NOTIFY_RIP:
+    if job.config.NOTIFY_RIP and job.status != JobState.FAILURE.value:
         utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
 
 

@@ -249,16 +249,26 @@ def _build_webhook_payload(title, body, job, raw_basename):
     return payload
 
 
-def transcoder_notify(cfg, title, body, job=None):
+def transcoder_notify(cfg, title, body, job=None) -> bool:
     """Send a webhook notification to the arm-transcoder service.
+
     If LOCAL_RAW_PATH and SHARED_RAW_PATH are both set, moves the job's
-    raw directory from local to shared storage before notifying."""
+    raw directory from local to shared storage before notifying.
+
+    Returns:
+        bool: True if the webhook was delivered with an HTTP 2xx response.
+            False on any failure: missing job, missing TRANSCODER_URL,
+            auth failure (401/403), any non-2xx status, or transport
+            exception. Specific failure causes are logged internally so
+            operators can diagnose from the ripper logs; the boolean
+            lets callers branch on outcome without re-catching exceptions.
+    """
     if job is None or getattr(job, 'job_id', None) is None:
-        return
+        return False
 
     transcoder_url = cfg.get('TRANSCODER_URL', '')
     if not transcoder_url:
-        return
+        return False
 
     raw_basename = os.path.basename(str(job.raw_path)) if job.raw_path else ''
     _move_to_shared_storage(cfg, raw_basename, job)
@@ -285,10 +295,17 @@ def transcoder_notify(cfg, title, body, job=None):
                 f"Transcoder webhook auth failed (HTTP {resp.status_code}). "
                 "Check TRANSCODER_WEBHOOK_SECRET matches WEBHOOK_SECRET on the transcoder."
             )
-        else:
+            return False
+        if 200 <= resp.status_code < 300:
             logging.info(f"Transcoder webhook sent (HTTP {resp.status_code})")
+            return True
+        logging.error(
+            f"Transcoder webhook failed (HTTP {resp.status_code})"
+        )
+        return False
     except Exception as e:
         logging.error(f"Failed sending transcoder webhook: {e}")
+        return False
 
 
 def notify_entry(job):
