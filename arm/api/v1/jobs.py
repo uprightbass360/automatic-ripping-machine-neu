@@ -970,17 +970,24 @@ def transcode_callback(job_id: int, body: dict):
 def skip_and_finalize(job_id: int):
     """Skip transcoding and finalize a job's output directly.
 
-    Only allowed when the job is in TRANSCODE_WAITING or TRANSCODE_ACTIVE state.
-    Moves ripped files to the final output path and marks the job as SUCCESS.
+    Only allowed when the job is in TRANSCODE_WAITING. Actively transcoding
+    jobs must be abandoned first - running finalize_output against files the
+    transcoder is still reading causes corrupt output.
     """
     job = Job.query.get(job_id)
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
 
-    allowed = {JobState.TRANSCODE_WAITING.value, JobState.TRANSCODE_ACTIVE.value}
-    if job.status not in allowed:
+    if job.status != JobState.TRANSCODE_WAITING.value:
         return JSONResponse(
-            {"success": False, "error": f"Job is in '{job.status}' state, expected transcode_waiting or transcode_active"},
+            {
+                "success": False,
+                "error": (
+                    f"Job is in '{job.status}' state, expected transcode_waiting. "
+                    "Skip-and-finalize is only valid when the job is waiting for transcode. "
+                    "To stop an active transcode, abandon the job first."
+                ),
+            },
             status_code=409,
         )
 
