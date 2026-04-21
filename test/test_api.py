@@ -4,6 +4,8 @@ import unittest.mock
 import pytest
 from fastapi.testclient import TestClient
 
+from arm.models.job import JobState
+
 
 @pytest.fixture
 def client(app_context):
@@ -194,20 +196,40 @@ class TestSkipAndFinalize:
         data = response.json()
         assert data["success"] is False
 
-    def test_skip_and_finalize_transcoding_active(self, client, sample_job, app_context):
-        """TRANSCODE_ACTIVE job should also finalize successfully."""
-        from arm.ripper.utils import database_updater
+    def test_skip_and_finalize_transcoding_active_rejected(self, client, sample_job, app_context):
+        """Skip-and-finalize MUST reject TRANSCODE_ACTIVE to avoid racing the live transcoder."""
         from arm.database import db
-        database_updater({"status": "transcoding"}, sample_job)
+        sample_job.status = JobState.TRANSCODE_ACTIVE.value
+        db.session.commit()
 
-        with unittest.mock.patch('arm.ripper.naming.finalize_output'):
-            response = client.post(f'/api/v1/jobs/{sample_job.job_id}/skip-and-finalize')
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/skip-and-finalize')
 
-        assert response.status_code == 200
+        assert response.status_code == 409
         data = response.json()
-        assert data["success"] is True
-        db.session.refresh(sample_job)
-        assert sample_job.status == "success"
+        assert data['success'] is False
+        assert 'transcode_waiting' in data['error'].lower()
+        # Hint at abandon for the user's actual need
+        assert 'abandon' in data['error'].lower()
+        # Job status must not have changed
+        assert sample_job.status == JobState.TRANSCODE_ACTIVE.value
+
+    @pytest.mark.parametrize("state", [
+        JobState.VIDEO_RIPPING.value,
+        JobState.TRANSCODE_ACTIVE.value,
+        JobState.SUCCESS.value,
+        JobState.FAILURE.value,
+        JobState.MANUAL_WAIT_STARTED.value,
+    ])
+    def test_skip_and_finalize_rejects_non_waiting_states(self, client, sample_job, app_context, state):
+        """Only TRANSCODE_WAITING is allowed - everything else 409s."""
+        from arm.database import db
+        sample_job.status = state
+        db.session.commit()
+
+        response = client.post(f'/api/v1/jobs/{sample_job.job_id}/skip-and-finalize')
+
+        assert response.status_code == 409
+        assert sample_job.status == state  # unchanged
 
 
 class TestForceComplete:
