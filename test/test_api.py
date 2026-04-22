@@ -2205,22 +2205,32 @@ class TestTranscodeOverridesNewShape:
         assert overrides["overrides"]["tiers"]["uhd"]["video_quality"] == 18
 
     def test_reject_old_flat_keys(self):
+        """Legacy flat-key shapes (pre-preset-rollout) must be rejected by the
+        TranscodeJobConfig contract (extra='forbid' on the envelope).
+
+        NOTE: with contracts typing, preset_slug is required on every PATCH;
+        the old ad-hoc validator allowed partial bodies. The UI always sends
+        the full envelope so this is a tightening, not a regression.
+        """
         from arm.api.v1.jobs import _validate_transcode_overrides
-        body = {"video_encoder": "nvenc_h265"}
+        body = {"preset_slug": "software-balanced", "video_encoder": "nvenc_h265"}
         overrides, errors = _validate_transcode_overrides(body)
-        assert len(errors) == 1
-        assert "Unknown key" in errors[0]
+        assert errors
+        # Pydantic surfaces "Extra inputs are not permitted" for extra=forbid
+        assert "video_encoder" in errors[0]
 
     def test_overrides_must_be_dict(self):
         from arm.api.v1.jobs import _validate_transcode_overrides
-        body = {"overrides": "not_a_dict"}
+        body = {"preset_slug": "software-balanced", "overrides": "not_a_dict"}
         overrides, errors = _validate_transcode_overrides(body)
-        assert len(errors) == 1
-        assert "dict" in errors[0]
+        assert errors
+        # Error references the overrides field
+        assert "overrides" in errors[0]
 
     def test_delete_source_still_works(self):
+        """Pydantic coerces string 'true'/'false' to bool by default."""
         from arm.api.v1.jobs import _validate_transcode_overrides
-        body = {"delete_source": "true"}
+        body = {"preset_slug": "software-balanced", "delete_source": "true"}
         overrides, errors = _validate_transcode_overrides(body)
         assert not errors
         assert overrides["delete_source"] is True
@@ -2239,19 +2249,19 @@ class TestTranscodeOverridesNewShape:
 
     def test_preset_slug_rejects_whitespace_and_uppercase(self):
         from arm.api.v1.jobs import _validate_transcode_overrides
-        for bad in (" nvidia_balanced", "Nvidia_Balanced", "nvidia balanced"):
+        for bad in ("Nvidia_Balanced", "nvidia balanced"):
             _, errors = _validate_transcode_overrides({"preset_slug": bad})
-            # whitespace is stripped first; the rest is rejected
-            if bad.strip() == bad:
-                assert errors, f"expected rejection for {bad!r}"
-                assert "Invalid preset_slug" in errors[0]
+            assert errors, f"expected rejection for {bad!r}"
+            assert "preset_slug" in errors[0]
 
     def test_preset_slug_rejects_path_traversal(self):
         from arm.api.v1.jobs import _validate_transcode_overrides
-        for bad in ("../etc/passwd", "nvidia/balanced", "nvidia;rm -rf /", "a" * 101):
+        # Slug length cap is now 64 (TranscodeJobConfig pattern); was 100 in the
+        # ad-hoc validator. 65 chars still rejected.
+        for bad in ("../etc/passwd", "nvidia/balanced", "nvidia;rm -rf /", "a" * 65):
             _, errors = _validate_transcode_overrides({"preset_slug": bad})
             assert errors, f"expected rejection for {bad!r}"
-            assert "Invalid preset_slug" in errors[0]
+            assert "preset_slug" in errors[0]
 
     def test_preset_slug_rejects_empty(self):
         from arm.api.v1.jobs import _validate_transcode_overrides
@@ -2259,6 +2269,53 @@ class TestTranscodeOverridesNewShape:
         overrides, errors = _validate_transcode_overrides({"preset_slug": ""})
         assert not errors
         assert "preset_slug" not in overrides
+
+
+class TestTranscodeConfigTypedValidation:
+    """Phase-2 contracts integration: PATCH /transcode-config now validates via
+    arm_contracts.TranscodeJobConfig; malformed payloads return 400 with the
+    pydantic error list."""
+
+    def test_patch_accepts_valid_shape(self, client, sample_job, app_context):
+        resp = client.patch(
+            f"/api/v1/jobs/{sample_job.job_id}/transcode-config",
+            json={
+                "preset_slug": "software-balanced",
+                "overrides": {
+                    "shared": {"audio_encoder": "aac"},
+                    "tiers": {"dvd": {"video_quality": 20}},
+                },
+            },
+        )
+        assert resp.status_code == 200, resp.text
+
+    def test_patch_rejects_bad_slug(self, client, sample_job, app_context):
+        resp = client.patch(
+            f"/api/v1/jobs/{sample_job.job_id}/transcode-config",
+            json={"preset_slug": "BAD SLUG", "overrides": {}},
+        )
+        assert resp.status_code == 400
+
+    def test_patch_rejects_unknown_top_level_key(self, client, sample_job, app_context):
+        resp = client.patch(
+            f"/api/v1/jobs/{sample_job.job_id}/transcode-config",
+            json={
+                "preset_slug": "software-balanced",
+                "overrides": {},
+                "bogus": 1,
+            },
+        )
+        assert resp.status_code == 400
+
+    def test_patch_rejects_unknown_tier(self, client, sample_job, app_context):
+        resp = client.patch(
+            f"/api/v1/jobs/{sample_job.job_id}/transcode-config",
+            json={
+                "preset_slug": "software-balanced",
+                "overrides": {"tiers": {"epic_tier": {}}},
+            },
+        )
+        assert resp.status_code == 400
 
 
 class TestApiTranscodeCallback:
