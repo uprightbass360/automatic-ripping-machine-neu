@@ -20,3 +20,4 @@ structlog>=24.4.0
 urllib3==2.6.3
 uvicorn[standard]==0.44.0
 xmltodict==1.0.4
+-e components/contracts
