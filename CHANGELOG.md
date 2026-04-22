@@ -1,5 +1,12 @@
 # Changelog
 
+## [16.0.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.0.0...v16.0.1) (2026-04-22)
+
+
+### Bug Fixes
+
+* validate preset_slug format at ARM boundary ([21ad4a3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/21ad4a37225492c4f450aaf0475f616f08794162))
+
 ## [16.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v15.5.0...v16.0.0) (2026-04-21)
 
 
