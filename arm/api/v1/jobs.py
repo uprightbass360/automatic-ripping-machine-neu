@@ -7,7 +7,6 @@ with asyncio.to_thread to avoid blocking the event loop.
 import asyncio
 import json
 import math
-import re
 import threading
 from datetime import datetime, timedelta
 from typing import Annotated
@@ -737,56 +736,40 @@ TRANSCODE_OVERRIDE_KEYS = {
     'output_extension',
 }
 
-# Type validation: bool-valued, rest are strings
-_BOOL_KEYS = {'delete_source'}
-
-# Slug format: 1-100 chars, lowercase alphanumerics separated by hyphens or
-# underscores. Accepts both built-in scheme slugs (underscore-separated, e.g.
-# "nvidia_balanced") and user-created custom slugs (hyphen-separated from the
-# transcoder's _slugify). Prevents empty strings, path-traversal attempts,
-# whitespace, and gibberish from silently hitting the transcoder and falling
-# through to the scheme default.
-_SLUG_RE = re.compile(r'^[a-z0-9]+(?:[-_][a-z0-9]+)*$')
-
-
-def _coerce_bool(value):
-    """Coerce a value to boolean."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in ('true', '1', 'yes')
-    return bool(value)
-
 
 def _validate_transcode_overrides(body):
-    """Validate and coerce transcode override values."""
-    overrides = {}
-    errors = []
-    for key, value in body.items():
-        if key not in TRANSCODE_OVERRIDE_KEYS:
-            errors.append(f"Unknown key: {key}")
-            continue
-        if value is None or value == '':
-            continue
-        if key in _BOOL_KEYS:
-            overrides[key] = _coerce_bool(value)
-        elif key == 'overrides':
-            if not isinstance(value, dict):
-                errors.append("overrides must be a dict")
-                continue
-            overrides[key] = value
-        elif key == 'preset_slug':
-            slug = str(value).strip()
-            if not (1 <= len(slug) <= 100) or not _SLUG_RE.fullmatch(slug):
-                errors.append(
-                    f"Invalid preset_slug format: {slug!r}. Must be 1-100 "
-                    "lowercase alphanumerics separated by single hyphens."
-                )
-                continue
-            overrides[key] = slug
-        else:
-            overrides[key] = str(value)
-    return overrides, errors
+    """Validate a PATCH /transcode-config body against the shared contract.
+
+    Returns (overrides_dict, errors). `overrides_dict` is the pydantic-dumped
+    shape ready for json.dumps + DB persistence; empty keys are dropped to
+    preserve the pre-contracts on-the-wire shape. `errors` is a list of
+    human-readable strings; empty list on success.
+    """
+    from arm_contracts import TranscodeJobConfig
+    from pydantic import ValidationError
+
+    if not isinstance(body, dict):
+        return {}, ["body must be a JSON object"]
+    # Strip None / empty-string values up-front so the client-side pattern of
+    # "include-to-clear" doesn't trip the regex validator.
+    cleaned = {k: v for k, v in body.items() if v is not None and v != ''}
+    if not cleaned:
+        return {}, []
+    try:
+        typed = TranscodeJobConfig.model_validate(cleaned)
+    except ValidationError as exc:
+        errors = []
+        for e in exc.errors():
+            loc = '.'.join(str(p) for p in e['loc']) or '<root>'
+            errors.append(f"{loc}: {e['msg']}")
+        return {}, errors
+    # Drop optional None/False defaults that the caller didn't send so we
+    # don't pad the persisted JSON with noise.
+    dumped = {
+        k: v for k, v in typed.model_dump().items()
+        if k in cleaned or v is not None
+    }
+    return dumped, []
 
 
 @router.patch('/jobs/{job_id}/transcode-config')
@@ -847,13 +830,37 @@ def get_job_detail(job_id: int):
 
 
 def _parse_transcode_overrides(raw: str | None) -> dict | None:
-    """Parse JSON transcode overrides, returning None on failure."""
+    """Parse JSON transcode overrides and round-trip through TranscodeJobConfig.
+
+    Returns None on any failure (unparseable JSON or shape mismatch). Corrupt
+    rows are dropped with a WARN log so callers fall back to scheme defaults
+    rather than propagating garbage to the webhook producer.
+
+    Preserves the "only return keys the caller stored" shape: Pydantic's
+    default dump adds None-valued defaults for every field; we restrict the
+    output to keys that were present in the original JSON so consumers that
+    do equality checks on the round-tripped dict don't see new noise.
+    """
     if not raw:
         return None
     try:
-        return json.loads(raw)
+        data = json.loads(raw)
     except (ValueError, TypeError):
         return None
+    if not isinstance(data, dict):
+        return None
+    from arm_contracts import TranscodeJobConfig
+    from pydantic import ValidationError
+    try:
+        validated = TranscodeJobConfig.model_validate(data).model_dump()
+    except ValidationError:
+        import logging
+        logging.getLogger(__name__).warning(
+            "transcode_overrides row failed contract validation; dropping"
+        )
+        return None
+    # Return only the keys the caller persisted, matching pre-contracts shape.
+    return {k: validated[k] for k in data if k in validated}
 
 
 def _build_multi_title_tracks(job) -> list[dict]:
