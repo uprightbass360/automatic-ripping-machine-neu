@@ -211,11 +211,14 @@ def _build_webhook_payload(title, body, job, raw_basename):
         # — it already sanitizes each segment, so don't strip slashes here.
         payload["folder_name"] = render_folder(job, config_dict)
         payload["title_name"] = clean_for_filename(render_title(job, config_dict))
-        if job.transcode_overrides:
-            try:
-                payload["config_overrides"] = json.loads(job.transcode_overrides)
-            except (json.JSONDecodeError, TypeError):
-                pass
+        # Route through _parse_transcode_overrides so corrupt/legacy rows are
+        # dropped with a WARN rather than shipped to the transcoder, which
+        # would 422 the webhook (see automatic-ripping-machine-transcoder
+        # PR #96 for the webhook parse-boundary check).
+        from arm.api.v1.jobs import _parse_transcode_overrides
+        overrides = _parse_transcode_overrides(job.transcode_overrides)
+        if overrides is not None:
+            payload["config_overrides"] = overrides
         # Always include per-track manifest with pre-rendered filenames.
         # ARM is the single source of truth for naming — the transcoder
         # uses these names directly and never invents its own.
