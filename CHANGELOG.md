@@ -1,5 +1,18 @@
 # Changelog
 
+## [16.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.0.1...v16.1.0) (2026-04-23)
+
+
+### Features
+
+* add arm-contracts as components/contracts submodule ([bb753ea](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bb753eae6fa6ba23f9900c6d95ce9ed6a151cec7))
+* validate PATCH /transcode-config via TranscodeJobConfig ([e88a840](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e88a8402f0dabf1922c13fb38ce193a26a1262a5))
+
+
+### Bug Fixes
+
+* **webhook:** drop corrupt transcode_overrides rather than sending ([30d6838](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/30d683844699aed7a48e930417e554a251b1fc1a))
+
 ## [16.0.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.0.0...v16.0.1) (2026-04-22)
 
 
