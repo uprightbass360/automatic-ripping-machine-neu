@@ -12,11 +12,10 @@ updates:
       interval: "weekly"
       day: "thursday"
 
-  - package-ecosystem: "gitsubmodule"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "thursday"
+  # gitsubmodule ecosystem removed: components/contracts is maintained by
+  # the bump-submodule workflow (auto-PRs on every contracts main push),
+  # and the obsolete components/transcoder and components/ui pins were
+  # retired with that cleanup. No other submodules remain.
 
   - package-ecosystem: "pip"
     directory: "/"
