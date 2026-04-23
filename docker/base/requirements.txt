@@ -2,7 +2,7 @@ alembic==1.18.4
 apprise==1.9.9
 bcrypt==5.0.0
 discid==1.4.0
-fastapi==0.135.3
+fastapi==0.136.0
 greenlet==3.4.0
 httpx==0.28.1
 idna==3.11
