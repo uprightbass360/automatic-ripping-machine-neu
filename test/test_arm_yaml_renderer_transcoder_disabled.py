@@ -14,10 +14,15 @@ import tempfile
 import textwrap
 
 
+# Literal docker-compose endpoint used only as test fixture data; no network
+# call is made. The renderer under test treats this as an opaque string.
+_TEST_WEBHOOK = "http://arm-transcoder:5000/webhook/arm"  # NOSONAR
+_IGNORED_WEBHOOK = "http://should-be-ignored:5000/webhook/arm"  # NOSONAR
+
 FIXTURE_YAML = textwrap.dedent(
-    """\
+    f"""\
     SKIP_TRANSCODE: false
-    TRANSCODER_URL: "http://arm-transcoder:5000/webhook/arm"
+    TRANSCODER_URL: "{_TEST_WEBHOOK}"
     TRANSCODER_WEBHOOK_SECRET: "some-secret"
     LOCAL_RAW_PATH: ""
     SHARED_RAW_PATH: ""
@@ -80,7 +85,7 @@ def _get_value(rendered: str, key: str) -> str:
 def test_transcoder_url_empty_when_disabled():
     rendered = _render({
         "ARM_TRANSCODER_ENABLED": "false",
-        "ARM_TRANSCODER_URL": "http://should-be-ignored:5000/webhook/arm",
+        "ARM_TRANSCODER_URL": _IGNORED_WEBHOOK,
         "ARM_TRANSCODER_WEBHOOK_SECRET": "should-be-wiped",
     })
     assert _get_value(rendered, "TRANSCODER_URL") == ""
@@ -90,17 +95,17 @@ def test_transcoder_url_empty_when_disabled():
 def test_transcoder_url_preserved_when_enabled():
     rendered = _render({
         "ARM_TRANSCODER_ENABLED": "true",
-        "ARM_TRANSCODER_URL": "http://arm-transcoder:5000/webhook/arm",
+        "ARM_TRANSCODER_URL": _TEST_WEBHOOK,
         "ARM_TRANSCODER_WEBHOOK_SECRET": "secret",
     })
-    assert _get_value(rendered, "TRANSCODER_URL") == "http://arm-transcoder:5000/webhook/arm"
+    assert _get_value(rendered, "TRANSCODER_URL") == _TEST_WEBHOOK
     assert _get_value(rendered, "TRANSCODER_WEBHOOK_SECRET") == "secret"
 
 
 def test_transcoder_url_preserved_when_flag_unset():
     rendered = _render({
-        "ARM_TRANSCODER_URL": "http://arm-transcoder:5000/webhook/arm",
+        "ARM_TRANSCODER_URL": _TEST_WEBHOOK,
         "ARM_TRANSCODER_WEBHOOK_SECRET": "secret",
     })
-    assert _get_value(rendered, "TRANSCODER_URL") == "http://arm-transcoder:5000/webhook/arm"
+    assert _get_value(rendered, "TRANSCODER_URL") == _TEST_WEBHOOK
     assert _get_value(rendered, "TRANSCODER_WEBHOOK_SECRET") == "secret"
