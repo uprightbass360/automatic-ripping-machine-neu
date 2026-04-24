@@ -196,3 +196,33 @@ curl -X POST http://<GPU_HOST>:5000/webhook/arm \
 **Notification script fails:**
 - Check ARM logs: `docker logs arm-rippers 2>&1 | grep -i notify`
 - Test script manually: `docker exec arm-rippers /etc/arm/config/notify_transcoder.sh "test" "test body"`
+
+## Ripper-only deployment
+
+Run ARM + UI on a single machine with no transcoder. ARM rips discs and
+writes final named files directly (no second-pass re-encode). Use this
+when the source quality is acceptable as-is or when the transcoder
+service is unavailable.
+
+**Start:**
+
+```bash
+cp .env.ripper-only.example .env
+# edit .env to set your paths and UID/GID
+docker compose -f docker-compose.ripper-only.yml up -d --build
+```
+
+**What is hidden from the UI:**
+
+- Transcoder route (`/transcoder`)
+- Transcoder settings tab
+- Transcoder log viewer
+- Transcode overrides on job detail
+- Retranscode and Skip-and-Finalize buttons
+- Transcoder and GPU panels in the stats bars
+
+**Switching modes:**
+
+To move between ripper-only and all-in-one, stop the stack, switch
+compose files, and redeploy. The ARM database is preserved across
+switches (shared `arm-db` volume).
