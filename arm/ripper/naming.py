@@ -34,6 +34,7 @@ PATTERN_VARIABLES = {
     'video_type':   'Media type: movie, series, or music',
     'disc_number':  'Disc number in a multi-disc set',
     'disc_total':   'Total number of discs in the set',
+    'imdb_id':      'IMDb ID (e.g. tt0111161) for Jellyfin/Plex folder matching',
 }
 
 # Frozen set for fast validation — derived from PATTERN_VARIABLES
@@ -83,6 +84,7 @@ def _build_variables(job):
         'video_type': getattr(job, 'video_type', '') or '',
         'disc_number': str(getattr(job, 'disc_number', '') or ''),
         'disc_total': str(getattr(job, 'disc_total', '') or ''),
+        'imdb_id': getattr(job, 'imdb_id', '') or '',
     })
 
 
@@ -97,8 +99,9 @@ def clean_for_filename(s):
     s = re.sub(r'\s+', ' ', s)
     s = s.replace('&', 'and')
     s = s.replace('\\', ' - ')
-    s = re.sub(r'[^\w .()-]', '', s)
-    # Prevent path traversal — strip leading dots and collapse sequences
+    # Keep Jellyfin/Plex folder tags like [imdbid-tt1234567] legible on disk.
+    s = re.sub(r'[^\w .()\[\]-]', '', s)
+    # Prevent path traversal - strip leading dots and collapse sequences
     s = re.sub(r'\.{2,}', '.', s)
     return s.strip('. ')
 

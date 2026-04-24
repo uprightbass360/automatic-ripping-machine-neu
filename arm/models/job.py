@@ -19,6 +19,35 @@ from arm.models.track import Track  # noqa: F401
 from arm.models.config import Config  # noqa: F401
 
 
+def _listdir_safe(path):
+    """List a directory, returning [] on any OSError (stale handle, missing, etc.)."""
+    try:
+        return os.listdir(path)
+    except OSError:
+        return []
+
+
+def _find_disc_dir(mountpoint, name):
+    """Case-insensitive lookup of a top-level entry on the mount.
+
+    Returns the actual on-disk name (so the caller can join the path) or
+    None. Using os.listdir() instead of os.path.isdir() avoids os.stat()
+    on the directory entry, which fails with "stale file handle" on some
+    burned UDF DVD-Rs even though the kernel still lists the entry. See
+    upstream issue #1746 / PR #1747.
+    """
+    target = name.lower()
+    for entry in _listdir_safe(mountpoint):
+        if entry.lower() == target:
+            return entry
+    return None
+
+
+def _disc_dir_exists(mountpoint, name):
+    """True if a case-insensitive directory entry exists at the mount root."""
+    return _find_disc_dir(mountpoint, name) is not None
+
+
 class JobState(str, enum.Enum):
     """Possible states for Job.status.
 
@@ -259,25 +288,20 @@ class Job(db.Model):
         if self.disctype == "music":
             logging.debug("Disc is music.")
             self.label = music_brainz.main(self)
-        elif (os.path.isdir(self.mountpoint + "/AUDIO_TS")
-              and len(os.listdir(self.mountpoint + "/AUDIO_TS")) > 0) \
-            or (os.path.isdir(self.mountpoint + "/audio_ts")
-                and len(os.listdir(self.mountpoint + "/audio_ts")) > 0):
-            logging.debug(f"Found: {self.mountpoint}/AUDIO_TS")
+        elif (audio_ts := _find_disc_dir(self.mountpoint, "AUDIO_TS")) \
+                and _listdir_safe(os.path.join(self.mountpoint, audio_ts)):
+            logging.debug(f"Found: {self.mountpoint}/{audio_ts}")
             self.disctype = "data"
-        elif os.path.isdir(self.mountpoint + "/VIDEO_TS"):
+        elif _disc_dir_exists(self.mountpoint, "VIDEO_TS"):
             logging.debug(f"Found: {self.mountpoint}/VIDEO_TS")
             self.disctype = "dvd"
-        elif os.path.isdir(self.mountpoint + "/video_ts"):
-            logging.debug(f"Found: {self.mountpoint}/video_ts")
-            self.disctype = "dvd"
-        elif os.path.isdir(self.mountpoint + "/BDMV"):
-            logging.debug(f"Found: {self.mountpoint}/BDMV")
+        elif (bdmv := _find_disc_dir(self.mountpoint, "BDMV")):
+            logging.debug(f"Found: {self.mountpoint}/{bdmv}")
             # Detect UHD by reading the index.bdmv header version.
             # INDX0300 = UHD (AACS2), INDX0200 = standard Blu-ray.
-            # The old check (/CERTIFICATE/id.bdmv) is unreliable — that
+            # The old check (/CERTIFICATE/id.bdmv) is unreliable - that
             # file exists on most standard Blu-rays with BD-J content.
-            index_path = os.path.join(self.mountpoint, "BDMV", "index.bdmv")
+            index_path = os.path.join(self.mountpoint, bdmv, "index.bdmv")
             try:
                 with open(index_path, "rb") as f:
                     header = f.read(8)
@@ -290,7 +314,7 @@ class Job(db.Model):
             except OSError:
                 logging.debug("Could not read index.bdmv — assuming standard Blu-ray")
                 self.disctype = "bluray"
-        elif os.path.isdir(self.mountpoint + "/HVDVD_TS"):
+        elif _disc_dir_exists(self.mountpoint, "HVDVD_TS"):
             logging.debug(f"Found: {self.mountpoint}/HVDVD_TS")
             # do something here
         elif found_hvdvd_ts:

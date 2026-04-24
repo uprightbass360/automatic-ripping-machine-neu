@@ -686,3 +686,31 @@ def test_disc_total_in_folder_pattern():
     job.disc_total = 3
     cfg = {'MOVIE_FOLDER_PATTERN': '{title} ({year})/Disc {disc_number} of {disc_total}'}
     assert render_folder(job, cfg) == os.path.join('Dynasties (2018)', 'Disc 2 of 3')
+
+
+# ======================================================================
+# imdb_id pattern variable (upstream issue #1755)
+# ======================================================================
+
+
+def test_imdb_id_in_folder_pattern():
+    """imdb_id variable renders for Jellyfin/Plex-style folder tags."""
+    job = _make_job(title='The Shawshank Redemption', year='1994', video_type='movie')
+    job.imdb_id = 'tt0111161'
+    cfg = {'MOVIE_FOLDER_PATTERN': '{title} ({year}) [imdbid-{imdb_id}]'}
+    assert render_folder(job, cfg) == 'The Shawshank Redemption (1994) [imdbid-tt0111161]'
+
+
+def test_imdb_id_omitted_when_none():
+    """Missing imdb_id renders as empty string without crashing."""
+    job = _make_job(title='Untitled', year='2024', video_type='movie')
+    job.imdb_id = None
+    cfg = {'MOVIE_FOLDER_PATTERN': '{title} ({year}) [imdbid-{imdb_id}]'}
+    # Empty tag still renders; callers can wrap in conditional cleanup if they care.
+    assert render_folder(job, cfg) == 'Untitled (2024) [imdbid-]'
+
+
+def test_clean_for_filename_preserves_square_brackets():
+    """clean_for_filename keeps [] so [imdbid-ttXXXXXXX] tags survive."""
+    from arm.ripper.naming import clean_for_filename
+    assert clean_for_filename('Foo (2024) [imdbid-tt1234567]') == 'Foo (2024) [imdbid-tt1234567]'
