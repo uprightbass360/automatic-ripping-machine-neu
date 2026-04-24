@@ -165,8 +165,24 @@ apply_yaml_override() {
   fi
   return 0
 }
-apply_yaml_override TRANSCODER_URL ARM_TRANSCODER_URL
-apply_yaml_override TRANSCODER_WEBHOOK_SECRET ARM_TRANSCODER_WEBHOOK_SECRET
+force_yaml_empty() {
+  local key="$1"
+  if grep -q "^${key}:" "$ARM_YAML"; then
+    sed -i "s|^${key}:.*|${key}: \"\"|" "$ARM_YAML"
+    echo "arm.yaml: ${key} force-cleared (transcoder disabled)"
+  fi
+}
+
+if [[ "${ARM_TRANSCODER_ENABLED:-true}" == "false" ]]; then
+  # Ripper-only mode: force transcoder-related yaml keys to empty so that
+  # the ripper falls into the finalize_output path regardless of any
+  # leftover values from previous deployments.
+  force_yaml_empty TRANSCODER_URL
+  force_yaml_empty TRANSCODER_WEBHOOK_SECRET
+else
+  apply_yaml_override TRANSCODER_URL ARM_TRANSCODER_URL
+  apply_yaml_override TRANSCODER_WEBHOOK_SECRET ARM_TRANSCODER_WEBHOOK_SECRET
+fi
 apply_yaml_override LOCAL_RAW_PATH ARM_LOCAL_RAW_PATH
 apply_yaml_override SHARED_RAW_PATH ARM_SHARED_RAW_PATH
 # sed -i may reset file ownership to root — restore arm ownership
