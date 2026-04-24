@@ -159,6 +159,43 @@ class TestGetDiscType:
         # So disctype should remain 'unknown'
         assert job.disctype == 'unknown'
 
+    def test_udf_stale_handle_isdir_returns_false_but_listdir_works(self, tmp_path, monkeypatch):
+        """Burned UDF DVD-R: os.path.isdir fails on stale handle, listdir still succeeds.
+
+        Regression guard for upstream issue #1746 / PR #1747 - ARM used to
+        fall through to disctype='data' because os.stat() on the VIDEO_TS
+        directory entry raised OSError even though the kernel listed it.
+        """
+        from unittest.mock import patch
+
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        # Set up the directory so listdir works, then sabotage os.path.isdir
+        # to simulate the stale-file-handle error path.
+        os.makedirs(tmp_path / 'VIDEO_TS')
+
+        def fake_isdir(path):
+            # Pretend *every* directory stat fails - mirrors the stale handle case.
+            return False
+
+        with patch('os.path.isdir', side_effect=fake_isdir):
+            job.get_disc_type(False)
+        assert job.disctype == 'dvd'
+
+    def test_bdmv_stale_handle_lowercase_bdmv(self, tmp_path, monkeypatch):
+        """BDMV detection is case-insensitive and survives os.path.isdir failure."""
+        from unittest.mock import patch
+
+        job = self._make_job()
+        job.mountpoint = str(tmp_path)
+        (tmp_path / 'bdmv').mkdir()  # lowercase on disc
+        # Make index.bdmv present so the header probe succeeds
+        (tmp_path / 'bdmv' / 'index.bdmv').write_bytes(b'INDX0200_')
+
+        with patch('os.path.isdir', side_effect=lambda p: False):
+            job.get_disc_type(False)
+        assert job.disctype == 'bluray'
+
     def test_music_disc_delegates_to_musicbrainz(self):
         """Music disc type delegates to music_brainz.main()."""
         job = self._make_job()
