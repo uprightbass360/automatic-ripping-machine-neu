@@ -1,5 +1,13 @@
 # Changelog
 
+## [16.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.1.0...v16.2.0) (2026-04-24)
+
+
+### Features
+
+* **deploy:** add docker-compose.ripper-only.yml (ARM+UI, no transcoder) ([adfea8f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/adfea8fc9e1013a2ebc1ce27243b524f916fad9f))
+* **setup:** force-empty TRANSCODER_URL when ARM_TRANSCODER_ENABLED=false ([b0b2751](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b0b27513085e85f6e3593f016bdc1c9202a33e06))
+
 ## [16.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.0.1...v16.1.0) (2026-04-23)
 
 
