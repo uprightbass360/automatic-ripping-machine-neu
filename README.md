@@ -157,6 +157,17 @@ docker compose -f docker-compose.remote-transcoder.yml up -d
 
 See the [transcoder README](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) for setting up the remote side.
 
+### Ripper-only
+
+For ARM + UI on a single machine with no transcoder - the ripper writes final named files directly (no second-pass re-encode). Use this when the source quality is acceptable as-is or you don't need GPU transcoding at all:
+
+```bash
+cp .env.ripper-only.example .env
+docker compose -f docker-compose.ripper-only.yml up -d
+```
+
+`TRANSCODER_ENABLED=false` is baked into the compose file: the UI hides all transcoder surfaces (nav link, settings tab, job-detail transcode controls, stats panels, log viewer) and the ripper falls into the `finalize_output` path. See [deploy/DEPLOY.md](deploy/DEPLOY.md#ripper-only-deployment) for details.
+
 ### Development
 
 Clone all three repos as siblings and start the dev stack:
