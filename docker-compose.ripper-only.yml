@@ -1,0 +1,81 @@
+# Ripper-only: ARM + UI on a single machine, no transcoder.
+# ARM writes final named files directly via the v15.0.0 finalize_output path.
+# Copy .env.ripper-only.example to .env and adjust values before starting.
+#
+# Start: docker compose -f docker-compose.ripper-only.yml up -d --build
+
+services:
+  # Fix ownership on the shared DB volume before ARM starts
+  arm-db-init:
+    image: alpine
+    container_name: arm-db-init
+    volumes:
+      - arm-db:/data/db
+    command: chown -R ${ARM_UID:-1000}:${ARM_GID:-1000} /data/db
+    restart: "no"
+
+  # ARM ripper - creates the database on first startup.
+  # No transcoder: ARM_TRANSCODER_ENABLED=false forces empty TRANSCODER_URL
+  # in arm.yaml and the ripper falls into the finalize_output path.
+  arm-rippers:
+    image: uprightbass360/automatic-ripping-machine:${ARM_VERSION:-latest}
+    container_name: arm-rippers
+    restart: always
+    privileged: true
+    ports:
+      - "${ARM_PORT:-8080}:8080"
+    environment:
+      - ARM_UID=${ARM_UID:-1000}
+      - ARM_GID=${ARM_GID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      - ARM_COMMUNITY_KEYDB=${ARM_COMMUNITY_KEYDB:-true}
+      - ARM_TRANSCODER_ENABLED=false
+      - ARM_LOCAL_RAW_PATH=${ARM_LOCAL_RAW_PATH:-}
+      - ARM_SHARED_RAW_PATH=${ARM_SHARED_RAW_PATH:-}
+      - ARM_MEDIA_PATH=${ARM_MEDIA_PATH}
+      - ARM_CONFIG_PATH=${ARM_CONFIG_PATH}
+      - ARM_LOGS_PATH=${ARM_LOGS_PATH}
+      - ARM_MUSIC_PATH=${ARM_MUSIC_PATH}
+    volumes:
+      - ${ARM_MUSIC_PATH}:/home/arm/music
+      - ${ARM_LOGS_PATH}:/home/arm/logs
+      - ${ARM_MEDIA_PATH}:/home/arm/media
+      - ${ARM_SCRATCH_PATH:-/home/arm/media}:/home/arm/scratch
+      - ${ARM_INGRESS_PATH:-/home/arm/media/ingress}:/home/arm/media/ingress:ro
+      - ${ARM_CONFIG_PATH}:/etc/arm/config
+      - arm-db:/home/arm/db
+      - ${ARM_MAKEMKV_PATH:-makemkv-settings}:/home/arm/.MakeMKV
+      # Live /dev mount ensures USB optical drives remain visible after
+      # hot-plug, disconnect/reconnect, or device re-enumeration.
+      - /dev:/dev
+    cpuset: ${ARM_CPUSET:-2,3,4,5,6,7}
+    depends_on:
+      arm-db-init:
+        condition: service_completed_successfully
+
+  # Replacement dashboard (SvelteKit + FastAPI)
+  arm-ui:
+    image: uprightbass360/arm-ui:${UI_VERSION:-latest}
+    container_name: arm-ui
+    restart: unless-stopped
+    ports:
+      - "${UI_PORT:-8888}:8888"
+    environment:
+      - ARM_UI_ARM_DB_PATH=/data/db/arm.db
+      - ARM_UI_ARM_LOG_PATH=/data/logs
+      - ARM_UI_ARM_CONFIG_PATH=/data/arm-config/arm.yaml
+      - ARM_UI_ARM_URL=http://arm-rippers:8080
+      - ARM_UI_TRANSCODER_ENABLED=false
+      - ARM_UI_ARM_THEMES_PATH=/data/config/themes
+    volumes:
+      - arm-db:/data/db:rw
+      - ${ARM_LOGS_PATH}:/data/logs:ro
+      - ${ARM_CONFIG_PATH}:/data/arm-config:rw
+      - ${ARM_CONFIG_PATH:-/etc/arm/config}/themes:/data/config/themes:rw
+    depends_on:
+      arm-rippers:
+        condition: service_healthy
+
+volumes:
+  arm-db:
+  makemkv-settings:
