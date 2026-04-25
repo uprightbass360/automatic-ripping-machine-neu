@@ -2,7 +2,8 @@
 
 Verifies that db.session.commit() transparently retries when the
 database is locked, rolls back on non-lock errors, respects the
-timeout, and that the middleware proactively clears stale sessions.
+timeout, and that an explicit rollback() clears stale session state
+(the same primitive the per-endpoint cleanup wrapper relies on).
 """
 import threading
 import time
@@ -380,8 +381,13 @@ class TestDatabaseAdderSimplified:
         assert found is not None
 
 
-class TestMiddlewareProactiveRollback:
-    """Test that rollback clears stale session state."""
+class TestProactiveRollback:
+    """Test that rollback clears stale session state.
+
+    The per-endpoint session cleanup wrapper (arm.app._wrap_sync_endpoint)
+    relies on this primitive: a poisoned session can be rescued by
+    calling rollback() before the next operation.
+    """
 
     def test_rollback_clears_pending_error(self, retry_db):
         """Simulate bad session state and verify rollback recovers it."""
