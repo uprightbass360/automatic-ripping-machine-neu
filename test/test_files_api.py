@@ -271,19 +271,27 @@ class TestFileOperations:
 
 
 class TestDbSessionMiddleware:
-    """Verify that the app has DB session cleanup middleware."""
+    """Verify that the app installs per-endpoint DB session cleanup."""
 
-    def test_app_has_session_cleanup_middleware(self):
-        """The app must clean up DB sessions after each request to prevent
-        leaked transaction state across recycled threadpool threads."""
-        from arm.app import app, SessionCleanupMiddleware
-        # Check user_middleware list for our middleware class
-        found = any(
-            m.cls is SessionCleanupMiddleware
-            for m in app.user_middleware
-            if hasattr(m, 'cls')
-        )
-        assert found, (
-            "App should have SessionCleanupMiddleware to prevent "
-            "leaked sessions across recycled threadpool threads"
+    def test_app_sync_endpoints_are_session_wrapped(self):
+        """The app must wrap every sync endpoint so its scoped_session is
+        cleaned on the same thread that ran the handler. Without this the
+        connection pool exhausts after enough distinct threadpool worker
+        threads have served requests."""
+        import inspect
+        from fastapi.routing import APIRoute
+        from arm.app import app
+
+        unwrapped = []
+        for route in app.routes:
+            if not isinstance(route, APIRoute):
+                continue
+            if inspect.iscoroutinefunction(route.endpoint):
+                continue
+            if not getattr(route.endpoint, "__arm_session_wrapped__", False):
+                unwrapped.append(route.path)
+
+        assert not unwrapped, (
+            "Every sync endpoint must be wrapped by _install_session_cleanup "
+            f"to prevent the connection pool leak. Unwrapped: {unwrapped[:5]}"
         )

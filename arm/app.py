@@ -1,10 +1,12 @@
-"""ARM API server — FastAPI."""
+"""ARM API server - FastAPI."""
+import functools
+import inspect
 import logging
 from contextlib import asynccontextmanager
+from typing import Callable
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
 
 import arm.config.config as cfg
 from arm.database import db
@@ -12,38 +14,82 @@ from arm.database import db
 log = logging.getLogger(__name__)
 
 
-class SessionCleanupMiddleware(BaseHTTPMiddleware):
-    """Ensure a clean DB session for every request.
+def _cleanup_session():
+    """Roll back and release the current thread's scoped session.
 
-    FastAPI runs sync def handlers in a threadpool.  AnyIO reuses threads,
-    so scoped_session (keyed by thread ID) can leak uncommitted state from
-    one request to the next on the same thread.
-
-    Proactive rollback at the START of each request catches any
-    PendingRollbackError left by a previous request on this thread
-    (e.g. if RetrySession's commit timed out).  The rollback + remove
-    in the finally block cleans up after the current request.
+    Safe to call when no engine is initialised or no session has been
+    bound on this thread - both paths short-circuit without acquiring
+    a pool connection.
     """
+    if db._engine is None:
+        return
+    try:
+        db.session.rollback()
+    except Exception:
+        # rollback() can raise if the session is already invalid; we still
+        # want remove() to drop any held connection.
+        pass
+    db.session.remove()
 
-    async def dispatch(self, request: Request, call_next):
-        # Proactive cleanup: if this thread's session has a stale
-        # PendingRollbackError from a previous request, clear it now
-        # so this request starts with a clean session.
-        if db._engine is not None:
-            try:
-                db.session.rollback()
-            except Exception:
-                pass
+
+def _wrap_sync_endpoint(endpoint: Callable) -> Callable:
+    """Wrap a sync endpoint so its scoped_session is cleaned on the same thread.
+
+    FastAPI runs sync def endpoints in the AnyIO threadpool. A handler that
+    queries the DB checks out a connection bound to its thread's scoped
+    session, but nothing returns it: scoped_session keys by thread id, so
+    only code running on that same thread can call session.remove() to
+    release the pool connection. AnyIO reuses threads, so each unique
+    worker thread leaks one connection on the first DB-touching request,
+    permanently. Once enough distinct workers have served requests the
+    pool is exhausted and every later request blocks 30s on bind.connect()
+    before timing out.
+
+    Wrapping each sync endpoint with cleanup-in-finally guarantees the
+    cleanup runs on the same thread that ran the endpoint, so the
+    scoped_session is the right one and the connection actually returns
+    to the pool.
+    """
+    @functools.wraps(endpoint)
+    def wrapper(*args, **kwargs):
         try:
-            response = await call_next(request)
-            return response
+            return endpoint(*args, **kwargs)
         finally:
-            if db._engine is not None:
-                try:
-                    db.session.rollback()
-                except Exception:
-                    pass
-                db.session.remove()
+            _cleanup_session()
+    # Mark so we don't double-wrap if this function is called twice.
+    wrapper.__arm_session_wrapped__ = True  # type: ignore[attr-defined]
+    return wrapper
+
+
+def _install_session_cleanup(app: FastAPI) -> None:
+    """Wrap every registered sync endpoint with per-request DB cleanup.
+
+    Walks app.routes once at startup. Async endpoints are left untouched -
+    they run on the event loop, where scoped_session would yield a
+    session keyed to the loop thread (shared across all async handlers).
+    Async handlers must manage their own DB lifecycle if they query the DB.
+
+    Both `route.endpoint` and the captured `dependant.call` need to be
+    rebound: FastAPI snapshots the dependant at route construction, and
+    that's what actually runs. Reassigning only `route.endpoint` would
+    leave the captured callable in place.
+    """
+    from fastapi.routing import APIRoute as _APIRoute  # local to avoid top-level cost
+
+    for route in app.routes:
+        if not isinstance(route, _APIRoute):
+            continue
+        endpoint = route.endpoint
+        if inspect.iscoroutinefunction(endpoint):
+            continue
+        if getattr(endpoint, "__arm_session_wrapped__", False):
+            continue
+        wrapped = _wrap_sync_endpoint(endpoint)
+        route.endpoint = wrapped
+        # FastAPI builds dependant.call at route construction. Replace it
+        # too, otherwise the wrapper is never invoked.
+        if route.dependant is not None and route.dependant.call is endpoint:
+            route.dependant.call = wrapped
 
 
 @asynccontextmanager
@@ -70,7 +116,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="ARM API", lifespan=lifespan)
 
-app.add_middleware(SessionCleanupMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -91,3 +136,8 @@ app.include_router(files.router)
 app.include_router(setup.router)
 app.include_router(folder.router)
 app.include_router(maintenance.router)
+
+# Wrap every sync endpoint with per-request DB cleanup. Must run after all
+# routers are included; sees a fixed set of routes (we don't register routes
+# at runtime).
+_install_session_cleanup(app)
