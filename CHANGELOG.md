@@ -1,5 +1,12 @@
 # Changelog
 
+## [16.3.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.3.0...v16.3.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **compose:** persist UI image cache across container restarts ([615a3d7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/615a3d7dac94acebaa795ea736e1f30a4c2fabd7))
+
 ## [16.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.2.0...v16.3.0) (2026-04-25)
 
 
