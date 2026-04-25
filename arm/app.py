@@ -25,10 +25,11 @@ def _cleanup_session():
         return
     try:
         db.session.rollback()
-    except Exception:
+    except Exception as exc:
         # rollback() can raise if the session is already invalid; we still
-        # want remove() to drop any held connection.
-        pass
+        # want remove() to drop any held connection. Log at debug so a
+        # pattern of repeated failures is visible if someone goes looking.
+        log.debug("db session rollback during cleanup failed: %s", exc)
     db.session.remove()
 
 
@@ -49,6 +50,13 @@ def _wrap_sync_endpoint(endpoint: Callable) -> Callable:
     cleanup runs on the same thread that ran the endpoint, so the
     scoped_session is the right one and the connection actually returns
     to the pool.
+
+    Contract: the wrapper itself MUST stay sync. FastAPI's APIRoute snapshots
+    `dependant.is_coroutine_callable` at construction time and dispatches
+    via either ``await call`` (async) or ``await run_in_threadpool(call)``
+    (sync) based on that flag. Returning a coroutine from this wrapper
+    would silently break the sync dispatch path. Async endpoints are not
+    wrapped at all - see _install_session_cleanup.
     """
     @functools.wraps(endpoint)
     def wrapper(*args, **kwargs):
