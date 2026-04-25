@@ -1,5 +1,17 @@
 # Changelog
 
+## [16.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.2.0...v16.3.0) (2026-04-25)
+
+
+### Features
+
+* port upstream enhancements (imdb_id naming var, UDF stale-handle fix) ([b07daea](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b07daeac060ac428ae5b5efa9b82e1f73e28633f))
+
+
+### Bug Fixes
+
+* **api:** clean DB session on the worker thread to stop pool leak ([ce5a406](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ce5a406ad9fa6245cf08125b18215c3869fe2ec5))
+
 ## [16.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.1.0...v16.2.0) (2026-04-24)
 
 
