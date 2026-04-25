@@ -67,11 +67,13 @@ services:
       - ARM_UI_ARM_URL=http://arm-rippers:8080
       - ARM_UI_TRANSCODER_ENABLED=false
       - ARM_UI_ARM_THEMES_PATH=/data/config/themes
+      - ARM_UI_IMAGE_CACHE_PATH=/data/cache/images
     volumes:
       - arm-db:/data/db:rw
       - ${ARM_LOGS_PATH}:/data/logs:ro
       - ${ARM_CONFIG_PATH}:/data/arm-config:rw
       - ${ARM_CONFIG_PATH:-/etc/arm/config}/themes:/data/config/themes:rw
+      - ui-image-cache:/data/cache/images:rw
     depends_on:
       arm-rippers:
         condition: service_healthy
@@ -79,3 +81,4 @@ services:
 volumes:
   arm-db:
   makemkv-settings:
+  ui-image-cache:
