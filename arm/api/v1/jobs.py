@@ -414,9 +414,11 @@ def _with_session_cleanup(fn, *args):
     """Run *fn* and ensure the executor thread's scoped session is released.
 
     asyncio.to_thread runs callables on executor threads whose scoped
-    sessions are NOT cleaned up by SessionCleanupMiddleware (which targets
-    the event-loop thread).  This wrapper prevents stale sessions from
-    accumulating on reused executor threads.
+    sessions are NOT cleaned up by the per-endpoint wrapper installed in
+    arm.app._install_session_cleanup (that wrapper targets the sync handler
+    callable that FastAPI dispatches into the threadpool, not callables
+    handed off to to_thread from inside an async handler). This wrapper
+    prevents stale sessions from accumulating on reused executor threads.
     """
     try:
         return fn(*args)
