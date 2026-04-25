@@ -1,138 +1,105 @@
 # Fork Features
 
-A comprehensive list of features and architectural improvements in this fork that are not present in upstream automatic-ripping-machine (as of upstream main ~v2.23.x and 3.0_devel HEAD, surveyed 2026-04-25).
+Major differences between this fork and upstream `automatic-ripping-machine` (surveyed 2026-04-25 against `upstream/main` ~v2.23.x and `upstream/3.0_devel` HEAD).
 
-## Architecture & Framework
+This document focuses on the larger architectural and product changes. Small bug fixes are listed at the bottom; one-line refactors and routine cleanup are not listed at all.
 
-**Backend API Framework**
-- FastAPI + async backend replacing the upstream Flask monolith, with non-blocking I/O across the API surface (`arm/app.py`, `arm/api/v1/*.py`)
-- Standalone SQLAlchemy ORM layer with automatic table name generation; includes transparent SQLite BUSY retry with exponential backoff (`arm/database/__init__.py`)
-- Schema evolution kept current via 45 Alembic revisions (upstream has 21 on the same migration framework)
+## Architecture
 
-**Frontend UI Framework**
-- Complete rewrite from Flask+Jinja templates to Svelte 5 + SvelteKit + Vite + TypeScript modern SPA, decoupled from backend (`automatic-ripping-machine-ui/frontend/`)
-- Responsive CSS Grid + Tailwind CSS design replacing Flask Bootstrap templates
-- Full end-to-end TypeScript type safety on frontend API calls (`frontend/src/api/`)
+**Three-service split with a shared contracts layer.**
+The single upstream Flask monolith is broken into three independently-versioned services:
+- [automatic-ripping-machine-neu](https://github.com/uprightbass360/automatic-ripping-machine-neu) - the ripper backend (FastAPI + async)
+- [automatic-ripping-machine-ui](https://github.com/uprightbass360/automatic-ripping-machine-ui) - the dashboard (SvelteKit + TypeScript SPA, with its own thin FastAPI BFF)
+- [automatic-ripping-machine-transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) - GPU-aware transcoding service
 
-**Microservices Split**
-- Separate transcoding microservice (`automatic-ripping-machine-transcoder`, v17.x) with independent scaling and GPU resource allocation
-- Ripper-only deployment variant: `docker-compose.ripper-only.yml` allowing headless ripping without transcoder dependency (`TRANSCODER_ENABLED` flag gates all transcoder-related surfaces)
-- Shared contracts library (`automatic-ripping-machine-contracts`) with StrEnum types for job status, disc types, and preset formats; submodule-lockstep CI ensures schema compatibility across all services (`components/contracts/`)
+A shared-contracts Python package (`components/contracts`) defines the typed enums and Pydantic models all three services exchange, with submodule-lockstep CI so a contract change cannot ship to one service without the others. Services can be deployed on one host or split across machines.
 
-**Type Safety & Validation**
-- Pydantic v2 with ConfigDict for API request/response validation; malformed webhook payloads return 422 with structured error detail
-- End-to-end type hints on SQLAlchemy models, API handlers, and ripper utilities
-- Runtime TypeVar-guarded async detection preventing "asyncio.run() from running loop" crashes (`arm/services/matching/_async_compat.py`)
+Upstream `3.0_devel` is partway toward a similar split but is still in-progress and uses a different model (split Dockerfiles in one repo, no shared-contracts layer).
 
-## User Interface & Experience
+## User-facing dashboard
 
-**Dashboard & Monitoring**
-- Real-time WebSocket updates to dashboard job status (ripping, transcoding, finalizing phases with progress % and ETA)
-- Phase-aware progress bars with distinct visual states for each ripping/transcoding stage (`arm-ui PR #195`)
-- GPU and transcoder health panels showing encoder utilization, queue depth, and connection status
-- Disk usage and optical drive status cached to prevent NFS stalls (`arm/services/disk_usage_cache.py`)
+**SvelteKit + TypeScript SPA replacing Flask/Jinja templates.** Full rewrite of the web UI, decoupled from the backend over a versioned REST + WebSocket API. Upstream has an `arm-vuejs` branch but it is unmerged and not on the release line.
 
-**Episode Matching (TV Series)**
-- TVDB v4 API integration for runtime-based episode matching via IMDb ID lookup and season resolution (`arm/services/tvdb.py`, `arm/services/matching/tvdb_matcher.py`)
-- Browse/Match two-tab UI with per-season episode viewer, tolerance sliders, and alternative season quick-buttons (`arm-ui TvdbMatch.svelte`)
-- Auto-detect best season across multi-season discs via greedy nearest-neighbor algorithm
+**Real-time job dashboard over WebSockets.** Job state, phase (rip / transcode / finalize), and per-phase progress stream live to all connected clients without polling.
 
-**Preset System (Transcoding Profiles)**
-- Database-driven preset management with per-job override capability: `PresetProfile` model with `name`, `slug`, `tier_name`, `codec_profile`, `bitrate_mode` (`arm/models/config.py`)
-- Snapshot preset settings at job creation time to prevent mid-pipeline configuration drift
-- Preset deletion with referential integrity cleanup across pending jobs
-- `shared_contracts` type validation on preset selection slugs with regex pattern enforcement (`arm_contracts.job_config.TranscodeJobConfig`)
+**Phase-aware progress bars.** Rather than one generic "% done" bar, the UI renders distinct visual states per pipeline phase, including a dedicated FINISHING dashboard section for jobs in the copying / waiting-for-transcode / ejecting phases (instead of showing stale 100% rip progress).
 
-**Real-Time Track Status**
-- Tracks marked as "Ripped=Success" **during** the MakeMKV rip (not after) via FILE_ADDED message parsing (MSG 3307) (`arm/ripper/makemkv.py:928-952`)
-- Live UI updates showing tracks 0-2 complete while tracks 3-5 still in progress, with final sweep to catch prefix-mismatch edge cases
+**Real-time track status during the MakeMKV rip.** Tracks flip to "ripped" mid-job by parsing MakeMKV's `FILE_ADDED` (MSG 3307) message stream, rather than waiting for the whole rip to complete and reconciling at the end.
 
-**Settings & Configuration**
-- FastAPI settings endpoint with live config reload and hot-patch capability (`arm/api/v1/settings.py`)
-- Per-optical-drive ripping speed tuning via `MAKEMKV_READ_SPEED` config without requiring restart
-- Prescan quality/performance trade-off controls: `PRESCAN_QUALITY`, `PRESCAN_MIN_FILE_SIZE`
-- Setup wizard with transcoder-optional sections and preflight health checks with bumped 30s timeout (was 10s, preventing "ARM unreachable" false positives)
+**Cross-service system stats sidebar.** Live CPU, memory, and storage usage for both the ripper and the (possibly remote) transcoder, plus service-health indicators for ARM, the database, and the transcoder.
 
-## Ripping & Transcoding Pipeline
+**File browser with permissions, rename, and delete.** Tabbed view across Raw / Completed / Transcode / Music directories, with permission display and in-UI file management. Upstream has no real file browser.
 
-**Advanced MakeMKV Integration**
-- Per-drive USB buffer and speed optimization: reduce read errors and increase throughput on problematic optical drives
-- MakeMKV prescan settings fine-tuned to reduce scan time while maintaining accuracy
-- Robust parsing of all TINFO fields including chapters count and file size; fallback handling for malformed/missing BDMV XML playlists
-- UDF filesystem stale handle detection and workaround for Blu-ray multi-layer reading edge cases
+**Job management toolbox.** Abandon, delete, fix-permissions, toggle multi-title mode, force-complete stuck jobs, and "Skip Transcode & Finalize" recovery action - all from the job detail page with confirmation dialogs.
 
-**Callback Durability & Retry**
-- Webhook callback pipeline refactored to durable two-table model: `pending_callbacks` for guaranteed delivery + drainer loop for async processing (`arm-transcoder PR #105`)
-- Removed inline retry logic in favor of database-backed durability; callbacks survive service restarts
-- Configurable retry intervals and backoff strategy
+**30 built-in themes.** Color schemes including Default, Ocean, Forest, Terminal, LCARS, Dracula Pro, Hollywood Video, and many more, with custom themes loadable from a config directory and runtime CSS injection (no rebuild needed to add a theme).
 
-**Naming & File Lifecycle**
-- Named file override system: allow per-job custom output filenames via API endpoint (`/api/v1/jobs/{job_id}/name`)
-- Filename sanitization consolidation: single `clean_for_filename()` in `arm/naming.py` handling colons, commas, quotes, hyphens with proper edge-case collapsing
-- Naming-preview endpoint returning rendered filenames for all tracks before ripping starts (`/api/v1/jobs/{job_id}/naming-preview`)
-- TV series disc label parsing: detect `STARGATE_ATLANTIS_S1_D2` patterns to preserve season/disc metadata in folder naming
+**First-run setup wizard.** Eight-step state machine that detects database initialization, drive presence, and config completeness, then walks the operator through onboarding (welcome -> drives -> settings -> review) before unlocking normal operation. Backed by a `setup_complete` flag in `AppState` so transient DB errors don't bounce returning users back to the wizard.
 
-**Transcoding Overrides**
-- Job-level transcode configuration overrides: bitrate, codec, preset, output format passed via webhook payload
-- Retranscode functionality: re-transcode completed jobs with new settings without re-ripping
-- Transcoding skip-and-finalize option: move source file without transcoding when transcoder unavailable
+**Image cache for poster art and metadata thumbnails.** SHA256-indexed disk cache with TTL (default 7 days) and size limits in front of OMDb / TMDb / MusicBrainz artwork, with maintenance endpoints to inspect stats and purge. Avoids re-fetching cover art on every dashboard load and survives metadata-API outages.
 
-## Operations & Deployment
+## Ripping pipeline
 
-**Multi-Server Architecture**
-- ARM ripper and UI deployed to `hifi-server` (CPU/SSD optimized)
-- Transcoder GPU workloads deployed to separate `transcoder-server` (NVIDIA GPU with dedicated VRAM)
-- Docker Compose files for three deployment profiles: all-in-one, remote-transcoder, ripper-only
-- Environment-specific image versioning with `ARM_VERSION` and `UI_VERSION` pins for reproducible deployments
+**TVDB v4 episode matching for TV series discs.** Runtime-based track-to-episode mapping for multi-episode TV discs, with a Browse/Match two-tab UI, per-season episode viewer, tolerance sliders, and alternative-season quick-buttons. Includes auto-detection of the best season across multi-season discs.
 
-**Docker & Container Improvements**
-- Slimmed runtime images via a base-image refactor that pulls heavy build deps out of the runtime layer (see `base-image-refactor` memory)
-- Separate `Dockerfile.dev` for development with parity enforcement (fixture-checked to prevent broken dev stacks)
-- GPU-optimized images: `latest-nvidia`, `latest-amd`, `latest-intel` with provider-specific encoder probes
-- Docker device pass-through for optical drives with udev rule automation and Pioneer USB stability workarounds
+**Preset system for transcoding profiles.** Database-driven, named, slugged presets with per-job overrides. Presets are snapshotted at job-start time so mid-pipeline edits cannot retroactively change a running job, and slug validation is enforced through the shared-contracts layer end-to-end.
 
-**Logging & Observability**
-- Structured logging via `structlog` for JSON-format audit trails (vs Python logging dicts)
-- Request/response logging middleware on all FastAPI endpoints
-- Per-job detailed log streaming endpoint (`/api/v1/jobs/{job_id}/logs/stream`)
-- Metrics export for SonarCloud and CodeQL scanning with uniform-pattern rollout deduplication
+**Named-file overrides + naming preview.** Per-job custom output filenames via API, plus a `/naming-preview` endpoint that renders the final filenames for every track before the rip starts - so naming bugs surface before disc time is spent.
 
-**Database & State Management**
-- Automatic DB migration on container startup (Alembic `upgrade head`)
-- Session pool cleanup middleware preventing connection leaks under high load (fixed `worker.py` session attachment)
-- Scoped sessions on both sync (ripper) and async (FastAPI) code paths
-- App state singleton (`AppState` model) tracking service health, config hot-patch flags, and scan-in-progress locks
+**MakeMKV hardening.** Per-drive USB buffer / read-speed tuning, robust TINFO parsing with fallback to post-rip disk scan, prescan tuning controls (`PRESCAN_QUALITY`, `PRESCAN_MIN_FILE_SIZE`), UDF stale-handle workaround for multi-layer Blu-ray reads, and TV-disc label parsing (e.g. `STARGATE_ATLANTIS_S1_D2`) for season/disc folder naming. Pioneer USB stability workarounds for UHD dual-layer reading.
 
-## Reliability & Quality
+**Auto-fetched MakeMKV community keydb.** Decryption keys updated at startup without manual intervention or reliance on third-party servers.
 
-**Type Safety & Testing**
-- 700+ test cases across unit/integration/API tests with pytest-cov coverage reporting
-- Snapshot testing for UI visual regression (Playwright snapshots in `arm-ui`)
-- TypeScript strict mode enforced on all frontend code
-- SonarCloud quality gates with automatic code duplication detection
+**Folder import (rip pre-existing MKV files).** A parallel pipeline (`folder_ripper.py`) feeds pre-ripped MKVs through the same identification / metadata / track-status / transcoding flow as a disc rip - same job model, same UI, same naming - just without a physical drive. Lets you backfill a library or re-process discs ripped elsewhere without standing them up as a fresh disc job.
 
-**Error Handling & Recovery**
-- Graceful degradation when transcoder unreachable: fallback to direct file move without transcoding
-- GPU encoder probe gated on functional no-op encode (prevents false positives on broken NVIDIA drivers)
-- All MakeMKV message parsing failures captured with fallback to post-rip disk scan
-- Webhook handler 422 validation errors with detailed `{loc, msg, type}` feedback for callers
+**Music CD pipeline overhaul.** Full MusicBrainz disc-ID rewrite, `disc_number` tagging for multi-disc albums, automatic `.m3u` playlist generation per album folder, and a comprehensive abcde / cdparanoia / cd-discid output classifier so partial-success rips and silent I/O errors are caught instead of being marked complete.
 
-**Data Integrity**
-- Track count now excludes disabled tracks (fixes UI discrepancy in `arm-ui PR #193`)
-- Data disc duplicate detection prevents silent overwrites of same-label rips
-- Database locking no longer triggers setup wizard flash on startup
-- DVD unmount on error preventing subsequent MakeMKV access failures
+## Transcoding
 
-**Code Quality**
-- Pydantic v2 ConfigDict migration complete (no deprecated `class Config:` patterns)
-- ReDoS-safe regex patterns for FPS parsing and progress tracking
-- Uniform test helper functions: `patched_app_client` for webhook mocking, `sample_job` factory with realistic config
+**Separate GPU transcoder service.** Transcoding runs in its own service with its own deployment, scaling, and image variants for NVIDIA (`-nvidia`), AMD (`-amd`), and Intel (`-intel`) - each with provider-specific encoder probes.
 
-## Bug Fixes Still Open Upstream
+**Multi-worker concurrent transcoding.** Worker tasks are spawned from a shared queue with `MAX_CONCURRENT` configurable per GPU (e.g. NVIDIA 3-5, AMD 1-2, Intel 2-3, CPU 2-3), and each worker exposes its current job and state via a `/workers` endpoint for dashboard visibility.
 
-The following 14 issues are fixed in the fork and remain open in upstream (`automatic-ripping-machine/automatic-ripping-machine`):
+**Resolution-tier-aware presets (DVD / Blu-ray / UHD).** Every preset defines per-tier encoder, quality, and HandBrake settings; the tier is auto-selected from the input video's resolution at job start. 4K is preserved as UHD, Blu-ray runs at 1080p, DVDs are upscaled to 720p. Built-in `balanced` / `quality` / `fast` variants per scheme, plus user-created custom presets.
 
-| Issue | Title | Fork Commit(s) |
+**Local scratch storage for network shares.** A copy-transcode-move pattern keeps heavy I/O off the NFS / SMB mount during transcoding, then moves the finished file into place atomically. Critical for split-host deployments where the source/dest is on shared storage.
+
+**Live GPU utilization metrics.** `/system/stats` exposes per-vendor live GPU metrics: NVIDIA via `nvidia-smi` (utilization, VRAM, temperature, encoder %), AMD via sysfs `gpu_busy_percent`, Intel via `intel_gpu_top`. The UI renders these in real time.
+
+**GPU encoder probe gated on a functional no-op encode.** A working GPU is verified by actually running an encode at startup, not by reading driver capabilities. Prevents broken NVIDIA / VAAPI drivers from being silently selected when they would fail at runtime.
+
+**Durable webhook callbacks.** The transcoder-to-ripper notification pipeline is backed by a `pending_callbacks` table + drainer loop, so callbacks survive transcoder restarts and intermittent network failures rather than being lost in memory.
+
+**API key authentication with admin/readonly RBAC.** Optional `REQUIRE_API_AUTH` gates the transcoder REST API; admin keys can mutate (create/delete presets, retry/delete jobs, restart, PATCH config) while readonly keys can only observe. Webhook endpoint has its own `X-Webhook-Secret` separate from API keys.
+
+**Job-level transcode overrides + retranscode.** Bitrate, codec, preset, and output format can be overridden per-job via the webhook payload, and a completed job can be re-transcoded with new settings without re-ripping the disc.
+
+## Deployment
+
+**Three deployment modes shipped as compose files.**
+- All-in-one (single host)
+- Remote transcoder (ripper + UI on one host, GPU transcoder on another)
+- Ripper-only (no transcoder at all - the ripper writes final named files directly via the `finalize_output` path; UI hides every transcoder surface)
+
+Each mode is gated by `TRANSCODER_ENABLED` and `TRANSCODER_HOST` so the same images run in all three.
+
+**Slimmed ARM image and self-published base image.** Now that transcoding lives in its own service, HandBrake and FFmpeg were removed from the ARM image entirely (~2,500 lines of orchestration deleted, ~20 min cut from base-image build time). The base image (MakeMKV + system deps) was also pulled out of the upstream `arm-dependencies` submodule and is now built and published from this fork's `docker/base/` as `uprightbass360/arm-dependencies`, so releases are no longer coupled to upstream's cadence.
+
+**Operational tooling for split deployments.** A `setup-arm.sh` script on the transcoder side patches the ripper's `arm.yaml` for the webhook URL, deploys the notification script when `WEBHOOK_SECRET` is in use, and optionally restarts ARM - so wiring up a remote-transcoder install doesn't require hand-editing config on two machines.
+
+## Reliability
+
+**Graceful transcoder-down behavior.** When the transcoder is unreachable, the ripper falls back to the finalize path rather than failing jobs - this is what makes the ripper-only deployment mode possible.
+
+**Structured logging via `structlog`.** JSON-formatted logs across the ripper, with a per-job log streaming endpoint (`/api/v1/jobs/{job_id}/logs/stream`) for the UI to tail.
+
+**~4,300 automated tests across the three services.** Roughly 1,960 pytest cases in the ripper, 700 in the UI's FastAPI BFF, 780 in the transcoder, plus 860 vitest cases on Svelte components / stores / API clients and a small Playwright visual-snapshot suite. Coverage reported to Codecov on every PR.
+
+## Bug fixes still open upstream
+
+The following 14 issues are fixed in this fork and remain open in upstream `automatic-ripping-machine/automatic-ripping-machine`:
+
+| Issue | Title | Fork commit(s) |
 |-------|-------|---|
 | [#1281](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1281) | Filename error moving file after transcode | `c1f6caa`, `2623b11` |
 | [#1345](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1345) | `fatal: invalid object name 'origin/HEAD'` | `edac6d2`, `e3d0e03` |
@@ -140,12 +107,12 @@ The following 14 issues are fixed in the fork and remain open in upstream (`auto
 | [#1430](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1430) | OMDb "Too many results" for short queries | `9a87349`, `ed39afc`, `d939362` |
 | [#1457](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1457) | Single quote in disc name breaks transcoding | `4f32270` |
 | [#1526](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1526) | abcde I/O error not detected (zero exit) | `abc4f68`, `830a743` |
-| [#1584](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1584) | NOT NULL on system_drives.name at startup | `2e63381`, `d939362` |
+| [#1584](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1584) | NOT NULL on `system_drives.name` at startup | `2e63381`, `d939362` |
 | [#1628](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1628) | ffprobe failure crashes HandBrake transcode | `96697d1`, `c10d917` |
-| [#1641](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1641) | calc_process_time fails on >24h jobs | `78ab2e9`, `40bf39f` |
+| [#1641](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1641) | `calc_process_time` fails on >24h jobs | `78ab2e9`, `40bf39f` |
 | [#1650](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1650) | Malformed BDMV XML crashes identification | `efa139d`, `ac33272` |
 | [#1651](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1651) | Data disc same label silently overwrites | `500e89d`, `830a743` |
-| [#1664](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1664) | DVD stays mounted → MakeMKV can't access drive | `ac33272`, `d939362` |
+| [#1664](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1664) | DVD stays mounted - MakeMKV can't access drive | `ac33272`, `d939362` |
 | [#1684](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1684) | Settings values not trimmed on save | `edac6d2` |
 | [#1688](https://github.com/automatic-ripping-machine/automatic-ripping-machine/issues/1688) | Unparsed MakeMKV lines cause fatal error | `7297893` |
 
@@ -153,5 +120,5 @@ The following 14 issues are fixed in the fork and remain open in upstream (`auto
 
 **Notes on upstream state (surveyed 2026-04-25):**
 - Upstream `main` is on the v2.x line (~v2.23.x) with the original Flask + Jinja monolith.
-- Upstream `3.0_devel` is partway toward a service split (separate `Dockerfile-Ripper` and `Dockerfile-UI`) but still in-progress; this fork's split-and-shared-contracts model is well past that point.
-- Upstream has an `arm-vuejs` branch (last touched 2025-10) but it is not on the v2 release line and has not been merged. This fork's Svelte 5 + Vite + TypeScript SPA is independent of that effort.
+- Upstream `3.0_devel` is partway toward a service split but still in-progress; this fork's split-and-shared-contracts model is well past that point.
+- Upstream has an `arm-vuejs` branch (last touched 2025-10) but it is unmerged and not on the v2 release line. This fork's SvelteKit + TypeScript SPA is independent of that effort.
