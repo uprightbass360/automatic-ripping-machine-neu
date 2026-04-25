@@ -89,6 +89,22 @@ Each mode is gated by `TRANSCODER_ENABLED` and `TRANSCODER_HOST` so the same ima
 
 ## Reliability
 
+**Hardened udev / startup pipeline for optical drives.** The disc-detection path between host udev, the container, and the ripper has been substantially rebuilt to survive USB drives, container restarts, and SIGKILLed jobs. Concretely:
+
+- Three udev rule files for distinct concerns: in-container detection (`61-docker-arm.rules`), host-driven `docker exec` triggering (`51-arm-disc-insert.rules`), and a host-side rate-limited watcher for USB drives (`99-arm-drive-watcher.rules`).
+- Per-device `flock` on `/home/arm/.arm_<dev>.lock` prevents concurrent ARM runs and post-eject retriggering. Stale locks (held with no live `main.py` process) are detected and broken on next attempt.
+- `event_timeout` raised from the udev default of 180s to 7200s and configurable via `UDEV_EVENT_TIMEOUT` env var, so udev no longer SIGKILLs in-progress rips that take longer than 3 minutes.
+- Container `udev` startup is non-blocking with a 30s timeout so a hung udev never blocks container boot. Missing `/dev/sr*` device nodes are auto-created from `/sys/block` after udev settles.
+- USB re-enumeration handling: stale `sr*` nodes (whose `/sys/block/` backing has disappeared) are scrubbed before launching ARM, so phantom drives don't get processed.
+- Host-side drive watcher rate-limits to one rescan per device per 120s, preventing Pioneer-style continuous-ADD-event storms during USB bus resets, and uses an `ioctl(CDROM_DRIVE_STATUS)` check before invoking ARM so empty trays don't trigger jobs.
+- Phantom udev events for non-existent device nodes are detected and skipped instead of crashing the wrapper.
+
+**Orphaned-job cleanup on container startup.** A first-run service (`arm/services/job_cleanup.py`) walks the DB on boot, fails any ARM-owned jobs left in intermediate states from a crashed or SIGKILLed container, releases the drive, and sends a summary notification. Per-device lock files left from the previous lifecycle are also scrubbed so the next udev event lands cleanly.
+
+**Drive diagnostic API and UI surface.** `/api/v1/drives/diagnostic` runs live checks (udevd running, kernel cdrom info, devnode presence) and returns a structured issue list to the dashboard, alongside `/drives/rescan` and per-drive `/drives/{id}/scan` endpoints. The UI surfaces drive-level health rather than just "ARM is up."
+
+**Startup permission and UID/GID handling.** `arm_user_files_setup.sh` remaps the in-container `arm` user to whatever UID/GID the host passes via `ARM_UID`/`ARM_GID`, then verifies access to every required directory - falling back to a real read/write test for NFS / group / ACL cases where strict UID match is impossible. Subdirectories are created as the `arm` user (not root) to avoid root-owned files on NFS mounts. Read-only media/transcode mounts are detected and skipped instead of failing startup.
+
 **Graceful transcoder-down behavior.** When the transcoder is unreachable, the ripper falls back to the finalize path rather than failing jobs - this is what makes the ripper-only deployment mode possible.
 
 **Structured logging across all three services.** A single structlog `ProcessorFormatter` setup (in `arm/ripper/logger.py` for the ripper, `src/log_format.py` for the transcoder) wraps the stdlib logging module so all 200+ existing `logging.info/error/...` call sites get structured output without code changes. Three sinks run simultaneously per service: JSON lines to per-job (or per-service) files, colored human-readable to stdout for `docker logs`, and compact key=value to syslog. Per-job runs automatically bind `job_id`, `label`, and `devpath` into `structlog.contextvars` so every log line inside a job carries that context without the caller passing it. The UI's BFF and the transcoder both expose the JSON logs back through `/logs/{file}/structured` endpoints that support level filtering and full-text search, with a structured log viewer in the dashboard.
