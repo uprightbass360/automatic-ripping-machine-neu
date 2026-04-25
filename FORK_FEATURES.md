@@ -91,7 +91,7 @@ Each mode is gated by `TRANSCODER_ENABLED` and `TRANSCODER_HOST` so the same ima
 
 **Graceful transcoder-down behavior.** When the transcoder is unreachable, the ripper falls back to the finalize path rather than failing jobs - this is what makes the ripper-only deployment mode possible.
 
-**Structured logging via `structlog`.** JSON-formatted logs across the ripper, with a per-job log streaming endpoint (`/api/v1/jobs/{job_id}/logs/stream`) for the UI to tail.
+**Structured logging across all three services.** A single structlog `ProcessorFormatter` setup (in `arm/ripper/logger.py` for the ripper, `src/log_format.py` for the transcoder) wraps the stdlib logging module so all 200+ existing `logging.info/error/...` call sites get structured output without code changes. Three sinks run simultaneously per service: JSON lines to per-job (or per-service) files, colored human-readable to stdout for `docker logs`, and compact key=value to syslog. Per-job runs automatically bind `job_id`, `label`, and `devpath` into `structlog.contextvars` so every log line inside a job carries that context without the caller passing it. The UI's BFF and the transcoder both expose the JSON logs back through `/logs/{file}/structured` endpoints that support level filtering and full-text search, with a structured log viewer in the dashboard.
 
 **~4,300 automated tests across the three services.** Roughly 1,960 pytest cases in the ripper, 700 in the UI's FastAPI BFF, 780 in the transcoder, plus 860 vitest cases on Svelte components / stores / API clients and a small Playwright visual-snapshot suite. Coverage reported to Codecov on every PR.
 
