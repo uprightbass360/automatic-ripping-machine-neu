@@ -275,15 +275,26 @@ async def drive_diagnostic():
     for p in glob.glob("/dev/sr*"):
         all_devnames.add(os.path.basename(p))
 
-    # Also include drives known to the database (may be stale)
-    db_drives = SystemDrives.query.all()
-    db_by_devname: dict[str, SystemDrives] = {}
-    for d in db_drives:
-        if d.mount:
-            dn = d.mount.rstrip("/").rsplit("/", 1)[-1]
-            if re.match(r'^sr\d+$', dn):
-                all_devnames.add(dn)
-                db_by_devname[dn] = d
+    # DB read happens in a worker thread so the connection is released via
+    # the per-endpoint cleanup wrapper. Async endpoints can't rely on that
+    # wrapper (it's sync-only), so we route DB work through to_thread.
+    def _load_db_drives():
+        try:
+            db_drives = SystemDrives.query.all()
+            db_by_devname: dict[str, SystemDrives] = {}
+            extra_devnames: set[str] = set()
+            for d in db_drives:
+                if d.mount:
+                    dn = d.mount.rstrip("/").rsplit("/", 1)[-1]
+                    if re.match(r'^sr\d+$', dn):
+                        extra_devnames.add(dn)
+                        db_by_devname[dn] = d
+            return db_by_devname, extra_devnames
+        finally:
+            db.session.remove()
+
+    db_by_devname, extra_devnames = await asyncio.to_thread(_load_db_drives)
+    all_devnames.update(extra_devnames)
 
     # Run synchronous I/O diagnostics in a thread
     checks = await asyncio.to_thread(
@@ -353,14 +364,28 @@ async def scan_drive(drive_id: int):
     and starts a rip if one is found.  The script's own locking
     (flock + ioctl disc-presence check) prevents duplicate runs.
     """
-    drive = SystemDrives.query.get(drive_id)
-    if not drive:
+    # DB read in a worker thread so the connection is returned via
+    # session.remove() in finally (the per-endpoint wrapper only fires for
+    # sync endpoints; async endpoints must clean up their own session).
+    _MISSING = object()
+
+    def _load_drive_mount():
+        try:
+            d = SystemDrives.query.get(drive_id)
+            if d is None:
+                return _MISSING
+            return d.mount
+        finally:
+            db.session.remove()
+
+    mount = await asyncio.to_thread(_load_drive_mount)
+    if mount is _MISSING:
         return JSONResponse({"success": False, "error": "Drive not found"}, status_code=404)
-    if not drive.mount:
+    if not mount:
         return JSONResponse({"success": False, "error": "Drive has no mount path"}, status_code=400)
 
-    # mount may be /dev/sr0 or /mnt/dev/sr0 — extract just the srN part
-    devname = drive.mount.rstrip("/").rsplit("/", 1)[-1]
+    # mount may be /dev/sr0 or /mnt/dev/sr0 - extract just the srN part
+    devname = mount.rstrip("/").rsplit("/", 1)[-1]
     script = "/opt/arm/scripts/docker/rescan_drive.sh"
 
     try:

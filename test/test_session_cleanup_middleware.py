@@ -46,10 +46,31 @@ def _make_app():
 
     @router.get("/test/pending-rollback")
     def pending_rollback_endpoint():
+        """Raise PendingRollbackError directly. Tests that a handler raising
+        this exception class doesn't crash subsequent requests - which is a
+        weaker guarantee than recovering from a genuinely poisoned session.
+        For that, see /test/leave-session-poisoned."""
         raise PendingRollbackError(
             "This Session's transaction has been rolled back",
             None, None, False
         )
+
+    @router.get("/test/leave-session-poisoned")
+    def leave_session_poisoned():
+        """Catch a SQL error mid-handler and return 200 without rolling back.
+
+        This is the real-world failure mode the cleanup must recover from:
+        a handler swallows the underlying error and returns success, but
+        the SQLAlchemy session is left needing rollback() before any
+        further use. The cleanup wrapper's finally must rescue the next
+        request on this thread.
+        """
+        try:
+            db.session.execute(db.text("INSERT INTO nonexistent_table VALUES (1)"))
+        except Exception:
+            # Intentionally don't rollback - this is the poisoned-session case
+            pass
+        return {"swallowed": True}
 
     app.include_router(router)
     _install_session_cleanup(app)
@@ -82,15 +103,29 @@ class TestSessionCleanupBasic:
         assert resp.status_code == 200
         assert resp.json() == {"result": 1}
 
-    def test_session_recovers_after_pending_rollback(self, test_client):
-        """After PendingRollbackError, the next request must succeed."""
+    def test_handler_raising_pending_rollback_is_not_fatal(self, test_client):
+        """Sanity: a handler raising PendingRollbackError shouldn't crash the
+        next request. Weaker than the poisoned-session recovery test below."""
         resp = test_client.get("/test/pending-rollback")
         assert resp.status_code == 500
         resp = test_client.get("/test/db-read")
         assert resp.status_code == 200
         assert resp.json() == {"result": 1}
 
+    def test_session_recovers_after_handler_swallowed_sql_error(self, test_client):
+        """The real recovery case: a handler runs a SQL statement that fails,
+        swallows the exception, and returns 200. The session is left needing
+        rollback. The next request on this thread must still succeed because
+        the cleanup wrapper's finally ran rollback() + remove()."""
+        resp = test_client.get("/test/leave-session-poisoned")
+        assert resp.status_code == 200
+        assert resp.json() == {"swallowed": True}
+        resp = test_client.get("/test/db-read")
+        assert resp.status_code == 200
+        assert resp.json() == {"result": 1}
+
     def test_session_recovers_after_bad_sql(self, test_client):
+        """Bad SQL bubbles up as 500; session must still be usable next request."""
         resp = test_client.get("/test/poison")
         assert resp.status_code == 500
         resp = test_client.get("/test/db-read")
