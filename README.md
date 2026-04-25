@@ -10,15 +10,21 @@ A fork of the [Automatic Ripping Machine](https://github.com/automatic-ripping-m
 
 ### What's different from upstream
 
-- **Offloaded GPU transcoding** — dedicated [transcoder service](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) with auto-detected GPU encoding (NVIDIA NVENC, Intel QSV, AMD VCN/VAAPI, or CPU fallback)
-- **Modern dashboard** — [replacement UI](https://github.com/uprightbass360/automatic-ripping-machine-ui) built with SvelteKit, replacing the original Flask/Jinja2 templates and deployed separately.
-- **TVDB episode matching** — runtime-based track-to-episode mapping for TV series discs
-- **REST API** — updated structured JSON API for job management, metadata, and external integrations
-- **Richer notifications** — webhook payloads include job ID, paths, video type, and env vars for custom scripts
-- **Auto keydb updates** — community makemkv Blu-ray decryption keys fetched automatically at startup. No more reliance on Russian servers (unfortunately very unreliable in America)
-- **Docker Compose deployment** — single-machine or split ripper/transcoder across hosts with published images. Many examples and dev overlays available.
-- **Pre-scan drive detection** — richer workflow for new job reviewing
-- **Many bug fixes**
+**Architecture**
+- Split into three independently-released services - ripper (this repo), [UI dashboard](https://github.com/uprightbass360/automatic-ripping-machine-ui), and [GPU transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) - deployable on one host or across machines, with a typed shared-contracts layer keeping them in lockstep.
+
+**What you'll see as a user**
+- Modern SvelteKit + TypeScript dashboard replacing the Flask/Jinja UI, with real-time WebSocket job updates and phase-aware progress bars (rip / transcode / finalize)
+- TVDB v4 episode matching for TV series discs - runtime-based track-to-episode mapping with a Browse/Match UI
+- Database-driven preset system with per-job overrides, plus named-file overrides and a naming-preview before ripping starts
+- Richer notifications (Apprise + webhooks with full job context) and auto-fetched MakeMKV community keydb at startup
+
+**What you won't see (but will appreciate)**
+- Auto-detected GPU encoding (NVIDIA NVENC, Intel QSV, AMD VAAPI, CPU fallback) gated on a functional probe so broken drivers don't get picked
+- Durable webhook callbacks - the transcoder survives restarts without losing job notifications
+- Graceful degradation when the transcoder is offline (ripper-only deployment is a first-class mode), and a long list of upstream bugs fixed in this fork
+
+See [FORK_FEATURES.md](FORK_FEATURES.md) for the full breakdown.
 
 ## Related Projects
 
