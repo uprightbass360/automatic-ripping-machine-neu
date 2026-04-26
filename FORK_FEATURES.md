@@ -14,6 +14,8 @@ The single upstream Flask monolith is broken into three independently-versioned 
 
 A shared-contracts Python package (`components/contracts`) defines the typed enums and Pydantic models all three services exchange, with submodule-lockstep CI so a contract change cannot ship to one service without the others. Services can be deployed on one host or split across machines.
 
+**HTTP-only ripper-to-UI boundary (v17.0.0).** The UI BFF used to bind-mount the ripper's SQLite database for direct read access; as of v17.0.0 the BFF is a pure HTTP client of the ripper. New endpoints landed to retire the last of those direct reads: `/api/v1/jobs/stats` (filter-aware bucketed counts for the dashboard tiles), `/api/v1/jobs/{id}/track-counts` (lightweight progress polling), `/api/v1/jobs/{id}/progress-state` (track counts + disctype/logfile/no_of_titles in one round trip), and `db_path` / `db_size_bytes` on `/api/v1/system/version`. `/api/v1/jobs/{id}/detail` now also returns the full `tracks` array. `track_counts` semantics also tightened: `/jobs/active` and `/jobs/{id}/detail` now report counts of *rippable* tracks (enabled, above MINLENGTH for video discs) instead of raw row counts, matching what the UI was already computing client-side.
+
 Upstream `3.0_devel` is partway toward a similar split but is still in-progress and uses a different model (split Dockerfiles in one repo, no shared-contracts layer).
 
 ## User-facing dashboard
