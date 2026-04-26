@@ -216,6 +216,8 @@ UI_VERSION=X.Y.Z
 TRANSCODER_VERSION=X.Y.Z
 ```
 
+**Lockstep with the UI:** starting at v17.0.0, the ripper no longer exposes its SQLite database to the UI container. `ARM_VERSION` and `UI_VERSION` must be on the same major version - running an arm-ui image older than v17.0.0 against a v17.0.0+ ripper makes the UI fall back to "DB unavailable" because the shared `arm-db` mount is gone.
+
 ## Upstream
 
 This project is forked from [automatic-ripping-machine/automatic-ripping-machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine), originally created by Benjamin Bryan and maintained by the ARM community.
