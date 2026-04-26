@@ -108,6 +108,50 @@ def process_logfile(logfile, job, job_results):
     return job_results
 
 
+def _job_minlength(job) -> int:
+    """Return MINLENGTH for a job from its config, defaulting to 0."""
+    try:
+        if job.config and job.config.MINLENGTH:
+            return int(job.config.MINLENGTH)
+    except (ValueError, TypeError):
+        pass
+    return 0
+
+
+def rippable_tracks(job) -> list:
+    """Return tracks the ripper will actually rip - enabled and above MINLENGTH.
+
+    Filters out tracks marked enabled=False, then applies the MINLENGTH
+    filter for video discs. Music discs skip the minlength filter (all CD
+    tracks are ripped regardless of length). Uses ``is not False`` so
+    NULL/unset enabled (older DB rows or test fixtures) still counts as
+    enabled.
+    """
+    tracks = list(job.tracks) if job.tracks else []
+    enabled = [t for t in tracks if getattr(t, "enabled", True) is not False]
+    if getattr(job, "disctype", None) == "music":
+        return enabled
+    ml = _job_minlength(job)
+    if ml <= 0:
+        return enabled
+    return [t for t in enabled if t.length is None or t.length >= ml]
+
+
+def track_counts(job) -> dict:
+    """Return ``{total, ripped}`` for the rippable subset of a job's tracks.
+
+    "Total" excludes tracks the ripper will skip (disabled or below
+    MINLENGTH); "ripped" is how many of those have been completed.
+    Used by /jobs/active, /jobs/{id}/detail, and /jobs/{id}/track-counts
+    so the UI sees consistent counts across endpoints.
+    """
+    rippable = rippable_tracks(job)
+    return {
+        "total": len(rippable),
+        "ripped": sum(1 for t in rippable if t.ripped),
+    }
+
+
 def percentage(part, whole):
     """percent calculator"""
     percent = 100 * float(part) / float(whole)
