@@ -391,6 +391,28 @@ class TestApiSystemVersion:
         assert data["db_path"] is None
         assert data["db_size_bytes"] is None
 
+    def test_version_db_version_unknown_on_sqlite_error(self, client):
+        """If sqlite3.connect or the alembic_version query raises, db_version is 'unknown'."""
+        import unittest.mock as m
+        import sqlite3
+        config = {"INSTALLPATH": "/opt/arm", "DBFILE": "arm.db"}
+        mock_script = m.Mock()
+        mock_script.get_current_head.return_value = "def456"
+        with (
+            m.patch("arm.api.v1.system.cfg.arm_config", config),
+            m.patch("arm.api.v1.system.subprocess.run",
+                    return_value=m.Mock(stdout="", stderr="")),
+            m.patch("arm.api.v1.system.os.path.isfile", return_value=True),
+            m.patch("alembic.script.ScriptDirectory.from_config", return_value=mock_script),
+            m.patch("sqlite3.connect", side_effect=sqlite3.DatabaseError("file is not a database")),
+            m.patch("builtins.open", m.mock_open(read_data="1.0.0")),
+        ):
+            response = client.get('/api/v1/system/version')
+        assert response.status_code == 200
+        data = response.json()
+        assert data["db_version"] == "unknown"
+        assert data["db_head"] == "def456"
+
 
 class TestApiJobTitleUpdate:
     """Test PUT /api/v1/jobs/<id>/title endpoint."""
@@ -2767,6 +2789,16 @@ class TestApiJobDetail:
         # main_feature -> enabled fallback applied for legacy rows that left enabled NULL
         assert data["tracks"][0]["enabled"] is not None
 
+    def test_job_detail_returns_null_config_when_unset(self, client, sample_job, app_context):
+        """A job with no Config row returns config: null (not an empty object)."""
+        from arm.database import db
+        sample_job.config = None
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        assert response.status_code == 200
+        assert response.json()["config"] is None
+
 
 class TestApiJobProgressState:
     """Test GET /api/v1/jobs/<id>/progress-state endpoint."""
@@ -2977,6 +3009,25 @@ class TestApiJobTrackCounts:
     def test_track_counts_no_tracks(self, client, sample_job, app_context):
         response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
         assert response.json() == {"total": 0, "ripped": 0}
+
+    def test_track_counts_minlength_zero_keeps_short_tracks(self, client, sample_job, app_context):
+        """MINLENGTH=0 (or unset) means no length filter - all enabled tracks count."""
+        from arm.database import db
+        sample_job.config.MINLENGTH = "0"
+        db.session.commit()
+        self._add_tracks(sample_job.job_id, [(60, True, True), (120, False, True)])
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        assert response.json() == {"total": 2, "ripped": 1}
+
+    def test_track_counts_minlength_unparseable(self, client, sample_job, app_context):
+        """Garbage MINLENGTH falls back to 0 (no filter) instead of crashing."""
+        from arm.database import db
+        sample_job.config.MINLENGTH = "not-a-number"
+        db.session.commit()
+        self._add_tracks(sample_job.job_id, [(60, True, True), (120, False, True)])
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        # ValueError caught, ml=0, all enabled tracks count
+        assert response.json() == {"total": 2, "ripped": 1}
 
 
 class TestApiJobsStats:
