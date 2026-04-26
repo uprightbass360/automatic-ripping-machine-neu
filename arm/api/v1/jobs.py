@@ -867,6 +867,24 @@ def _track_to_dict(track):
     }
 
 
+def _job_config_masked(job_config):
+    """Serialize a Job.config row to a dict, masking sensitive fields."""
+    if not job_config:
+        return None
+    from arm.models.config import Config
+    config_data = {}
+    for col in Config.__table__.columns:
+        name = col.name
+        if name in ("CONFIG_ID", "job_id"):
+            continue
+        value = getattr(job_config, name, None)
+        if name in HIDDEN_CONFIG_FIELDS:
+            config_data[name] = "***" if value else None
+        else:
+            config_data[name] = value
+    return config_data
+
+
 @router.get('/jobs/{job_id}/detail')
 def get_job_detail(job_id: int):
     """Return job with config (masked), tracks, and track counts."""
@@ -874,26 +892,9 @@ def get_job_detail(job_id: int):
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
 
-    job_data = _job_to_dict(job)
-
-    # Config (masked)
-    config_data = None
-    if job.config:
-        from arm.models.config import Config
-        config_data = {}
-        for col in Config.__table__.columns:
-            name = col.name
-            if name in ("CONFIG_ID", "job_id"):
-                continue
-            value = getattr(job.config, name, None)
-            if name in HIDDEN_CONFIG_FIELDS:
-                config_data[name] = "***" if value else None
-            else:
-                config_data[name] = value
-
     return {
-        "job": job_data,
-        "config": config_data,
+        "job": _job_to_dict(job),
+        "config": _job_config_masked(job.config),
         "tracks": [_track_to_dict(t) for t in (job.tracks or [])],
         "track_counts": svc_jobs.track_counts(job),
     }
