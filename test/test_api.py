@@ -2366,11 +2366,13 @@ class TestApiTranscodeCallback:
         assert response.status_code == 404
 
     def test_callback_unknown_status(self, client, sample_job, app_context):
+        # Pydantic enum validation now rejects unknown statuses with 422
+        # (structured) before the handler runs.
         response = client.post(
             f'/api/v1/jobs/{sample_job.job_id}/transcode-callback',
             json={"status": "invalid_status"}
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_callback_transcoding(self, client, sample_job, app_context):
         response = client.post(

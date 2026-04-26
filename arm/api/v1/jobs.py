@@ -11,8 +11,10 @@ import threading
 from datetime import datetime, timedelta
 from typing import Annotated
 
+from arm_contracts import JobStatus, TranscodeCallbackPayload
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from sqlalchemy import func, or_
 
 import arm.config.config as cfg
@@ -1025,44 +1027,56 @@ def get_retranscode_info(job_id: int):
 def transcode_callback(job_id: int, body: dict):
     """Receive status update from the external transcoder.
 
-    Expected payload::
+    The body is validated against arm_contracts.TranscodeCallbackPayload.
+    The transcoder sends one of:
+      - {"status": "transcoding"} (informational, fire-and-forget)
+      - {"status": "completed"|"partial"|"failed", "error": "...",
+         "track_results": [{"track_number": "1", "status": ..., ...}]}
 
-        {"status": "transcoding"|"completed"|"failed", "error": "..."}
-
-    Multi-title jobs may also include per-track results::
-
-        {"status": "completed", "track_results": [
-            {"track_number": "1", "status": "completed", "output_path": "..."},
-            {"track_number": "2", "status": "failed", "error": "codec error"},
-        ]}
+    Schema mismatches (unknown status, malformed track_results) return 422
+    with field-level errors instead of being silently dropped.
     """
     job = Job.query.get(job_id)
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
-    status = body.get("status")
 
-    if status == "transcoding":
+    try:
+        payload = TranscodeCallbackPayload.model_validate(body)
+    except ValidationError as exc:
+        return JSONResponse(
+            {
+                "success": False,
+                "error": "Invalid callback payload",
+                "errors": [
+                    {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]}
+                    for e in exc.errors()
+                ],
+            },
+            status_code=422,
+        )
+
+    if payload.status == JobStatus.transcoding:
         job.status = JobState.TRANSCODE_ACTIVE.value
-    elif status == "completed":
+    elif payload.status == JobStatus.completed:
         job.status = JobState.SUCCESS.value
         notification = Notifications(
             f"Job: {job.job_id} transcode complete",
             f"'{job.title}' transcoding finished successfully"
         )
         db.session.add(notification)
-    elif status == "partial":
+    elif payload.status == JobStatus.partial:
         # Some tracks succeeded, some failed
         job.status = JobState.SUCCESS.value
-        error_msg = body.get("error", "Some tracks failed to transcode")
+        error_msg = payload.error or "Some tracks failed to transcode"
         job.errors = error_msg
         notification = Notifications(
             f"Job: {job.job_id} transcode partial",
             f"'{job.title}' transcoding completed with errors: {error_msg}"
         )
         db.session.add(notification)
-    elif status == "failed":
+    elif payload.status == JobStatus.failed:
         job.status = JobState.FAILURE.value
-        error_msg = body.get("error", "Transcode failed")
+        error_msg = payload.error or "Transcode failed"
         job.errors = error_msg
         notification = Notifications(
             f"Job: {job.job_id} transcode failed",
@@ -1070,24 +1084,30 @@ def transcode_callback(job_id: int, body: dict):
         )
         db.session.add(notification)
     else:
+        # Other JobStatus members (pending/processing/cancelled) aren't
+        # produced by the transcoder for this endpoint, but they validate
+        # against the enum. Return 422 so observability catches the drift.
         return JSONResponse(
-            {"success": False, "error": f"Unknown status: {status}"},
-            status_code=400,
+            {
+                "success": False,
+                "error": (
+                    f"Status '{payload.status}' is not a valid callback "
+                    "outcome for this endpoint"
+                ),
+            },
+            status_code=422,
         )
 
     # Update per-track status from transcoder results
-    track_results = body.get("track_results")
-    if track_results and isinstance(track_results, list):
+    if payload.track_results:
         track_map = {str(t.track_number): t for t in job.tracks}
-        for tr in track_results:
-            track_num = str(tr.get("track_number", ""))
-            track = track_map.get(track_num)
+        for tr in payload.track_results:
+            track = track_map.get(str(tr.track_number))
             if track:
-                tr_status = tr.get("status", "")
-                if tr_status == "completed":
+                if tr.status == JobStatus.completed:
                     track.status = "transcoded"
-                elif tr_status == "failed":
-                    track.status = f"transcode_failed: {tr.get('error', '')[:200]}"
+                elif tr.status == JobStatus.failed:
+                    track.status = f"transcode_failed: {(tr.error or '')[:200]}"
 
     db.session.commit()
     return {"success": True, "job_id": job.job_id, "status": job.status}
