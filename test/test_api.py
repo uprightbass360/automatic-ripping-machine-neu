@@ -378,10 +378,10 @@ class TestApiSystemVersion:
         """The UI's settings/system-info pulls db_path + db_size_bytes from /version."""
         import unittest.mock as m
         with m.patch("arm.api.v1.system.os.path.getsize", return_value=12345):
-            response = self._patch_version(client, db_file="/tmp/arm.db")
+            response = self._patch_version(client, db_file="arm.db")
         assert response.status_code == 200
         data = response.json()
-        assert data["db_path"] == "/tmp/arm.db"
+        assert data["db_path"] == "arm.db"
         assert data["db_size_bytes"] == 12345
 
     def test_version_db_path_none_when_dbfile_missing(self, client):
