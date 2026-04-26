@@ -109,73 +109,82 @@ def get_ripping_enabled():
     }
 
 
-@router.get('/system/version')
-def get_version():
-    """Return ARM, MakeMKV, and database versions."""
+def _read_arm_version(install_path: str) -> str:
+    """Read the VERSION file inside INSTALLPATH; return 'unknown' on any error."""
+    try:
+        with open(os.path.join(install_path, "VERSION")) as f:
+            return f.read().strip()
+    except OSError:
+        return "unknown"
+
+
+def _read_makemkv_version() -> str:
+    """Probe makemkvcon for its version string; return 'unknown' on any error."""
     import re
+    try:
+        result = subprocess.run(
+            ["makemkvcon", "-r", "info", "dev:/dev/null"],
+            capture_output=True, text=True, timeout=10,
+        )
+        m = re.search(r'MakeMKV v([\d.]+)', result.stdout + result.stderr)
+        return m.group(1) if m else "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _read_db_revisions(db_file: str, install_path: str) -> tuple[str, str]:
+    """Return (current_revision, head_revision), both 'unknown' on lookup failure."""
     import sqlite3
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
-    arm_version = "unknown"
-    install_path = cfg.arm_config.get("INSTALLPATH", "")
-    version_file = os.path.join(install_path, "VERSION")
-    try:
-        with open(version_file) as f:
-            arm_version = f.read().strip()
-    except OSError:
-        pass
-
-    makemkv_version = "unknown"
-    try:
-        result = subprocess.run(
-            ["makemkvcon", "-r", "info", "dev:/dev/null"],
-            capture_output=True, text=True, timeout=10
-        )
-        m = re.search(r'MakeMKV v([\d.]+)', result.stdout + result.stderr)
-        if m:
-            makemkv_version = m.group(1)
-    except Exception:
-        pass
-
-    # Database Alembic revision
-    db_version = "unknown"
     db_head = "unknown"
-    db_file = cfg.arm_config.get("DBFILE", "")
-    mig_dir = os.path.join(install_path, "arm", "migrations")
     try:
         config = Config()
-        config.set_main_option("script_location", mig_dir)
-        script = ScriptDirectory.from_config(config)
-        db_head = script.get_current_head() or "unknown"
+        config.set_main_option("script_location", os.path.join(install_path, "arm", "migrations"))
+        db_head = ScriptDirectory.from_config(config).get_current_head() or "unknown"
     except Exception:
         pass
+
+    db_version = "unknown"
     if db_file and os.path.isfile(db_file):
         try:
             conn = sqlite3.connect(db_file)
-            c = conn.cursor()
-            c.execute('SELECT version_num FROM alembic_version')
-            row = c.fetchone()
+            cursor = conn.cursor()
+            cursor.execute('SELECT version_num FROM alembic_version')
+            row = cursor.fetchone()
             if row:
                 db_version = row[0]
             conn.close()
         except Exception:
             pass
+    return db_version, db_head
 
-    db_size_bytes = None
-    if db_file and os.path.isfile(db_file):
-        try:
-            db_size_bytes = os.path.getsize(db_file)
-        except OSError:
-            pass
+
+def _db_file_size(db_file: str) -> int | None:
+    """Return the SQLite file size in bytes, or None if unreadable."""
+    if not (db_file and os.path.isfile(db_file)):
+        return None
+    try:
+        return os.path.getsize(db_file)
+    except OSError:
+        return None
+
+
+@router.get('/system/version')
+def get_version():
+    """Return ARM, MakeMKV, and database versions."""
+    install_path = cfg.arm_config.get("INSTALLPATH", "")
+    db_file = cfg.arm_config.get("DBFILE", "")
+    db_version, db_head = _read_db_revisions(db_file, install_path)
 
     return {
-        "arm_version": arm_version,
-        "makemkv_version": makemkv_version,
+        "arm_version": _read_arm_version(install_path),
+        "makemkv_version": _read_makemkv_version(),
         "db_version": db_version,
         "db_head": db_head,
         "db_path": db_file or None,
-        "db_size_bytes": db_size_bytes,
+        "db_size_bytes": _db_file_size(db_file),
     }
 
 
