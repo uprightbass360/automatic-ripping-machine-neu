@@ -834,9 +834,42 @@ def update_transcode_config(job_id: int, body: dict):
     return {"success": True, "overrides": overrides}
 
 
+def _track_to_dict(track):
+    """Serialize a Track row to a dict matching the UI's TrackSchema.
+
+    main_feature -> enabled fallback preserves the legacy semantic where
+    older tracks with no enabled flag default to main_feature.
+    """
+    enabled = track.enabled if track.enabled is not None else track.main_feature
+    return {
+        "track_id": track.track_id,
+        "job_id": track.job_id,
+        "track_number": track.track_number,
+        "length": track.length,
+        "aspect_ratio": track.aspect_ratio,
+        "fps": track.fps,
+        "enabled": enabled,
+        "basename": track.basename,
+        "filename": track.filename,
+        "orig_filename": track.orig_filename,
+        "new_filename": track.new_filename,
+        "ripped": track.ripped,
+        "status": track.status,
+        "error": track.error,
+        "source": track.source,
+        "title": track.title,
+        "year": track.year,
+        "imdb_id": track.imdb_id,
+        "poster_url": track.poster_url,
+        "video_type": track.video_type,
+        "episode_number": track.episode_number,
+        "episode_name": track.episode_name,
+    }
+
+
 @router.get('/jobs/{job_id}/detail')
 def get_job_detail(job_id: int):
-    """Return job with config (masked) and track counts."""
+    """Return job with config (masked), tracks, and track counts."""
     job = Job.query.get(job_id)
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
@@ -861,6 +894,7 @@ def get_job_detail(job_id: int):
     return {
         "job": job_data,
         "config": config_data,
+        "tracks": [_track_to_dict(t) for t in (job.tracks or [])],
         "track_counts": svc_jobs.track_counts(job),
     }
 
@@ -877,6 +911,24 @@ def get_job_track_counts(job_id: int):
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
     return svc_jobs.track_counts(job)
+
+
+@router.get('/jobs/{job_id}/progress-state')
+def get_job_progress_state(job_id: int):
+    """Return the small bundle of job fields the UI's progress endpoint needs:
+    track counts plus disctype / logfile / no_of_titles. One round-trip
+    instead of three, so the dashboard's per-job progress polls stay cheap.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
+    counts = svc_jobs.track_counts(job)
+    return {
+        "track_counts": counts,
+        "disctype": job.disctype,
+        "logfile": job.logfile,
+        "no_of_titles": job.no_of_titles,
+    }
 
 
 def _parse_transcode_overrides(raw: str | None) -> dict | None:

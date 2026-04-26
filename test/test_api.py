@@ -374,6 +374,23 @@ class TestApiSystemVersion:
         assert response.status_code == 200
         assert response.json()["db_version"] == "unknown"
 
+    def test_version_includes_db_path_and_size(self, client):
+        """The UI's settings/system-info pulls db_path + db_size_bytes from /version."""
+        import unittest.mock as m
+        with m.patch("arm.api.v1.system.os.path.getsize", return_value=12345):
+            response = self._patch_version(client, db_file="/tmp/arm.db")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["db_path"] == "/tmp/arm.db"
+        assert data["db_size_bytes"] == 12345
+
+    def test_version_db_path_none_when_dbfile_missing(self, client):
+        """db_path/db_size_bytes are None when DBFILE doesn't exist."""
+        response = self._patch_version(client, db_file="", db_file_exists=False)
+        data = response.json()
+        assert data["db_path"] is None
+        assert data["db_size_bytes"] is None
+
 
 class TestApiJobTitleUpdate:
     """Test PUT /api/v1/jobs/<id>/title endpoint."""
@@ -2656,7 +2673,6 @@ class TestApiDrivesList:
         assert "job_id_current" in drive
         assert "job_id_previous" in drive
 
-
 class TestApiDrivesWithJobs:
     """Test GET /api/v1/drives/with-jobs endpoint."""
 
@@ -2724,6 +2740,57 @@ class TestApiJobDetail:
                      "EMBY_PASSWORD", "EMBY_API_KEY"):
             if key in config:
                 assert config[key] in (None, "", "***")
+
+    def test_job_detail_includes_tracks(self, client, sample_job, app_context):
+        """detail response carries the full track list (UI builds the detail page from it)."""
+        from arm.models.track import Track
+        from arm.database import db
+
+        for i in range(2):
+            t = Track(
+                job_id=sample_job.job_id, track_number=str(i),
+                length=3600, aspect_ratio="16:9", fps="23.976",
+                main_feature=i == 0, source="MakeMKV",
+                basename=f"title_{i}.mkv", filename=f"title_{i}.mkv",
+            )
+            t.ripped = i == 0
+            t.status = "success" if i == 0 else "pending"
+            db.session.add(t)
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        data = response.json()
+        assert "tracks" in data
+        assert len(data["tracks"]) == 2
+        assert data["tracks"][0]["track_id"] is not None
+        assert data["tracks"][0]["job_id"] == sample_job.job_id
+        # main_feature -> enabled fallback applied for legacy rows that left enabled NULL
+        assert data["tracks"][0]["enabled"] is not None
+
+
+class TestApiJobProgressState:
+    """Test GET /api/v1/jobs/<id>/progress-state endpoint."""
+
+    def test_progress_state_basic(self, client, sample_job, app_context):
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/progress-state')
+        assert response.status_code == 200
+        data = response.json()
+        assert "track_counts" in data
+        assert "total" in data["track_counts"]
+        assert "ripped" in data["track_counts"]
+        assert "disctype" in data
+        assert "logfile" in data
+        assert "no_of_titles" in data
+
+    def test_progress_state_not_found(self, client, app_context):
+        response = client.get('/api/v1/jobs/99999/progress-state')
+        assert response.status_code == 404
+
+    def test_progress_state_carries_job_fields(self, client, sample_job, app_context):
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/progress-state')
+        data = response.json()
+        assert data["disctype"] == sample_job.disctype
+        assert data["logfile"] == sample_job.logfile
 
 
 class TestApiActiveJobs:

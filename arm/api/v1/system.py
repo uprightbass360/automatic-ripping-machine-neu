@@ -162,11 +162,20 @@ def get_version():
         except Exception:
             pass
 
+    db_size_bytes = None
+    if db_file and os.path.isfile(db_file):
+        try:
+            db_size_bytes = os.path.getsize(db_file)
+        except OSError:
+            pass
+
     return {
         "arm_version": arm_version,
         "makemkv_version": makemkv_version,
         "db_version": db_version,
         "db_head": db_head,
+        "db_path": db_file or None,
+        "db_size_bytes": db_size_bytes,
     }
 
 
