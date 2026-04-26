@@ -80,7 +80,6 @@ services:
     ports:
       - "${UI_PORT:-8888}:8888"
     environment:
-      - ARM_UI_ARM_DB_PATH=/data/db/arm.db
       - ARM_UI_ARM_LOG_PATH=/data/logs
       - ARM_UI_ARM_CONFIG_PATH=/data/arm-config/arm.yaml
       - ARM_UI_ARM_URL=http://arm-rippers:8080
@@ -90,7 +89,6 @@ services:
       - ARM_UI_ARM_THEMES_PATH=/data/config/themes
       - ARM_UI_IMAGE_CACHE_PATH=/data/cache/images
     volumes:
-      - arm-db:/data/db:ro
       - ${ARM_LOGS_PATH}:/data/logs:ro
       - ${ARM_CONFIG_PATH}:/data/arm-config:rw
       - ${ARM_CONFIG_PATH:-/etc/arm/config}/themes:/data/config/themes:rw
