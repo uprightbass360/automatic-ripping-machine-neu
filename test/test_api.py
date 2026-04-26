@@ -2851,6 +2851,186 @@ class TestApiJobsPaginated:
         assert len(data["jobs"]) == 2
 
 
+class TestApiJobTrackCounts:
+    """Test GET /api/v1/jobs/<id>/track-counts endpoint."""
+
+    def _add_tracks(self, job_id, specs):
+        """Helper: add Track rows and commit. specs = list of (length, ripped, enabled) tuples."""
+        from arm.models.track import Track
+        from arm.database import db
+        for i, spec in enumerate(specs):
+            length, ripped, enabled = spec
+            t = Track(
+                job_id=job_id, track_number=str(i),
+                length=length, aspect_ratio="16:9", fps="23.976",
+                main_feature=i == 0, source="MakeMKV",
+                basename=f"title_{i}.mkv", filename=f"title_{i}.mkv",
+            )
+            t.ripped = ripped
+            t.enabled = enabled
+            db.session.add(t)
+        db.session.commit()
+
+    def test_track_counts_basic(self, client, sample_job, app_context):
+        self._add_tracks(sample_job.job_id, [(3600, True, True), (3600, False, True), (3600, True, True)])
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        assert response.status_code == 200
+        assert response.json() == {"total": 3, "ripped": 2}
+
+    def test_track_counts_not_found(self, client, app_context):
+        response = client.get('/api/v1/jobs/99999/track-counts')
+        assert response.status_code == 404
+
+    def test_track_counts_excludes_disabled(self, client, sample_job, app_context):
+        # 2 enabled (1 ripped), 1 disabled (ripped) - disabled should not count
+        self._add_tracks(sample_job.job_id, [(3600, True, True), (3600, False, True), (3600, True, False)])
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        assert response.json() == {"total": 2, "ripped": 1}
+
+    def test_track_counts_excludes_below_minlength(self, client, sample_job, app_context):
+        # MINLENGTH 600 (10 min); short tracks excluded
+        from arm.database import db
+        sample_job.config.MINLENGTH = "600"
+        db.session.commit()
+        self._add_tracks(sample_job.job_id, [(3600, True, True), (300, True, True), (1800, False, True)])
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        # Only 3600 and 1800 qualify; 1 ripped (the 3600 one)
+        assert response.json() == {"total": 2, "ripped": 1}
+
+    def test_track_counts_music_ignores_minlength(self, client, sample_job, app_context):
+        from arm.database import db
+        sample_job.disctype = "music"
+        sample_job.config.MINLENGTH = "600"
+        db.session.commit()
+        # Music: short tracks DO count regardless of minlength
+        self._add_tracks(sample_job.job_id, [(180, True, True), (200, False, True), (240, True, True)])
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        assert response.json() == {"total": 3, "ripped": 2}
+
+    def test_track_counts_no_tracks(self, client, sample_job, app_context):
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/track-counts')
+        assert response.json() == {"total": 0, "ripped": 0}
+
+
+class TestApiJobsStats:
+    """Test GET /api/v1/jobs/stats endpoint."""
+
+    def _make_jobs(self, statuses):
+        """Helper: spin up Job rows in the given statuses."""
+        import unittest.mock
+        from arm.models.job import Job
+        from arm.database import db
+        created = []
+        for i, status in enumerate(statuses):
+            with unittest.mock.patch.object(Job, 'parse_udev'), \
+                 unittest.mock.patch.object(Job, 'get_pid'):
+                j = Job('/dev/sr0')
+            j.title = f"Movie {i}"
+            j.status = status
+            j.disctype = "bluray"
+            j.video_type = "movie"
+            j.arm_version = "test"
+            j.crc_id = ""
+            j.logfile = f"job_{i}.log"
+            db.session.add(j)
+            created.append(j)
+        db.session.commit()
+        return created
+
+    def test_stats_empty(self, client, app_context):
+        response = client.get('/api/v1/jobs/stats')
+        assert response.status_code == 200
+        assert response.json() == {"total": 0, "active": 0, "waiting": 0, "success": 0, "fail": 0}
+
+    def test_stats_buckets(self, client, app_context):
+        self._make_jobs([
+            "ripping", "transcoding", "active",   # 3 active
+            "waiting", "waiting_transcode",        # 2 waiting
+            "success", "success",                  # 2 success
+            "fail",                                # 1 fail
+        ])
+        data = client.get('/api/v1/jobs/stats').json()
+        assert data == {"total": 8, "active": 3, "waiting": 2, "success": 2, "fail": 1}
+
+    def test_stats_status_groups_match_paginated(self, client, app_context):
+        """Active and waiting buckets must use the same grouping as /jobs/paginated."""
+        self._make_jobs(["active", "ripping", "waiting", "waiting_transcode", "success"])
+        stats = client.get('/api/v1/jobs/stats').json()
+        active_paged = client.get('/api/v1/jobs/paginated?status=active').json()
+        waiting_paged = client.get('/api/v1/jobs/paginated?status=waiting').json()
+        assert stats["active"] == active_paged["total"]
+        assert stats["waiting"] == waiting_paged["total"]
+
+    def test_stats_filter_by_video_type(self, client, app_context):
+        from arm.database import db
+        jobs = self._make_jobs(["success", "success", "success"])
+        jobs[0].video_type = "movie"
+        jobs[1].video_type = "series"
+        jobs[2].video_type = "movie"
+        db.session.commit()
+        data = client.get('/api/v1/jobs/stats?video_type=movie').json()
+        assert data["total"] == 2 and data["success"] == 2
+        data = client.get('/api/v1/jobs/stats?video_type=series').json()
+        assert data["total"] == 1 and data["success"] == 1
+
+    def test_stats_filter_by_disctype(self, client, app_context):
+        from arm.database import db
+        jobs = self._make_jobs(["success", "success"])
+        jobs[0].disctype = "dvd"
+        jobs[1].disctype = "bluray"
+        db.session.commit()
+        data = client.get('/api/v1/jobs/stats?disctype=dvd').json()
+        assert data["total"] == 1
+
+    def test_stats_filter_by_search(self, client, app_context):
+        from arm.database import db
+        jobs = self._make_jobs(["success", "success"])
+        jobs[0].title = "SERIAL_MOM"
+        jobs[1].title = "OTHER_MOVIE"
+        db.session.commit()
+        data = client.get('/api/v1/jobs/stats?search=SERIAL').json()
+        assert data["total"] == 1 and data["success"] == 1
+
+    def test_stats_filter_by_days(self, client, app_context):
+        from arm.database import db
+        from datetime import datetime, timedelta
+        jobs = self._make_jobs(["success", "success"])
+        jobs[0].start_time = datetime.now() - timedelta(days=1)
+        jobs[1].start_time = datetime.now() - timedelta(days=30)
+        db.session.commit()
+        data = client.get('/api/v1/jobs/stats?days=7').json()
+        assert data["total"] == 1
+
+
+class TestApiActiveJobsRippableFilter:
+    """Verify /jobs/active and /jobs/{id}/detail use the rippable-track filter."""
+
+    def _add_tracks(self, job_id, specs):
+        from arm.models.track import Track
+        from arm.database import db
+        for i, (length, ripped, enabled) in enumerate(specs):
+            t = Track(
+                job_id=job_id, track_number=str(i),
+                length=length, aspect_ratio="16:9", fps="23.976",
+                main_feature=i == 0, source="MakeMKV",
+                basename=f"title_{i}.mkv", filename=f"title_{i}.mkv",
+            )
+            t.ripped = ripped
+            t.enabled = enabled
+            db.session.add(t)
+        db.session.commit()
+
+    def test_active_jobs_excludes_disabled_tracks(self, client, sample_job, app_context):
+        self._add_tracks(sample_job.job_id, [(3600, True, True), (3600, False, False)])
+        job = client.get('/api/v1/jobs/active').json()["jobs"][0]
+        assert job["track_counts"] == {"total": 1, "ripped": 1}
+
+    def test_job_detail_excludes_disabled_tracks(self, client, sample_job, app_context):
+        self._add_tracks(sample_job.job_id, [(3600, True, True), (3600, True, False)])
+        data = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail').json()
+        assert data["track_counts"] == {"total": 1, "ripped": 1}
+
+
 class TestApiRetranscodeInfo:
     """Test GET /api/v1/jobs/<id>/retranscode-info endpoint."""
 

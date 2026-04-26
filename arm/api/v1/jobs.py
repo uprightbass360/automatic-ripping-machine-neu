@@ -122,16 +122,50 @@ def get_active_jobs():
     """Return jobs with active statuses, including track counts.
 
     Used by the dashboard to show currently running/waiting jobs.
+    Track counts reflect only rippable tracks (enabled and above
+    MINLENGTH), matching the UI's progress semantics.
     """
     jobs = Job.query.filter(Job.status.in_(_ACTIVE_STATUSES)).all()
     result = []
     for job in jobs:
         job_data = _job_to_dict(job)
-        tracks = Track.query.filter_by(job_id=job.job_id).all()
-        ripped = sum(1 for t in tracks if t.ripped)
-        job_data["track_counts"] = {"total": len(tracks), "ripped": ripped}
+        job_data["track_counts"] = svc_jobs.track_counts(job)
         result.append(job_data)
     return {"jobs": result}
+
+
+def _apply_job_filters(query, status, search, video_type, disctype, days):
+    """Apply the shared filter set used by /jobs/paginated and /jobs/stats.
+
+    Status accepts the grouped values 'active' and 'waiting' (which expand
+    to multiple raw statuses) as well as any raw status value.
+    """
+    if status:
+        s = status.lower()
+        if s == "active":
+            query = query.filter(func.lower(Job.status).in_(list(_ACTIVE_STATUSES - _WAITING_STATUSES)))
+        elif s == "waiting":
+            query = query.filter(func.lower(Job.status).in_(list(_WAITING_STATUSES)))
+        else:
+            query = query.filter(func.lower(Job.status) == s)
+    if video_type:
+        query = query.filter(func.lower(Job.video_type) == video_type.lower())
+    if disctype:
+        query = query.filter(func.lower(Job.disctype) == disctype.lower())
+    if days:
+        cutoff = datetime.now() - timedelta(days=days)
+        query = query.filter(Job.start_time >= cutoff)
+    if search:
+        pattern = f"%{search}%"
+        query = query.filter(
+            or_(
+                Job.title.ilike(pattern),
+                Job.title_auto.ilike(pattern),
+                Job.title_manual.ilike(pattern),
+                Job.label.ilike(pattern),
+            )
+        )
+    return query
 
 
 @router.get('/jobs/paginated')
@@ -152,36 +186,9 @@ def get_jobs_paginated(
     waiting = waiting+waiting_transcode), text search across title fields,
     and sorting by title/year/status/video_type/disctype/start_time.
     """
-    query = db.session.query(Job)
-
-    # Status filter (with group expansion)
-    if status:
-        s = status.lower()
-        if s == "active":
-            query = query.filter(func.lower(Job.status).in_(list(_ACTIVE_STATUSES - _WAITING_STATUSES)))
-        elif s == "waiting":
-            query = query.filter(func.lower(Job.status).in_(list(_WAITING_STATUSES)))
-        else:
-            query = query.filter(func.lower(Job.status) == s)
-
-    if video_type:
-        query = query.filter(func.lower(Job.video_type) == video_type.lower())
-    if disctype:
-        query = query.filter(func.lower(Job.disctype) == disctype.lower())
-    if days:
-        cutoff = datetime.now() - timedelta(days=days)
-        query = query.filter(Job.start_time >= cutoff)
-    if search:
-        pattern = f"%{search}%"
-        query = query.filter(
-            or_(
-                Job.title.ilike(pattern),
-                Job.title_auto.ilike(pattern),
-                Job.title_manual.ilike(pattern),
-                Job.label.ilike(pattern),
-            )
-        )
-
+    query = _apply_job_filters(
+        db.session.query(Job), status, search, video_type, disctype, days,
+    )
     total = query.count()
 
     # Sorting
@@ -200,6 +207,40 @@ def get_jobs_paginated(
         "page": page,
         "per_page": per_page,
         "pages": pages,
+    }
+
+
+@router.get('/jobs/stats')
+def get_jobs_stats(
+    search: str | None = None,
+    video_type: str | None = None,
+    disctype: str | None = None,
+    days: Annotated[int | None, Query(ge=1)] = None,
+):
+    """Job counts bucketed by status category, respecting the same filters
+    as /jobs/paginated.
+
+    Returned buckets:
+      - total:   matching jobs across all statuses
+      - active:  active + ripping + transcoding (in-flight, not waiting)
+      - waiting: waiting + waiting_transcode
+      - success: completed successfully
+      - fail:    failed
+
+    Used by the dashboard's filter-aware count tiles. Status filter is
+    intentionally omitted - the endpoint exists to count by status.
+    """
+    base = _apply_job_filters(
+        db.session.query(Job), None, search, video_type, disctype, days,
+    )
+    total = base.count()
+    active_set = list(_ACTIVE_STATUSES - _WAITING_STATUSES)
+    return {
+        "total": total,
+        "active": base.filter(func.lower(Job.status).in_(active_set)).count(),
+        "waiting": base.filter(func.lower(Job.status).in_(list(_WAITING_STATUSES))).count(),
+        "success": base.filter(func.lower(Job.status) == "success").count(),
+        "fail": base.filter(func.lower(Job.status) == "fail").count(),
     }
 
 
@@ -817,18 +858,25 @@ def get_job_detail(job_id: int):
             else:
                 config_data[name] = value
 
-    # Track counts
-    tracks = Track.query.filter_by(job_id=job_id).all()
-    ripped = sum(1 for t in tracks if t.ripped)
-
     return {
         "job": job_data,
         "config": config_data,
-        "track_counts": {
-            "total": len(tracks),
-            "ripped": ripped,
-        },
+        "track_counts": svc_jobs.track_counts(job),
     }
+
+
+@router.get('/jobs/{job_id}/track-counts')
+def get_job_track_counts(job_id: int):
+    """Lightweight track-counts endpoint for progress polling.
+
+    Returns ``{total, ripped}`` for the rippable subset of a job's tracks
+    (enabled and above MINLENGTH for video, all enabled for music).
+    Cheaper than ``/jobs/{id}/detail`` when the caller only needs progress.
+    """
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
+    return svc_jobs.track_counts(job)
 
 
 def _parse_transcode_overrides(raw: str | None) -> dict | None:
