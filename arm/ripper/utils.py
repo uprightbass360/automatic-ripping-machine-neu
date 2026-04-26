@@ -189,67 +189,86 @@ def _move_to_shared_storage(cfg, raw_basename, job=None):
 def _build_webhook_payload(title, body, job, raw_basename):
     """Build the JSON payload for the transcoder webhook.
 
+    Returns a plain dict (the JSON body) but constructs it via the typed
+    arm_contracts.WebhookPayload model so any field-shape drift surfaces
+    here instead of as a 422 from the transcoder. The transcoder's
+    contracts model accepts the same wire shape verbatim.
+
     Includes pre-rendered naming from ARM's naming engine so the transcoder
-    doesn't need its own naming logic — ARM is the single source of truth
+    doesn't need its own naming logic - ARM is the single source of truth
     for folder/file naming patterns configured in arm.yaml.
     """
-    from arm.ripper.naming import render_folder, render_title, render_all_tracks, clean_for_filename
+    from arm_contracts import WebhookPayload, WebhookTrackMeta
+    from arm.ripper.naming import (
+        clean_for_filename, render_all_tracks, render_folder, render_title,
+    )
 
-    payload = {"title": title, "body": body, "type": "info"}
-    if raw_basename:
-        payload["path"] = raw_basename
-    if job is not None:
-        config_dict = cfg.arm_config if hasattr(cfg, 'arm_config') else None
-        payload["job_id"] = str(job.job_id)
-        payload["video_type"] = str(job.video_type or '')
-        payload["year"] = str(job.year or '')
-        payload["disctype"] = str(job.disctype or '')
-        payload["status"] = str(job.status or '')
-        payload["poster_url"] = str(job.poster_url or '')
-        # Pre-rendered names from ARM's naming engine (arm.yaml patterns)
-        # render_folder may contain '/' for nested dirs (e.g. "Title/Season 01")
-        # — it already sanitizes each segment, so don't strip slashes here.
-        payload["folder_name"] = render_folder(job, config_dict)
-        payload["title_name"] = clean_for_filename(render_title(job, config_dict))
-        # Route through _parse_transcode_overrides so corrupt/legacy rows are
-        # dropped with a WARN rather than shipped to the transcoder, which
-        # would 422 the webhook (see automatic-ripping-machine-transcoder
-        # PR #96 for the webhook parse-boundary check).
-        from arm.api.v1.jobs import _parse_transcode_overrides
-        overrides = _parse_transcode_overrides(job.transcode_overrides)
-        if overrides is not None:
-            payload["config_overrides"] = overrides
-        # Always include per-track manifest with pre-rendered filenames.
-        # ARM is the single source of truth for naming — the transcoder
-        # uses these names directly and never invents its own.
-        # render_all_tracks handles duplicate detection and custom filenames.
-        if getattr(job, 'multi_title', False):
-            payload["multi_title"] = True
-        rendered = render_all_tracks(job, config_dict)
-        # Build a lookup from track_number → rendered result
-        rendered_map = {r["track_number"]: r for r in rendered}
-        tracks_meta = []
-        for track in job.tracks:
-            r = rendered_map.get(str(track.track_number or ''), {})
-            tracks_meta.append({
-                "track_number": str(track.track_number or ''),
-                # Prefer episode_name for series tracks — track.title can be stale
-                # if the user corrected episodes via the UI after auto-match.
-                "title": str(getattr(track, 'episode_name', '') or track.title or job.title or ''),
-                "year": str(track.year or job.year or ''),
-                "video_type": str(track.video_type or job.video_type or ''),
-                "filename": str(track.filename or ''),
-                "has_custom_title": bool(track.title) or bool(getattr(track, 'custom_filename', None)),
-                "folder_name": r.get("rendered_folder", ''),
-                # clean_for_filename is idempotent; render_track_title already
-                # sanitizes custom_filename but raw pattern output needs it here.
-                "title_name": clean_for_filename(r.get("rendered_title", '')) if r.get("rendered_title") else '',
-                "episode_number": str(getattr(track, 'episode_number', '') or ''),
-                "episode_name": str(getattr(track, 'episode_name', '') or ''),
-            })
-        if tracks_meta:
-            payload["tracks"] = tracks_meta
-    return payload
+    if job is None:
+        # Notification-only path (no job context). Title/body/type only.
+        # WebhookPayload requires job_id, so we hand-build the dict here -
+        # the typed model is only meaningful for the job-bound transcode
+        # webhook the transcoder actually receives.
+        payload = {"title": title, "body": body, "type": "info"}
+        if raw_basename:
+            payload["path"] = raw_basename
+        return payload
+
+    config_dict = cfg.arm_config if hasattr(cfg, 'arm_config') else None
+    # Route through _parse_transcode_overrides so corrupt/legacy rows are
+    # dropped with a WARN rather than shipped to the transcoder, which
+    # would 422 the webhook (see automatic-ripping-machine-transcoder
+    # PR #96 for the webhook parse-boundary check).
+    from arm.api.v1.jobs import _parse_transcode_overrides
+    overrides_dict = _parse_transcode_overrides(job.transcode_overrides)
+
+    # Pre-rendered names from ARM's naming engine. render_folder may contain
+    # '/' for nested dirs (e.g. "Title/Season 01") - it already sanitizes
+    # each segment, so don't strip slashes here.
+    rendered = render_all_tracks(job, config_dict)
+    rendered_map = {r["track_number"]: r for r in rendered}
+    tracks_meta = []
+    for track in job.tracks:
+        r = rendered_map.get(str(track.track_number or ''), {})
+        # Prefer episode_name for series tracks - track.title can be stale
+        # if the user corrected episodes via the UI after auto-match.
+        title_str = (
+            getattr(track, 'episode_name', '') or track.title or job.title or ''
+        )
+        # clean_for_filename is idempotent; render_track_title already
+        # sanitizes custom_filename but raw pattern output needs it here.
+        rendered_title = r.get("rendered_title", '')
+        track_title_name = clean_for_filename(rendered_title) if rendered_title else ''
+        tracks_meta.append(WebhookTrackMeta(
+            track_number=str(track.track_number or ''),
+            title=str(title_str),
+            year=str(track.year or job.year or ''),
+            video_type=str(track.video_type or job.video_type or ''),
+            filename=str(track.filename or ''),
+            has_custom_title=bool(track.title) or bool(getattr(track, 'custom_filename', None)),
+            folder_name=r.get("rendered_folder", ''),
+            title_name=track_title_name,
+            episode_number=str(getattr(track, 'episode_number', '') or ''),
+            episode_name=str(getattr(track, 'episode_name', '') or ''),
+        ))
+
+    payload = WebhookPayload(
+        title=title,
+        body=body,
+        type="info",
+        path=raw_basename or None,
+        job_id=str(job.job_id),  # WebhookPayload coerces str -> int.
+        video_type=str(job.video_type or ''),
+        year=str(job.year or ''),
+        disctype=str(job.disctype or ''),
+        status=str(job.status or ''),
+        poster_url=str(job.poster_url or ''),
+        folder_name=render_folder(job, config_dict),
+        title_name=clean_for_filename(render_title(job, config_dict)),
+        config_overrides=overrides_dict,  # Pydantic coerces dict -> TranscodeJobConfig.
+        multi_title=True if getattr(job, 'multi_title', False) else None,
+        tracks=tracks_meta if tracks_meta else None,
+    )
+    return payload.model_dump(exclude_none=True, mode="json")
 
 
 def transcoder_notify(cfg, title, body, job=None) -> bool:

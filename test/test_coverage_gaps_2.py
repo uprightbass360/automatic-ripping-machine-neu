@@ -66,7 +66,9 @@ class TestBuildWebhookPayload:
         assert payload["title"] == "Rip done"
         assert payload["body"] == "body text"
         assert payload["path"] == "SERIAL_MOM"
-        assert payload["job_id"] == str(sample_job.job_id)
+        # arm_contracts.WebhookPayload coerces job_id to int on the wire
+        # (contract decision; transcoder receiver accepts the int form).
+        assert payload["job_id"] == sample_job.job_id
         assert payload["video_type"] == "movie"
         assert payload["year"] == "1994"
         # multi_title flag not set when job.multi_title is False
@@ -301,14 +303,21 @@ class TestTranscodeCallback:
         t1 = Track.query.filter_by(job_id=job.job_id, track_number='1').first()
         assert t1.status == original_status
 
-    def test_unknown_status_returns_400(self, app_context, sample_job, client):
-        """Unknown status value returns 400."""
+    def test_unknown_status_returns_422(self, app_context, sample_job, client):
+        """Unknown status value returns 422 with structured field-level errors.
+
+        Pydantic enum validation rejects values outside JobStatus before
+        the handler runs; the structured response makes the field name
+        explicit so callers can fix their callback shape.
+        """
         resp = client.post(
             f"/api/v1/jobs/{sample_job.job_id}/transcode-callback",
             json={"status": "banana"},
         )
-        assert resp.status_code == 400
-        assert "Unknown status" in resp.json()["error"]
+        assert resp.status_code == 422
+        body = resp.json()
+        assert body["error"] == "Invalid callback payload"
+        assert any(e["loc"] == ["status"] for e in body["errors"])
 
     def test_nonexistent_job_returns_404(self, app_context, client):
         """Callback for nonexistent job returns 404."""
