@@ -1,5 +1,18 @@
 # Changelog
 
+## [17.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.3.1...v17.0.0) (2026-04-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** The published docker-compose.yml no longer mounts the ripper SQLite database into the arm-ui container, and removes the ARM_UI_ARM_DB_PATH environment variable. Operators running an arm-ui image older than the matching Phase 2a release (which still tries to read the SQLite file directly) will see the UI fall back to "DB unavailable" until upgraded. Bump arm-ui to the Phase 2a release at the same time as this ripper release. The ARM_UI_ARM_DB_PATH env var is now ignored and can be removed from any user-overridden compose / .env files.
+* **api:** GET /api/v1/jobs/active and GET /api/v1/jobs/{id}/detail now return track_counts.{total,ripped} computed over the *rippable* track subset (enabled, above MINLENGTH for video discs) rather than raw row counts. The JSON shape is unchanged; the numeric values will be lower for any job that has disabled tracks or video tracks under MINLENGTH. Clients that displayed "ripped X of Y" will see Y shrink to match what the UI was already showing via its own DB-side computation. No API migration is required - this fixes a long-standing ripper/UI divergence.
+
+### Features
+
+* **api:** drop arm-db UI mount; finish API surface for UI Phase 2a ([902b679](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/902b6790ad39f69590460e4a3e56dc1062f7a61e))
+* **api:** rebase /jobs/active and /jobs/{id}/detail track_counts on rippable subset ([f286768](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f2867684665e6702c2b7b0a4124ac20ebfcad1dc))
+
 ## [16.3.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v16.3.0...v16.3.1) (2026-04-25)
 
 
