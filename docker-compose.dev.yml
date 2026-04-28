@@ -36,10 +36,6 @@ services:
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/frontend/build:/app/frontend/build:ro
       - ./dev-data/logs:/data/logs:ro
       - ./dev-data/cache/images:/data/cache/images:rw
-      # Override the base file's legacy themes ro bind to point at the dev
-      # config dir (the same one arm-rippers mounts r/w at /etc/arm/config).
-      # Lets the dev migrator find any themes you've dropped there.
-      - ./dev-data/config/themes:/data/config/themes:ro
 
   arm-transcoder:
     build:
