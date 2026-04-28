@@ -220,6 +220,15 @@ class TestLogParserUnit:
         assert result["event"] == line
         assert result["level"] == "info"
 
+    def test_parse_oversized_line_skipped(self):
+        """Defends the parser against catastrophic input (CodeQL py/polynomial-redos)."""
+        line = "a" + " " * 50000  # leading-space ReDoS attack shape
+        # Must complete instantly and return something safe.
+        result = log_parser._parse_log_line(line)
+        assert result["raw"] == line
+        # Truncated event (the parser bails before regex)
+        assert "..." in result["event"]
+
     def test_resolve_within_strips_traversal(self, tmp_path):
         from pathlib import Path
         result = log_parser._resolve_within("../escape", Path(tmp_path))

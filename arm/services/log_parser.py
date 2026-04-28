@@ -11,10 +11,17 @@ import arm.config.config as cfg
 
 # ARM plain text log format: "{timestamp} {logger}: {LEVEL}: {message}"
 # e.g. "02-28-2026 04:59:16 ARM: INFO: Ripping complete"
+# Anchor with \S at the very start to defeat the polynomial-ReDoS path
+# (py/polynomial-redos): leading-space input would otherwise force the
+# engine to backtrack every (.+?)\s+ split point.
 _ARM_PLAIN_RE = re.compile(
-    r'^(.+?)\s+(\w+):\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*(.*)',
+    r'^(\S.{0,500}?)\s+(\w+):\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL):\s*(.*)',
     re.IGNORECASE,
 )
+
+# Hard cap on per-line parsing to make the regex matchers linear under
+# any input. Real ARM log lines are well under this.
+_MAX_LINE_LEN = 8 * 1024
 
 # Wrapper script format: "{weekday} {month} {day} {time} [{AM/PM}] {TZ} {year} [{logger}] {message}"
 _WRAPPER_BRACKET_RE = re.compile(
@@ -136,6 +143,15 @@ def read_log(filename: str, mode: str = "tail", lines: int = 100) -> dict | None
 def _parse_log_line(line: str) -> dict:
     """Parse a single log line: JSON, ARM plain, wrapper, or ISO bracketed."""
     line = line.rstrip("\n")
+    # Defence against ReDoS on adversarial log content: skip parsing on
+    # absurdly long lines and just hand back the raw text. Real ARM lines
+    # are short; a multi-KB line is either a stack trace or an attack.
+    if len(line) > _MAX_LINE_LEN:
+        return {
+            "timestamp": "", "level": "info", "logger": "",
+            "event": line[:_MAX_LINE_LEN] + "...",
+            "job_id": None, "label": None, "raw": line,
+        }
     try:
         parsed = json.loads(line)
         return {
