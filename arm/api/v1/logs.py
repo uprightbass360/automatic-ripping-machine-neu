@@ -1,4 +1,6 @@
 """API v1 - Log endpoints."""
+from typing import Annotated
+
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -27,8 +29,8 @@ def list_logs():
 @router.get('/logs/{filename}')
 def read_log(
     filename: str,
-    mode: str = Query("tail", pattern="^(tail|full)$"),
-    lines: int = Query(100, ge=1, le=10000),
+    mode: Annotated[str, Query(pattern="^(tail|full)$")] = "tail",
+    lines: Annotated[int, Query(ge=1, le=10000)] = 100,
 ):
     """Read a log file. mode=tail returns the last N lines (default);
     mode=full returns the whole file capped at 10 MB (truncated=true).
@@ -42,10 +44,10 @@ def read_log(
 @router.get('/logs/{filename}/structured')
 def read_structured_log(
     filename: str,
-    mode: str = Query("tail", pattern="^(tail|full)$"),
-    lines: int = Query(100, ge=1, le=10000),
-    level: str | None = Query(None),
-    search: str | None = Query(None),
+    mode: Annotated[str, Query(pattern="^(tail|full)$")] = "tail",
+    lines: Annotated[int, Query(ge=1, le=10000)] = 100,
+    level: Annotated[str | None, Query()] = None,
+    search: Annotated[str | None, Query()] = None,
 ):
     """Parsed log lines with optional level and substring filter."""
     result = log_parser.read_structured_log(

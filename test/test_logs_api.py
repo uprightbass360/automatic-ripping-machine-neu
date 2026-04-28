@@ -20,6 +20,22 @@ def logs_client(tmp_path):
             yield c, log_dir
 
 
+class TestJobLog:
+    """Pre-existing /jobs/{id}/log endpoint - covered here so the new
+    test file owns the whole router's coverage."""
+
+    def test_delegates_to_svc_jobs(self, logs_client):
+        client, _ = logs_client
+        with unittest.mock.patch(
+            "arm.api.v1.logs.svc_jobs.generate_log",
+            return_value={"success": True, "job": "1", "log": "ok"},
+        ) as mock:
+            resp = client.get("/api/v1/jobs/1/log")
+        assert resp.status_code == 200
+        assert resp.json()["log"] == "ok"
+        mock.assert_called_once()
+
+
 class TestListLogs:
     def test_lists_log_files_newest_first(self, logs_client):
         client, log_dir = logs_client
@@ -102,7 +118,7 @@ class TestReadLog:
         assert resp.status_code == 404
 
     def test_traversal_rejected(self, logs_client, tmp_path):
-        client, log_dir = logs_client
+        client, _ = logs_client
         outside = tmp_path / "secret.log"
         outside.write_text("sensitive")
         # The path component "../secret.log" is stripped to basename
@@ -219,6 +235,22 @@ class TestLogParserUnit:
         result = log_parser._parse_log_line(line)
         assert result["event"] == line
         assert result["level"] == "info"
+
+    def test_parse_wrapper_plain(self):
+        """Wrapper-script format without [LOGGER] tag falls through to the plain branch."""
+        line = "Sun Mar  1 04:34:15 EST 2026 Entering docker wrapper"
+        result = log_parser._parse_log_line(line)
+        assert result["logger"] == "wrapper"
+        assert "Entering" in result["event"]
+
+    def test_resolve_within_oserror_returns_none(self, monkeypatch, tmp_path):
+        from pathlib import Path
+
+        def boom(self, *a, **kw):
+            raise OSError("disk gone")
+
+        monkeypatch.setattr(Path, "resolve", boom)
+        assert log_parser._resolve_within("x.log", Path(tmp_path)) is None
 
     def test_parse_oversized_line_skipped(self):
         """Defends the parser against catastrophic input (CodeQL py/polynomial-redos)."""

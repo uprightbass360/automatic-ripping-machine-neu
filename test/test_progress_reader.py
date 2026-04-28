@@ -27,7 +27,7 @@ class TestRipProgress:
             "PRGV:5000,7500,10000\n"
         )
         result = progress_reader.get_rip_progress(1)
-        assert result["progress"] == 75.0
+        assert result["progress"] == pytest.approx(75.0)
 
     def test_prgc_advances_stage_and_tracks(self, progress_dir):
         (progress_dir / "progress" / "2.log").write_text(
@@ -86,7 +86,7 @@ class TestMusicProgress:
         result = progress_reader.get_music_progress("music.log", 5)
         assert result["tracks_total"] == 5
         assert result["tracks_ripped"] == 2  # encoding count
-        assert result["progress"] == 40.0
+        assert result["progress"] == pytest.approx(40.0)
         assert "tagging track 2" in result["stage"]
 
     def test_empty_log_returns_default(self, progress_dir):
@@ -98,6 +98,37 @@ class TestMusicProgress:
         (progress_dir / "music.log").write_text("Grabbing track 1: foo\n")
         result = progress_reader.get_music_progress("music.log", 0)
         assert result["tracks_total"] == 1
+
+    def test_grabbing_only_is_ripping_phase(self, progress_dir):
+        """Only Grabbing seen (no Encoding/Tagging yet) -> phase is 'ripping'."""
+        (progress_dir / "music.log").write_text("Grabbing track 1: foo\n")
+        result = progress_reader.get_music_progress("music.log", 5)
+        assert "ripping track 1" in result["stage"]
+
+    def test_encoding_without_tagging_is_encoding_phase(self, progress_dir):
+        """Encoding seen but no Tagging yet -> phase is 'encoding'."""
+        (progress_dir / "music.log").write_text(
+            "Grabbing track 1: foo\n"
+            "Encoding track 1 of 5\n"
+        )
+        result = progress_reader.get_music_progress("music.log", 5)
+        assert "encoding track 1" in result["stage"]
+
+    def test_oserror_on_open_returns_default(self, progress_dir, monkeypatch):
+        target = progress_dir / "music.log"
+        target.write_text("Grabbing track 1: foo\n")
+
+        import builtins
+        real_open = builtins.open
+
+        def boom(path, *a, **kw):
+            if "music.log" in str(path):
+                raise OSError("nope")
+            return real_open(path, *a, **kw)
+
+        monkeypatch.setattr(builtins, "open", boom)
+        result = progress_reader.get_music_progress("music.log", 5)
+        assert result["progress"] is None
 
 
 class TestProgressStateEndpoint:
@@ -119,7 +150,7 @@ class TestProgressStateEndpoint:
         resp = client.get(f"/api/v1/jobs/{sample_job.job_id}/progress-state")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["rip_progress"] == 50.0
+        assert body["rip_progress"] == pytest.approx(50.0)
         assert body["rip_stage"] is None  # no PRGC, name was "Saving"
         # Pre-existing keys still present
         assert body["disctype"] == "bluray"
