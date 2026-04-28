@@ -6,6 +6,7 @@ setup wizard and system health dashboard.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -205,11 +206,16 @@ async def _check_tvdb_key() -> dict:
 
 
 async def _check_makemkv_key() -> dict:
-    """Check the MakeMKV key via prep_mkv()."""
+    """Check the MakeMKV key via prep_mkv().
+
+    prep_mkv() spawns a blocking subprocess that hits forum.makemkv.com,
+    which can stall for tens of seconds; run it in the default executor
+    so the asyncio loop stays responsive for other concurrent requests.
+    """
     from arm.ripper.makemkv import UpdateKeyRunTimeError, UpdateKeyErrorCodes, prep_mkv
 
     try:
-        prep_mkv()
+        await asyncio.get_running_loop().run_in_executor(None, prep_mkv)
         return {
             "name": "makemkv_key",
             "success": True,
