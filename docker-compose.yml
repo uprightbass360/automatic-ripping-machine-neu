@@ -77,11 +77,6 @@ services:
       - ${ARM_LOGS_PATH}:/data/logs:ro
       - arm-ui-themes:/data/themes:rw
       - ui-image-cache:/data/cache/images:rw
-      # One-release migration shim: legacy themes path under the ripper config
-      # bind. arm-ui's startup migrator copies any *.json/*.css from here to
-      # arm-ui-themes the first time the named volume is empty. Drop this
-      # bind in the next release once existing deploys have rolled through.
-      - ${ARM_CONFIG_PATH:-/etc/arm/config}/themes:/data/config/themes:ro
     depends_on:
       arm-rippers:
         condition: service_healthy
