@@ -62,16 +62,19 @@ services:
       - "${UI_PORT:-8888}:8888"
     environment:
       - ARM_UI_ARM_LOG_PATH=/data/logs
-      - ARM_UI_ARM_CONFIG_PATH=/data/arm-config/arm.yaml
       - ARM_UI_ARM_URL=http://arm-rippers:8080
       - ARM_UI_TRANSCODER_ENABLED=false
-      - ARM_UI_ARM_THEMES_PATH=/data/config/themes
+      - ARM_UI_THEMES_PATH=/data/themes
       - ARM_UI_IMAGE_CACHE_PATH=/data/cache/images
     volumes:
       - ${ARM_LOGS_PATH}:/data/logs:ro
-      - ${ARM_CONFIG_PATH}:/data/arm-config:rw
-      - ${ARM_CONFIG_PATH:-/etc/arm/config}/themes:/data/config/themes:rw
+      - arm-ui-themes:/data/themes:rw
       - ui-image-cache:/data/cache/images:rw
+      # One-release migration shim: legacy themes path under the ripper config
+      # bind. arm-ui's startup migrator copies any *.json/*.css from here to
+      # arm-ui-themes the first time the named volume is empty. Drop this
+      # bind in the next release once existing deploys have rolled through.
+      - ${ARM_CONFIG_PATH}/themes:/data/config/themes:ro
     depends_on:
       arm-rippers:
         condition: service_healthy
@@ -80,3 +83,4 @@ volumes:
   arm-db:
   makemkv-settings:
   ui-image-cache:
+  arm-ui-themes:

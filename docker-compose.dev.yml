@@ -21,10 +21,6 @@ services:
       - ./dev-data/config:/etc/arm/config
       - ./dev-data/makemkv:/home/arm/.MakeMKV
 
-  arm-hb-presets:
-    volumes:
-      - ./dev-data/hb-presets:/data/hb-presets
-
   arm-ui:
     build: ${UI_SRC_PATH:-../automatic-ripping-machine-ui}
     command:
@@ -39,10 +35,11 @@ services:
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/backend:/app/backend:ro
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/frontend/build:/app/frontend/build:ro
       - ./dev-data/logs:/data/logs:ro
-      - ./dev-data/config:/data/arm-config:rw
-      - ./dev-data/config/themes:/data/config/themes:rw
       - ./dev-data/cache/images:/data/cache/images:rw
-      - ./dev-data/hb-presets:/data/hb-presets:ro
+      # Override the base file's legacy themes ro bind to point at the dev
+      # config dir (the same one arm-rippers mounts r/w at /etc/arm/config).
+      # Lets the dev migrator find any themes you've dropped there.
+      - ./dev-data/config/themes:/data/config/themes:ro
 
   arm-transcoder:
     build:
@@ -63,7 +60,16 @@ services:
       - DELETE_SOURCE=false
       - MINIMUM_FREE_SPACE_GB=1
     volumes:
-      - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/src:/app:ro
+      # NB: /app is mounted rw (not ro) so docker can create the
+      # /app/components mountpoint for the contracts re-mount below.
+      # The container runs as a non-root user and main.py doesn't write
+      # back to /app at runtime; rw is functionally equivalent for dev.
+      - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/src:/app
+      # Re-mount the arm_contracts package alongside src. The src bind
+      # shadows the image's /app/components and the editable-install
+      # .pth points at /app/components/contracts/src, so without this
+      # `import arm_contracts` fails inside the dev container.
+      - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/components/contracts:/app/components/contracts:ro
       - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/VERSION:/etc/arm-transcoder-version:ro
       - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/presets:/config/presets:ro
       - ./dev-data/transcoder-logs:/data/logs:rw
