@@ -18,7 +18,7 @@ MAKEMKV_SERIAL="$1"
 
 # Use beta key if serial is not passed
 if [[ -z "$MAKEMKV_SERIAL" ]]; then
-    if ! MAKEMKV_SERIAL=$(curl -fsSL "$MAKEMKV_SERIAL_URL" | grep -oP 'T-[\w\d@]{66}'); then
+    if ! MAKEMKV_SERIAL=$(curl -fsSL --connect-timeout 5 --max-time 15 "$MAKEMKV_SERIAL_URL" | grep -oP 'T-[\w\d@]{66}'); then
 		echo "The beta key cannot be found at: $MAKEMKV_SERIAL_URL"
 		exit $EXIT_CODE_URL_ERROR
 	fi

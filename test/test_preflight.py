@@ -385,3 +385,50 @@ class TestRunChecks:
             assert "success" in check
             assert "message" in check
             assert "fixable" in check
+
+
+class TestCheckMakemkvKeyExecutor:
+    """_check_makemkv_key() must offload prep_mkv() to a thread executor.
+
+    prep_mkv() spawns a blocking subprocess that hits forum.makemkv.com.
+    Running it on the asyncio loop starves all other concurrent requests
+    until it returns. The fix is to dispatch via run_in_executor.
+    """
+
+    def test_prep_mkv_runs_off_event_loop(self):
+        """While prep_mkv() blocks, other coroutines must still run."""
+        from arm.services.preflight import _check_makemkv_key
+
+        progress = {"ticks": 0, "prep_done": False}
+
+        def slow_prep_mkv():
+            # Simulate forum.makemkv.com hanging for ~0.5s of wall time.
+            import time
+            time.sleep(0.3)
+            progress["prep_done"] = True
+
+        async def ticker():
+            for _ in range(5):
+                await asyncio.sleep(0.05)
+                progress["ticks"] += 1
+
+        async def driver():
+            with unittest.mock.patch(
+                "arm.ripper.makemkv.prep_mkv", side_effect=slow_prep_mkv
+            ):
+                check_task = asyncio.create_task(_check_makemkv_key())
+                tick_task = asyncio.create_task(ticker())
+                result = await check_task
+                await tick_task
+                return result
+
+        result = asyncio.run(driver())
+
+        # The ticker must have made progress *while* prep_mkv was sleeping.
+        # If prep_mkv blocked the loop, ticks would be 0 until prep_done.
+        assert progress["prep_done"] is True
+        assert progress["ticks"] >= 3, (
+            f"event loop was starved during prep_mkv() (ticks={progress['ticks']})"
+        )
+        assert result["success"] is True
+        assert result["name"] == "makemkv_key"
