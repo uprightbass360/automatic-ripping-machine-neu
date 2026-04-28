@@ -61,13 +61,11 @@ services:
     ports:
       - "${UI_PORT:-8888}:8888"
     environment:
-      - ARM_UI_ARM_LOG_PATH=/data/logs
       - ARM_UI_ARM_URL=http://arm-rippers:8080
       - ARM_UI_TRANSCODER_ENABLED=false
       - ARM_UI_THEMES_PATH=/data/themes
       - ARM_UI_IMAGE_CACHE_PATH=/data/cache/images
     volumes:
-      - ${ARM_LOGS_PATH}:/data/logs:ro
       - arm-ui-themes:/data/themes:rw
       - ui-image-cache:/data/cache/images:rw
     depends_on:

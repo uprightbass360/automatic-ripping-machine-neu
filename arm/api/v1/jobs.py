@@ -26,6 +26,7 @@ from arm.models.notifications import Notifications
 from arm.ripper.folder_ripper import rip_folder
 from arm.services import jobs as svc_jobs
 from arm.services import files as svc_files
+from arm.services import progress_reader
 
 _JOB_NOT_FOUND = "Job not found"
 _NOT_WAITING = "Job is not in waiting state"
@@ -919,18 +920,28 @@ def get_job_track_counts(job_id: int):
 @router.get('/jobs/{job_id}/progress-state')
 def get_job_progress_state(job_id: int):
     """Return the small bundle of job fields the UI's progress endpoint needs:
-    track counts plus disctype / logfile / no_of_titles. One round-trip
-    instead of three, so the dashboard's per-job progress polls stay cheap.
+    track counts plus disctype / logfile / no_of_titles, plus realtime
+    MakeMKV PRGV progress and abcde music progress parsed from the
+    progress + log files. One round-trip instead of three.
     """
     job = Job.query.get(job_id)
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
     counts = svc_jobs.track_counts(job)
+
+    rip = progress_reader.get_rip_progress(job_id)
+    music = progress_reader.get_music_progress(job.logfile, job.no_of_titles or 0)
+
     return {
         "track_counts": counts,
         "disctype": job.disctype,
         "logfile": job.logfile,
         "no_of_titles": job.no_of_titles,
+        "rip_progress": rip["progress"],
+        "rip_stage": rip["stage"],
+        "tracks_ripped_realtime": rip["tracks_ripped"],
+        "music_progress": music["progress"],
+        "music_stage": music["stage"],
     }
 
 
