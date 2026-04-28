@@ -10,7 +10,6 @@ ARM + UI on the **ripping host** and Transcoder on the **GPU host**.
 │                              │              │                              │
 │  arm-rippers  (rip discs)    │   webhook    │  arm-transcoder (GPU encode) │
 │  arm-ui       (dashboard)    │─────────────►│                              │
-│  arm-hb-presets              │              │                              │
 │  arm-db-init                 │              │                              │
 │                              │              │                              │
 │  /home/arm/media/raw/  ──────┤── NFS ──────►│  /mnt/media/raw/   (ro)      │
