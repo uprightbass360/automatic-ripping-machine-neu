@@ -1,5 +1,23 @@
 # Changelog
 
+## [17.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.2.0...v17.3.0) (2026-04-29)
+
+
+### Features
+
+* **api:** add version module and require_api_version dependency ([fac7fe3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fac7fe35cdb254a5b96e4d53b31fed986fd87c51))
+* **api:** adopt Job/Track/JobSummary/JobProgressState contracts ([cde13ca](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/cde13ca718ba1972d12cad23f4193ac887e4c02a))
+* **api:** require_api_version dependency on transcode-callback receiver ([c48a059](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c48a059d274862a78b334a2ad79d80e91c4e8313))
+* bump components/contracts to ece12c0 ([ec872e2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ec872e233d105039f11d404ee9d70672344e1942))
+* logs API + realtime progress in progress-state ([3e9eb58](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3e9eb58d84b12eb49508e810d61299508d250646))
+* **version:** stamp build identity into VERSION at image-build time ([e102963](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e1029638fee0092499880567ca764c45356cdcae))
+
+
+### Bug Fixes
+
+* **logs:** defend log_parser against polynomial ReDoS ([6b696d5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6b696d5e13dddffc64639e9de652f2d05836a58d))
+* **preflight:** stop blocking event loop in MakeMKV key check ([28a2597](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/28a259709f5ab18d8dc0f4cded2f8012b4af3bb0))
+
 ## [17.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.1.0...v17.2.0) (2026-04-28)
 
 
