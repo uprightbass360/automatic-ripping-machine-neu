@@ -64,6 +64,8 @@ jobs:
           platforms: linux/amd64
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            IMAGE_TAG=${{ steps.version.outputs.version }}-rc
           tags: |
             ${{ env.DOCKERHUB_IMAGE }}:${{ steps.version.outputs.version }}-rc
             ${{ env.GHCR_IMAGE }}:${{ steps.version.outputs.version }}-rc

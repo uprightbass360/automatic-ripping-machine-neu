@@ -31,7 +31,11 @@ services:
       - --reload
       - --reload-dir=/app/backend
     volumes:
-      - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/VERSION:/app/VERSION:ro
+      # NB: VERSION is intentionally NOT mounted from source. The image's
+      # build-time RUN stamps it with a "-dev" suffix so the Settings ->
+      # Versions panel reflects "this is a dev build", not the last
+      # released semver. Source VERSION only changes on release-please
+      # commits, which already require a rebuild.
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/backend:/app/backend:ro
       - ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/frontend/build:/app/frontend/build:ro
       - ./dev-data/cache/images:/data/cache/images:rw
@@ -65,6 +69,8 @@ services:
       # .pth points at /app/components/contracts/src, so without this
       # `import arm_contracts` fails inside the dev container.
       - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/components/contracts:/app/components/contracts:ro
-      - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/VERSION:/etc/arm-transcoder-version:ro
+      # NB: VERSION is intentionally NOT mounted from source. Dockerfile.dev
+      # stamps /etc/arm-transcoder-version with a "-dev" suffix at build time
+      # so the Settings -> Versions panel reflects "this is a dev build".
       - ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/presets:/config/presets:ro
       - ./dev-data/transcoder-logs:/data/logs:rw

@@ -70,5 +70,18 @@ RUN apt-get update -qq \
     && ln -sv /opt/arm/setup/61-docker-arm.rules /lib/udev/rules.d/ \
     && git config --global --add safe.directory /opt/arm
 
+# Stamp VERSION with the actual build identity so the running image can
+# distinguish release / RC / dev builds in the Settings -> Versions panel.
+# - Release workflow passes IMAGE_TAG=<version>           -> e.g. 17.3.0
+# - RC workflow passes      IMAGE_TAG=<version>-rc        -> e.g. 17.3.0-rc
+# - Local docker compose build with no arg                -> e.g. 17.3.0-dev
+# Last layer on purpose: this changes per build but costs ~nothing to rerun.
+ARG IMAGE_TAG=
+RUN if [ -n "$IMAGE_TAG" ]; then \
+        echo "$IMAGE_TAG" > /opt/arm/VERSION; \
+    else \
+        echo "$(cat /opt/arm/VERSION)-dev" > /opt/arm/VERSION; \
+    fi
+
 CMD ["/sbin/my_init"]
 WORKDIR /home/arm
