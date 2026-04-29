@@ -19,11 +19,12 @@ from arm_contracts import (
     TrackCounts,
     TranscodeCallbackPayload,
 )
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from sqlalchemy import func, or_
 
+from arm.api.dependencies import require_api_version
 import arm.config.config as cfg
 from arm.constants import SINGLE_TRACK_VIDEO_TYPES
 from arm.database import db
@@ -1055,7 +1056,7 @@ def get_retranscode_info(job_id: int):
     return payload
 
 
-@router.post('/jobs/{job_id}/transcode-callback')
+@router.post('/jobs/{job_id}/transcode-callback', dependencies=[Depends(require_api_version)])
 def transcode_callback(job_id: int, body: dict):
     """Receive status update from the external transcoder.
 
