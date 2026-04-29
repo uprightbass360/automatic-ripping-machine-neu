@@ -11,7 +11,14 @@ import threading
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from arm_contracts import JobStatus, TranscodeCallbackPayload
+from arm_contracts import (
+    Job as JobContract,
+    JobProgressState,
+    JobStatus,
+    Track as TrackContract,
+    TrackCounts,
+    TranscodeCallbackPayload,
+)
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -96,15 +103,27 @@ HIDDEN_CONFIG_FIELDS = {
 
 
 def _job_to_dict(job):
-    """Serialize a Job record to a dict with ISO datetimes."""
+    """Serialize a Job record to a wire dict via the shared JobContract.
+
+    Builds via Pydantic (mode='json') so datetimes round-trip as ISO
+    strings and any column not in the contract is silently dropped
+    (extra='ignore'), keeping the wire shape stable as the ORM grows.
+
+    transcode_overrides arrives from the DB as a JSON string; pre-parse
+    it to a dict so the contract's `dict | None` type validates. Legacy-
+    key stripping is consumer-side (arm-ui) and not the producer's job.
+    """
     data = {
         col.name: getattr(job, col.name)
         for col in Job.__table__.columns
     }
-    for key, val in data.items():
-        if hasattr(val, 'isoformat'):
-            data[key] = val.isoformat()
-    return data
+    raw_overrides = data.get("transcode_overrides")
+    if isinstance(raw_overrides, str):
+        try:
+            data["transcode_overrides"] = json.loads(raw_overrides)
+        except (json.JSONDecodeError, TypeError):
+            data["transcode_overrides"] = None
+    return JobContract.model_validate(data).model_dump(mode="json")
 
 
 @router.get('/jobs')
@@ -838,36 +857,38 @@ def update_transcode_config(job_id: int, body: dict):
 
 
 def _track_to_dict(track):
-    """Serialize a Track row to a dict matching the UI's TrackSchema.
+    """Serialize a Track row to a wire dict via the shared TrackContract.
 
     main_feature -> enabled fallback preserves the legacy semantic where
-    older tracks with no enabled flag default to main_feature.
+    older tracks with no enabled flag default to main_feature. The fold
+    happens here so the contract never carries main_feature.
     """
     enabled = track.enabled if track.enabled is not None else track.main_feature
-    return {
-        "track_id": track.track_id,
-        "job_id": track.job_id,
-        "track_number": track.track_number,
-        "length": track.length,
-        "aspect_ratio": track.aspect_ratio,
-        "fps": track.fps,
-        "enabled": enabled,
-        "basename": track.basename,
-        "filename": track.filename,
-        "orig_filename": track.orig_filename,
-        "new_filename": track.new_filename,
-        "ripped": track.ripped,
-        "status": track.status,
-        "error": track.error,
-        "source": track.source,
-        "title": track.title,
-        "year": track.year,
-        "imdb_id": track.imdb_id,
-        "poster_url": track.poster_url,
-        "video_type": track.video_type,
-        "episode_number": track.episode_number,
-        "episode_name": track.episode_name,
-    }
+    return TrackContract(
+        track_id=track.track_id,
+        job_id=track.job_id,
+        track_number=track.track_number,
+        length=track.length,
+        aspect_ratio=track.aspect_ratio,
+        fps=track.fps,
+        enabled=enabled,
+        basename=track.basename,
+        filename=track.filename,
+        orig_filename=track.orig_filename,
+        new_filename=track.new_filename,
+        ripped=track.ripped,
+        status=track.status,
+        error=track.error,
+        source=track.source,
+        title=track.title,
+        year=track.year,
+        imdb_id=track.imdb_id,
+        poster_url=track.poster_url,
+        video_type=track.video_type,
+        episode_number=track.episode_number,
+        episode_name=track.episode_name,
+        custom_filename=track.custom_filename,
+    ).model_dump(mode="json")
 
 
 def _job_config_masked(job_config):
@@ -932,17 +953,17 @@ def get_job_progress_state(job_id: int):
     rip = progress_reader.get_rip_progress(job_id)
     music = progress_reader.get_music_progress(job.logfile, job.no_of_titles or 0)
 
-    return {
-        "track_counts": counts,
-        "disctype": job.disctype,
-        "logfile": job.logfile,
-        "no_of_titles": job.no_of_titles,
-        "rip_progress": rip["progress"],
-        "rip_stage": rip["stage"],
-        "tracks_ripped_realtime": rip["tracks_ripped"],
-        "music_progress": music["progress"],
-        "music_stage": music["stage"],
-    }
+    return JobProgressState(
+        track_counts=TrackCounts(**counts),
+        disctype=job.disctype,
+        logfile=job.logfile,
+        no_of_titles=job.no_of_titles,
+        rip_progress=rip["progress"],
+        rip_stage=rip["stage"],
+        tracks_ripped_realtime=rip["tracks_ripped"],
+        music_progress=music["progress"],
+        music_stage=music["stage"],
+    ).model_dump(mode="json")
 
 
 def _parse_transcode_overrides(raw: str | None) -> dict | None:

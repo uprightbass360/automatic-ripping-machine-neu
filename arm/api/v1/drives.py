@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 
+from arm_contracts import JobSummary
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -84,18 +85,7 @@ def list_drives_with_jobs():
         job = Job.query.get(job_id)
         if not job:
             return None
-        return {
-            "job_id": job.job_id,
-            "title": job.title,
-            "year": job.year,
-            "video_type": job.video_type,
-            "status": job.status,
-            "stage": job.stage,
-            "disctype": job.disctype,
-            "label": job.label,
-            "poster_url": job.poster_url,
-            "no_of_titles": job.no_of_titles,
-        }
+        return JobSummary.model_validate(job).model_dump(mode="json")
 
     result = []
     for d in drives:
