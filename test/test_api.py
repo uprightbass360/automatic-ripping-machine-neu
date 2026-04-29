@@ -2801,6 +2801,49 @@ class TestApiJobDetail:
         assert response.status_code == 200
         assert response.json()["config"] is None
 
+    def test_job_detail_track_carries_custom_filename(self, client, sample_job, app_context):
+        """Audit gap fix: custom_filename was previously dropped by _track_to_dict;
+        the contract adoption restores it on the wire so the UI can render it."""
+        from arm.models.track import Track
+        from arm.database import db
+
+        t = Track(
+            job_id=sample_job.job_id, track_number="0",
+            length=3600, aspect_ratio="16:9", fps="23.976",
+            main_feature=True, source="MakeMKV",
+            basename="title_t00.mkv", filename="title_t00.mkv",
+        )
+        t.custom_filename = "S01E01_pilot.mkv"
+        db.session.add(t)
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        data = response.json()
+        assert data["tracks"][0]["custom_filename"] == "S01E01_pilot.mkv"
+
+    def test_job_detail_transcode_overrides_dict_round_trips(self, client, sample_job, app_context):
+        """A valid JSON-string transcode_overrides column round-trips as a dict
+        on the wire (not the raw string), so the UI can read preset_slug etc."""
+        import json as _json
+        from arm.database import db
+        sample_job.transcode_overrides = _json.dumps({"preset_slug": "nvidia_balanced"})
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        data = response.json()
+        assert data["job"]["transcode_overrides"] == {"preset_slug": "nvidia_balanced"}
+
+    def test_job_detail_corrupt_transcode_overrides_drops_to_null(self, client, sample_job, app_context):
+        """A non-JSON transcode_overrides column drops to null instead of
+        propagating garbage to the UI."""
+        from arm.database import db
+        sample_job.transcode_overrides = "{this is not json"
+        db.session.commit()
+
+        response = client.get(f'/api/v1/jobs/{sample_job.job_id}/detail')
+        data = response.json()
+        assert data["job"]["transcode_overrides"] is None
+
 
 class TestApiJobProgressState:
     """Test GET /api/v1/jobs/<id>/progress-state endpoint."""
