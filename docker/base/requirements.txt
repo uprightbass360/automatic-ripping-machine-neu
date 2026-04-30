@@ -1,5 +1,5 @@
 alembic==1.18.4
-apprise==1.9.9
+apprise==1.10.0
 bcrypt==5.0.0
 discid==1.4.0
 fastapi==0.136.0
