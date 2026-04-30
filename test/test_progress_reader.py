@@ -22,12 +22,16 @@ class TestRipProgress:
         assert result == {"progress": None, "stage": None, "tracks_ripped": None}
 
     def test_prgv_during_save_phase(self, progress_dir):
+        # Fractional percentage on purpose: real MakeMKV PRGV values rarely land
+        # on whole-number percentages, and pydantic int silently coerces 75.0 to
+        # 75 while rejecting 33.3 - using a clean number here would have masked
+        # the rip_progress int/float contract bug fixed in arm-contracts 67eba7b.
         (progress_dir / "progress" / "1.log").write_text(
             'PRGT:0,0,"Saving to MKV file"\n'
-            "PRGV:5000,7500,10000\n"
+            "PRGV:3333,3333,10000\n"
         )
         result = progress_reader.get_rip_progress(1)
-        assert result["progress"] == pytest.approx(75.0)
+        assert result["progress"] == pytest.approx(33.3)
 
     def test_prgc_advances_stage_and_tracks(self, progress_dir):
         (progress_dir / "progress" / "2.log").write_text(
@@ -51,21 +55,23 @@ class TestRipProgress:
         (progress_dir / "progress" / "5.log").write_text(
             'PRGT:0,0,"Saving all titles to MKV files"\n'
             'PRGC:0,1,"Saving to MKV file"\n'
-            "PRGV:2500,5000,10000\n"
+            "PRGV:0,640,10000\n"
             'PRGT:0,0,"Analyzing seamless segments"\n'
         )
         result = progress_reader.get_rip_progress(5)
-        assert result["progress"] == pytest.approx(50.0)
+        # Fractional (6.4%) on purpose - exercises the int/float contract path.
+        assert result["progress"] == pytest.approx(6.4)
 
     def test_progress_held_when_prgc_is_saving_without_saving_prgt(self, progress_dir):
         """PRGC alone is enough to identify the rip phase; PRGT can lag."""
         (progress_dir / "progress" / "6.log").write_text(
             'PRGT:0,0,"Processing AV clips"\n'
             'PRGC:0,2,"Saving to MKV file"\n'
-            "PRGV:1000,4000,10000\n"
+            "PRGV:0,128,10000\n"
         )
         result = progress_reader.get_rip_progress(6)
-        assert result["progress"] == pytest.approx(40.0)
+        # Fractional (1.3%) on purpose - exercises the int/float contract path.
+        assert result["progress"] == pytest.approx(1.3)
 
     def test_oserror_on_open_returns_default(self, progress_dir, monkeypatch):
         target = progress_dir / "progress" / "4.log"
@@ -100,17 +106,20 @@ class TestMusicProgress:
         assert result["progress"] is None
 
     def test_parses_abcde_phases(self, progress_dir):
+        # 2 of 7 tracks = ~28.57% - fractional on purpose so we exercise the
+        # int-vs-float contract path on music_progress (same trap as
+        # rip_progress, see arm-contracts 67eba7b).
         (progress_dir / "music.log").write_text(
             "Grabbing track 1: foo\n"
             "Grabbing track 2: bar\n"
-            "Encoding track 1 of 5\n"
-            "Encoding track 2 of 5\n"
-            "Tagging track 1 of 5\n"
+            "Encoding track 1 of 7\n"
+            "Encoding track 2 of 7\n"
+            "Tagging track 1 of 7\n"
         )
-        result = progress_reader.get_music_progress("music.log", 5)
-        assert result["tracks_total"] == 5
+        result = progress_reader.get_music_progress("music.log", 7)
+        assert result["tracks_total"] == 7
         assert result["tracks_ripped"] == 2  # encoding count
-        assert result["progress"] == pytest.approx(40.0)
+        assert result["progress"] == pytest.approx(28.6)
         assert "tagging track 2" in result["stage"]
 
     def test_empty_log_returns_default(self, progress_dir):
@@ -166,15 +175,20 @@ class TestProgressStateEndpoint:
 
     def test_endpoint_includes_realtime_keys(self, jobs_client, sample_job):
         client, log_dir = jobs_client
-        # MakeMKV progress for the job
+        # Fractional percentage (12.3%) on purpose: real MakeMKV PRGV values
+        # rarely produce whole-number percentages. Using clean values like
+        # 50.0 here masked the rip_progress int-vs-float contract bug fixed
+        # in arm-contracts 67eba7b - pydantic int silently coerces 50.0 to 50
+        # but rejects 12.3 with int_from_float, which tanked /progress-state
+        # in production once the parser produced fractional values.
         (log_dir / "progress" / f"{sample_job.job_id}.log").write_text(
             'PRGT:0,0,"Saving to MKV file"\n'
-            "PRGV:1000,5000,10000\n"
+            "PRGV:0,1230,10000\n"
         )
         resp = client.get(f"/api/v1/jobs/{sample_job.job_id}/progress-state")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["rip_progress"] == pytest.approx(50.0)
+        assert body["rip_progress"] == pytest.approx(12.3)
         assert body["rip_stage"] is None  # no PRGC, name was "Saving"
         # Pre-existing keys still present
         assert body["disctype"] == "bluray"
