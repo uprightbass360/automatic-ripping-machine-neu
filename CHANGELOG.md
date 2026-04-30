@@ -1,5 +1,18 @@
 # Changelog
 
+## [17.4.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.3.0...v17.4.0) (2026-04-30)
+
+
+### Features
+
+* bump components/contracts to 230a4a8 ([5f78d1b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5f78d1bc95f05c0afca5f95db41938c8d8bf0dfc))
+
+
+### Bug Fixes
+
+* bump components/contracts to 67eba7b for rip_progress float fix ([97a376d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/97a376d229b8dfc41a5f4ba581e11acfd1ecdbb7))
+* **progress:** hold rip percentage during inter-title PRGT transitions ([8f8a4c5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8f8a4c512922ddc736c11a8fbcb7d44f598bbcf5))
+
 ## [17.3.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.2.0...v17.3.0) (2026-04-29)
 
 
