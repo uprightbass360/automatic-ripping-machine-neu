@@ -43,6 +43,30 @@ class TestRipProgress:
         result = progress_reader.get_rip_progress(3)
         assert result["progress"] is None
 
+    def test_progress_held_when_prgt_transitions_between_titles(self, progress_dir):
+        """Folder rips: MakeMKV emits non-'Saving' PRGT between titles while
+        PRGC stays on 'Saving to MKV file'. Progress must not go null during
+        those windows or the UI flickers to an indeterminate slider.
+        """
+        (progress_dir / "progress" / "5.log").write_text(
+            'PRGT:0,0,"Saving all titles to MKV files"\n'
+            'PRGC:0,1,"Saving to MKV file"\n'
+            "PRGV:2500,5000,10000\n"
+            'PRGT:0,0,"Analyzing seamless segments"\n'
+        )
+        result = progress_reader.get_rip_progress(5)
+        assert result["progress"] == pytest.approx(50.0)
+
+    def test_progress_held_when_prgc_is_saving_without_saving_prgt(self, progress_dir):
+        """PRGC alone is enough to identify the rip phase; PRGT can lag."""
+        (progress_dir / "progress" / "6.log").write_text(
+            'PRGT:0,0,"Processing AV clips"\n'
+            'PRGC:0,2,"Saving to MKV file"\n'
+            "PRGV:1000,4000,10000\n"
+        )
+        result = progress_reader.get_rip_progress(6)
+        assert result["progress"] == pytest.approx(40.0)
+
     def test_oserror_on_open_returns_default(self, progress_dir, monkeypatch):
         target = progress_dir / "progress" / "4.log"
         target.write_text("PRGV:1,1,2\n")

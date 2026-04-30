@@ -69,11 +69,19 @@ def get_rip_progress(job_id: int) -> dict[str, Any]:
 
     last_prgv, last_prgc, last_prgt = _parse_progress_lines(data.splitlines())
 
+    # PRGC tracks per-title state; PRGT tracks overall operation. Between
+    # titles in a folder rip MakeMKV briefly emits non-"Saving" PRGT messages
+    # (e.g. "Analyzing seamless segments") while PRGC stays on "Saving to MKV
+    # file" - prefer PRGC so the percentage doesn't flicker to indeterminate.
+    is_rip_phase = (
+        (last_prgc and last_prgc.group(2) == "Saving to MKV file")
+        or (last_prgt and "Saving" in last_prgt)
+    )
+
     if last_prgv:
         total = int(last_prgv.group(2))
         maximum = int(last_prgv.group(3))
         if maximum > 0:
-            is_rip_phase = last_prgt and "Saving" in last_prgt
             if is_rip_phase:
                 result["progress"] = round(total / maximum * 100, 1)
             else:
