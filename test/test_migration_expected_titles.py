@@ -59,15 +59,18 @@ def test_upgrade_creates_table_and_index(db_at_prev_revision):
 
 
 def test_fk_to_job_works_after_upgrade(db_at_prev_revision):
+    """Smoke test: confirm we can insert into expected_title with a valid
+    job_id and read it back. Does not assert FK enforcement (SQLite's FK
+    pragma is off by default); the FK shape is structural only here.
+    """
     cfg, engine = db_at_prev_revision
     command.upgrade(cfg, _TARGET_REVISION)
 
     with engine.begin() as conn:
-        # Insert a parent Job row first (job has a NOT NULL guid).
+        # Insert a Job parent row, then a child expected_title.
         conn.execute(text(
             "INSERT INTO job (job_id, guid) VALUES (1, 'test-guid-1')"
         ))
-        # Insert a child expected_title row referencing it.
         conn.execute(text(
             "INSERT INTO expected_title (job_id, source, title, runtime_seconds) "
             "VALUES (1, 'omdb', 'Test', 5712)"
