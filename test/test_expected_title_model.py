@@ -84,3 +84,22 @@ def test_job_expected_titles_relationship(app_context, sample_job):
 
     titles = sorted(et.title for et in sample_job.expected_titles)
     assert titles == ["Movie A", "Movie A (alt)"]
+
+
+def test_expected_title_null_title_works(app_context, sample_job):
+    """Title is nullable; metadata sources may not always return one."""
+    from arm.models.expected_title import ExpectedTitle
+
+    et = ExpectedTitle(
+        job_id=sample_job.job_id,
+        source="omdb",
+        title=None,
+        runtime_seconds=8880,
+    )
+    db.session.add(et)
+    db.session.commit()
+
+    row = db.session.query(ExpectedTitle).filter_by(runtime_seconds=8880).one()
+    assert row.title is None
+    # __repr__ must not crash on null title
+    assert "omdb" in repr(row)
