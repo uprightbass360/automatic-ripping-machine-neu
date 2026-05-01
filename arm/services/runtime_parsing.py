@@ -20,7 +20,7 @@ _OMDB_HOUR_MIN_PATTERN = re.compile(
 def parse_runtime(raw: str | int | None) -> int | None:
     if raw is None:
         return None
-    if isinstance(raw, int):
+    if isinstance(raw, int) and not isinstance(raw, bool):
         return raw * 60 if raw > 0 else None
     if not isinstance(raw, str):
         return None

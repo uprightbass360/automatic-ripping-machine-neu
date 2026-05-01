@@ -31,3 +31,9 @@ def test_parse_runtime_valid(raw, expected):
 ])
 def test_parse_runtime_invalid_returns_none(raw):
     assert parse_runtime(raw) is None
+
+
+def test_parse_runtime_rejects_bool():
+    """bool is a subclass of int in Python; True/False are not valid runtimes."""
+    assert parse_runtime(True) is None
+    assert parse_runtime(False) is None
