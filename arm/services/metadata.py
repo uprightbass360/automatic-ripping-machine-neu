@@ -447,6 +447,8 @@ async def _omdb_search(query: str, year: str | None, api_key: str, page: int = 1
 
 
 def _normalize_omdb(item: dict) -> dict[str, Any]:
+    from arm.services.runtime_parsing import parse_runtime
+
     media_type = (item.get("Type") or "movie").lower()
     if media_type != "series":
         media_type = "movie"
@@ -460,6 +462,7 @@ def _normalize_omdb(item: dict) -> dict[str, Any]:
         "imdb_id": item.get("imdbID"),
         "media_type": media_type,
         "poster_url": poster,
+        "runtime_seconds": parse_runtime(item.get("Runtime")),
     }
 
 
@@ -530,6 +533,8 @@ async def _tmdb_search(query: str, year: str | None, api_key: str) -> list[dict[
 async def _normalize_tmdb(
     item: dict, media_type: str, api_key: str
 ) -> dict[str, Any]:
+    from arm.services.runtime_parsing import parse_runtime
+
     title = item.get("title") or item.get("name", "")
     release = item.get("release_date") or item.get("first_air_date") or ""
     year = _extract_year(release) if release else ""
@@ -542,6 +547,7 @@ async def _normalize_tmdb(
         "imdb_id": imdb_id,
         "media_type": media_type,
         "poster_url": poster_url,
+        "runtime_seconds": parse_runtime(item.get("runtime")),
     }
 
 
