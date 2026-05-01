@@ -199,6 +199,12 @@ class Job(db.Model):
     folder_pattern_override = db.Column(db.String(512), nullable=True)
     tracks = db.relationship('Track', backref='job', lazy='dynamic')
     config = db.relationship('Config', uselist=False, backref="job")
+    expected_titles = db.relationship(
+        "ExpectedTitle",
+        backref="job",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
 
     def __init__(self, devpath, _skip_hardware=False):
         """Return a disc object"""
