@@ -30,6 +30,7 @@ from arm.ripper import utils
 from arm.ripper.ProcessHandler import arm_subprocess
 from arm.ripper.utils import RipperException
 from arm.database import db
+from arm.models.expected_title import ExpectedTitle
 
 # flake8: noqa: W605
 
@@ -530,6 +531,13 @@ def identify_dvd(job):
                 'hasnicetitle': True
             }
             utils.database_updater(args, job)
+            _write_movie_expected_title(
+                job,
+                title=hit.get('title'),
+                imdb_id=hit.get('imdb_id'),
+                runtime_seconds=None,  # CRC database does not return runtime
+                source="manual",
+            )
             _detect_track_99(job)
             return True
     except Exception as error:
@@ -556,6 +564,35 @@ def _detect_track_99(job):
 
 
 # ── Metadata helpers (unchanged) ───────────────────────────────────────
+
+def _write_movie_expected_title(
+    job,
+    title: str | None,
+    imdb_id: str | None,
+    runtime_seconds: int | None,
+    source: str,
+) -> None:
+    """Write or replace the ExpectedTitle row(s) for a movie job.
+
+    Idempotent: clears any existing ExpectedTitle rows for the job before
+    writing, so re-running identification (e.g. via a future rematch
+    endpoint) rewrites cleanly.
+
+    `source` should be "omdb", "tmdb", or "manual" (or "tvdb" for TV - see
+    A6's TV-specific helper). Movie hits from update_job() use whatever
+    METADATA_PROVIDER produced the result; CRC64 fast-path hits use "manual"
+    since the CRC database is community-curated, not a metadata provider.
+    """
+    db.session.query(ExpectedTitle).filter_by(job_id=job.job_id).delete()
+    db.session.add(ExpectedTitle(
+        job_id=job.job_id,
+        source=source,
+        title=title,
+        external_id=imdb_id,
+        runtime_seconds=runtime_seconds,
+    ))
+    db.session.commit()
+
 
 def update_job(job, search_results):
     """
@@ -634,7 +671,19 @@ def update_job(job, search_results):
         if selection.label_info.season_number is not None:
             args['season_auto'] = str(selection.label_info.season_number)
             args['season'] = str(selection.label_info.season_number)
-    return utils.database_updater(args, job)
+    result = utils.database_updater(args, job)
+    runtime_seconds = (best.raw_result or {}).get("runtime_seconds")
+    provider = (cfg.arm_config.get("METADATA_PROVIDER") or "omdb").lower()
+    if provider not in ("omdb", "tmdb"):
+        provider = "omdb"
+    _write_movie_expected_title(
+        job,
+        title=title,
+        imdb_id=best.imdb_id,
+        runtime_seconds=runtime_seconds,
+        source=provider,
+    )
+    return result
 
 
 def _to_matcher_format(normalized: list[dict]) -> list[dict]:
