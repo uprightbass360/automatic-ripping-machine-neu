@@ -745,11 +745,17 @@ def makemkv_mkv(job, rawpath):
             f"--minlength={job.config.MINLENGTH}",
         ]
         logging.info("Process all tracks from disc.")
+        skips: list[dict] = []
         for msg in run(cmd, OutputType.MSG):
             # Mark tracks ripped in real-time as MakeMKV saves each title.
             # MSG code 3307 = FILE_ADDED: "File {name} was added as title #{N}"
             if hasattr(msg, 'code') and int(msg.code) == MessageID.FILE_ADDED:
                 _mark_track_ripped_by_message(job, msg.message)
+            parsed = parse_makemkv_skip_message(getattr(msg, 'message', ''))
+            if parsed:
+                skips.append(parsed)
+        if skips:
+            apply_makemkv_skips(job, skips)
         # Final sweep: mark any remaining tracks whose files exist on disk
         _mark_ripped_from_disk(job, rawpath)
     else:
@@ -1672,6 +1678,51 @@ class MakeMKVOutputChecker:
         log_func = self.LOG_ONLY_CODES[self.data.code]
         log_func(self.data.message)
         return self.data
+
+
+_MAKEMKV_SKIP_RE = re.compile(
+    r"^Title #(?P<num>\d+) has length of (?P<len>\d+) seconds "
+    r"which is less than minimum title length of (?P<min>\d+) seconds "
+    r"and was therefore skipped$"
+)
+
+
+def parse_makemkv_skip_message(line: str) -> dict | None:
+    """Parse a MakeMKV 'title skipped because too short' stdout line.
+
+    Returns a dict with keys track_number, length, min_length, or None
+    if the line is not a skip message.
+    """
+    line = line.strip()
+    if line.startswith("MakeMKV: "):
+        line = line[len("MakeMKV: "):]
+    m = _MAKEMKV_SKIP_RE.match(line)
+    if not m:
+        return None
+    return {
+        "track_number": m.group("num"),
+        "length": int(m.group("len")),
+        "min_length": int(m.group("min")),
+    }
+
+
+def apply_makemkv_skips(job, skips: list[dict]) -> None:
+    """Apply a batch of parse_makemkv_skip_message results to track records.
+
+    Sets process=False, skip_reason='makemkv_skipped' on each matching
+    track. Tracks not present in the DB are silently ignored.
+    """
+    if not skips:
+        return
+    skip_nums = {s["track_number"] for s in skips}
+    rows = (db.session.query(Track)
+            .filter(Track.job_id == job.job_id,
+                    Track.track_number.in_(skip_nums))
+            .all())
+    for r in rows:
+        r.process = False
+        r.skip_reason = "makemkv_skipped"
+    db.session.commit()
 
 
 def run(options, select):
