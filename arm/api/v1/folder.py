@@ -7,6 +7,8 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from arm_contracts.enums import SkipReason
+
 import arm.config.config as cfg
 from arm.database import db
 from arm.models.config import Config
@@ -28,7 +30,7 @@ def auto_disable_short_tracks(job, minlength: int) -> int:
     for track in job.tracks:
         if track.length is not None and track.length < minlength:
             track.enabled = False
-            track.skip_reason = "too_short"
+            track.skip_reason = SkipReason.too_short.value
             disabled_count += 1
     return disabled_count
 

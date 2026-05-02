@@ -19,7 +19,8 @@ class Track(db.Model):
     ripped = db.Column(db.Boolean)
     status = db.Column(
         db.Enum(TrackStatus, name="track_status_enum",
-                native_enum=False, validate_strings=True),
+                native_enum=False, validate_strings=True,
+                values_callable=lambda e: [m.value for m in e]),
         nullable=True,
     )
     error = db.Column(db.Text)
@@ -28,7 +29,8 @@ class Track(db.Model):
     enabled = db.Column(db.Boolean, default=True)
     skip_reason = db.Column(
         db.Enum(SkipReason, name="track_skip_reason_enum",
-                native_enum=False, validate_strings=True),
+                native_enum=False, validate_strings=True,
+                values_callable=lambda e: [m.value for m in e]),
         nullable=True,
     )
     chapters = db.Column(db.Integer, default=0)

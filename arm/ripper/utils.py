@@ -31,6 +31,8 @@ import psutil
 
 from netifaces import interfaces, ifaddresses, AF_INET
 
+from arm_contracts.enums import TrackStatus, WebhookEventType
+
 import arm.config.config as cfg
 from arm.ripper.ProcessHandler import arm_subprocess
 from arm.database import db  # needs to be imported before models
@@ -208,7 +210,7 @@ def _build_webhook_payload(title, body, job, raw_basename):
         # WebhookPayload requires job_id, so we hand-build the dict here -
         # the typed model is only meaningful for the job-bound transcode
         # webhook the transcoder actually receives.
-        payload = {"title": title, "body": body, "type": "info"}
+        payload = {"title": title, "body": body, "type": WebhookEventType.info.value}
         if raw_basename:
             payload["path"] = raw_basename
         return payload
@@ -254,7 +256,7 @@ def _build_webhook_payload(title, body, job, raw_basename):
     payload = WebhookPayload(
         title=title,
         body=body,
-        type="info",
+        type=WebhookEventType.info,
         path=raw_basename or None,
         job_id=str(job.job_id),  # WebhookPayload coerces str -> int.
         video_type=str(job.video_type or ''),
@@ -470,7 +472,12 @@ def find_file(filename, search_path):
 
 
 def _update_music_tracks(job, ripped, status):
-    """Bulk-update ripped/status on all tracks for a music job."""
+    """Bulk-update ripped/status on all tracks for a music job.
+
+    `status` must be a member-value of TrackStatus (validated at the DB
+    layer via db.Enum). For music-rip failure where no enum member
+    applies, use _update_music_tracks_ripped_only() instead.
+    """
     try:
         Track.query.filter_by(job_id=job.job_id).update(
             {"ripped": ripped, "status": status}
@@ -478,6 +485,21 @@ def _update_music_tracks(job, ripped, status):
         db.session.commit()
     except Exception as exc:
         logging.debug("Could not update music tracks: %s", exc)
+        db.session.rollback()
+
+
+def _update_music_tracks_ripped_only(job, ripped):
+    """Bulk-update only the ripped boolean on all tracks for a music job.
+
+    Used on music-rip failure - TrackStatus has no music-failed member,
+    so we leave status at its prior value (typically pending) rather
+    than coerce to a misleading transcode_failed.
+    """
+    try:
+        Track.query.filter_by(job_id=job.job_id).update({"ripped": ripped})
+        db.session.commit()
+    except Exception as exc:
+        logging.debug("Could not update music tracks (ripped-only): %s", exc)
         db.session.rollback()
 
 
@@ -653,17 +675,17 @@ def _apply_track_phases(job, grabbing, encoding, tagging):
             except (ValueError, TypeError):
                 continue
             if tn in tagging:
-                if t.status != "success":
+                if t.status != TrackStatus.success.value:
                     t.ripped = True
-                    t.status = "success"
+                    t.status = TrackStatus.success.value
                     changed = True
             elif tn in encoding:
-                if t.status != "encoding":
-                    t.status = "encoding"
+                if t.status != TrackStatus.encoding.value:
+                    t.status = TrackStatus.encoding.value
                     changed = True
             elif tn in grabbing:
-                if t.status != "ripping":
-                    t.status = "ripping"
+                if t.status != TrackStatus.ripping.value:
+                    t.status = TrackStatus.ripping.value
                     changed = True
         if changed:
             db.session.commit()
@@ -822,10 +844,14 @@ def rip_music(job, logfile):
                 logging.error(err)
                 args = {"status": JobState.FAILURE.value, "errors": err}
                 database_updater(args, job)
-                _update_music_tracks(job, ripped=False, status="fail")
+                # Music rip failure: leave per-track status at its current
+                # value (pending), since TrackStatus has no music-rip-failed
+                # member. The job-level JobState.FAILURE above is the source
+                # of truth. Tracks stay marked ripped=False.
+                _update_music_tracks_ripped_only(job, ripped=False)
                 return False
             logging.info("abcde call successful")
-            _update_music_tracks(job, ripped=True, status="success")
+            _update_music_tracks(job, ripped=True, status=TrackStatus.success.value)
             args = {"status": JobState.IDLE.value}
             database_updater(args, job)
             return True

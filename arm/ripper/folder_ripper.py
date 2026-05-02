@@ -8,6 +8,8 @@ import os
 
 import structlog
 
+from arm_contracts.enums import SourceType
+
 import arm.config.config as cfg
 from arm.database import db
 from arm.models.job import JobState
@@ -128,7 +130,7 @@ def rip_folder(job):
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
             job_id=job.job_id,
-            source_type="folder",
+            source_type=SourceType.folder.value,
             source_path=job.source_path,
         )
 

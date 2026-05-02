@@ -27,7 +27,7 @@ class TestBuildJobEnv:
         job.video_type = "movie"
         job.disctype = "bluray"
         job.label = "TEST"
-        job.status = "active"
+        job.status='ripping'
         job.path = "/home/arm/media/completed/movies/Test Movie"
         job.raw_path = "/home/arm/media/raw/Test Movie"
         job.transcode_path = "/home/arm/media/transcode/Test Movie"
@@ -401,7 +401,7 @@ class TestCleanOldJobs:
         from arm.ripper.utils import clean_old_jobs
         from arm.database import db
 
-        sample_job.status = 'active'
+        sample_job.status='ripping'
         sample_job.pid = 99999999  # Non-existent PID
         db.session.commit()
 
@@ -415,7 +415,7 @@ class TestCleanOldJobs:
         from arm.ripper.utils import clean_old_jobs
         from arm.database import db
 
-        sample_job.status = 'active'
+        sample_job.status='ripping'
         sample_job.pid = os.getpid()
         sample_job.pid_hash = hash(unittest.mock.MagicMock())
         db.session.commit()
@@ -426,7 +426,7 @@ class TestCleanOldJobs:
             clean_old_jobs()
 
         db.session.refresh(sample_job)
-        assert sample_job.status == 'active'
+        assert sample_job.status == 'ripping'
 
 
 class TestApplyTrackPhases:

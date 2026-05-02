@@ -72,7 +72,7 @@ class TestApiJobPause:
     def test_pause_job_not_waiting(self, client, sample_job, app_context):
         """Can only pause jobs in MANUAL_WAIT_STARTED status."""
         from arm.ripper.utils import database_updater
-        database_updater({"status": "active"}, sample_job)
+        database_updater({"status": "ripping"}, sample_job)
         response = client.post(f'/api/v1/jobs/{sample_job.job_id}/pause')
         assert response.status_code == 409
 
@@ -1914,7 +1914,7 @@ class TestApiJobStart:
 
     def test_start_job_not_waiting(self, client, sample_job, app_context):
         from arm.ripper.utils import database_updater
-        database_updater({"status": "active"}, sample_job)
+        database_updater({"status": "ripping"}, sample_job)
         response = client.post(f'/api/v1/jobs/{sample_job.job_id}/start')
         assert response.status_code == 409
 
@@ -1936,7 +1936,7 @@ class TestApiJobCancel:
 
     def test_cancel_not_waiting(self, client, sample_job, app_context):
         from arm.ripper.utils import database_updater
-        database_updater({"status": "active"}, sample_job)
+        database_updater({"status": "ripping"}, sample_job)
         response = client.post(f'/api/v1/jobs/{sample_job.job_id}/cancel')
         assert response.status_code == 409
 
@@ -2521,6 +2521,7 @@ class TestApiAutoFlagTracks:
         with unittest.mock.patch.object(Job, 'parse_udev'), \
              unittest.mock.patch.object(Job, 'get_pid'):
             job = Job('/dev/sr0')
+        job.status = "ripping"
         job.video_type = "movie"
         job.multi_title = False
         db.session.add(job)
@@ -2552,6 +2553,7 @@ class TestApiAutoFlagTracks:
         with unittest.mock.patch.object(Job, 'parse_udev'), \
              unittest.mock.patch.object(Job, 'get_pid'):
             job = Job('/dev/sr0')
+        job.status = "ripping"
         job.video_type = "movie"
         db.session.add(job)
         db.session.flush()
@@ -2711,7 +2713,7 @@ class TestApiDrivesWithJobs:
         drive = next(d for d in data["drives"] if d["name"] == "Living Room")
         assert drive["current_job"] is not None
         assert drive["current_job"]["title"] == "SERIAL_MOM"
-        assert drive["current_job"]["status"] == "active"
+        assert drive["current_job"]["status"] == "ripping"
 
     def test_drives_without_jobs(self, client, sample_drives):
         response = client.get('/api/v1/drives/with-jobs')
@@ -3106,18 +3108,20 @@ class TestApiJobsStats:
         assert response.json() == {"total": 0, "active": 0, "waiting": 0, "success": 0, "fail": 0}
 
     def test_stats_buckets(self, client, app_context):
+        # Two values map to the "active" stats bucket
+        # (ripping/transcoding) per _ACTIVE_STATUSES - _WAITING_STATUSES.
         self._make_jobs([
-            "ripping", "transcoding", "active",   # 3 active
+            "ripping", "transcoding",              # 2 active
             "waiting", "waiting_transcode",        # 2 waiting
             "success", "success",                  # 2 success
             "fail",                                # 1 fail
         ])
         data = client.get('/api/v1/jobs/stats').json()
-        assert data == {"total": 8, "active": 3, "waiting": 2, "success": 2, "fail": 1}
+        assert data == {"total": 7, "active": 2, "waiting": 2, "success": 2, "fail": 1}
 
     def test_stats_status_groups_match_paginated(self, client, app_context):
         """Active and waiting buckets must use the same grouping as /jobs/paginated."""
-        self._make_jobs(["active", "ripping", "waiting", "waiting_transcode", "success"])
+        self._make_jobs(["transcoding", "ripping", "waiting", "waiting_transcode", "success"])
         stats = client.get('/api/v1/jobs/stats').json()
         active_paged = client.get('/api/v1/jobs/paginated?status=active').json()
         waiting_paged = client.get('/api/v1/jobs/paginated?status=waiting').json()

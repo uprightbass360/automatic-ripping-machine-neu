@@ -19,8 +19,11 @@ import shutil
 import subprocess
 from time import sleep
 
+from arm_contracts.enums import SkipReason, TrackStatus
+
 import arm.config.config as cfg
 from arm.constants import SINGLE_TRACK_VIDEO_TYPES
+from arm.enums import RipMethod
 from arm.models import SystemDrives, Track
 from arm.models.job import JobState
 from arm.ripper import utils
@@ -954,7 +957,7 @@ def _mark_track_ripped_by_message(job, message):
         track_prefix = re.sub(r'_t\d+\.mkv$', '', track.filename or '')
         if track_prefix == prefix:
             track.ripped = True
-            track.status = "success"
+            track.status = TrackStatus.success.value
             logging.info("Track %s ripped: %s", track.track_number, filename)
             try:
                 db.session.commit()
@@ -978,7 +981,7 @@ def _mark_ripped_from_disk(job, rawpath):
             continue
         if track.filename and track.filename in actual_files:
             track.ripped = True
-            track.status = "success"
+            track.status = TrackStatus.success.value
             changed = True
         else:
             # Check by prefix match (MakeMKV renumbers output files)
@@ -986,7 +989,7 @@ def _mark_ripped_from_disk(job, rawpath):
             for f in actual_files:
                 if f.endswith('.mkv') and re.sub(r'_t\d+\.mkv$', '', f) == prefix:
                     track.ripped = True
-                    track.status = "success"
+                    track.status = TrackStatus.success.value
                     changed = True
                     break
     if changed:
@@ -1248,9 +1251,10 @@ def makemkv(job):
     rawpath = setup_rawpath(job.build_raw_path())
     logging.info(f"Processing files to: {rawpath}")
 
-    if (job.config.RIPMETHOD in ("backup", "backup_dvd")) and job.disctype in ("bluray", "bluray4k"):
+    if (job.config.RIPMETHOD in (RipMethod.backup.value, RipMethod.backup_dvd.value)) \
+            and job.disctype in ("bluray", "bluray4k"):
         makemkv_backup(job, rawpath)
-    elif job.config.RIPMETHOD == "mkv" or job.disctype == "dvd":
+    elif job.config.RIPMETHOD == RipMethod.mkv.value or job.disctype == "dvd":
         makemkv_mkv(job, rawpath)
     else:
         logging.info("I'm confused what to do....  Passing on MakeMKV")
@@ -1306,13 +1310,13 @@ def process_single_tracks(job, rawpath, mode: str):
                 logging.info(f"Track #{track.track_number} of {job.no_of_titles}. Length ({track.length}) "
                              f"is less than minimum length ({job.config.MINLENGTH}).  Skipping")
                 track.process = False
-                track.skip_reason = "too_short"
+                track.skip_reason = SkipReason.too_short.value
             elif track.length > int(job.config.MAXLENGTH):
                 logging.info(f"Track #{track.track_number} of {job.no_of_titles}. "
                              f"Length ({track.length}) is greater than maximum length ({job.config.MAXLENGTH}).  "
                              "Skipping")
                 track.process = False
-                track.skip_reason = "too_long"
+                track.skip_reason = SkipReason.too_long.value
             else:
                 track.process = True
                 track.skip_reason = None
@@ -1727,7 +1731,7 @@ def apply_makemkv_skips(job, skips: list[dict]) -> None:
             .all())
     for r in rows:
         r.process = False
-        r.skip_reason = "makemkv_skipped"
+        r.skip_reason = SkipReason.makemkv_skipped.value
     db.session.commit()
 
 

@@ -989,7 +989,7 @@ class TestGetXJobsMusic:
             source="abcde", basename="track1.flac", filename="track1.flac",
         )
         track.ripped = True
-        track.status = "ripped"
+        track.status = "success"
         db.session.add(track)
         db.session.commit()
 

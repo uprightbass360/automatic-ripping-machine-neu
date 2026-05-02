@@ -19,6 +19,7 @@ from arm_contracts import (
     TrackCounts,
     TranscodeCallbackPayload,
 )
+from arm_contracts.enums import SkipReason, SourceType, TrackStatus
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -28,6 +29,7 @@ from arm.api.dependencies import require_api_version
 import arm.config.config as cfg
 from arm.constants import SINGLE_TRACK_VIDEO_TYPES
 from arm.database import db
+from arm.enums import RipMethod
 from arm.models.job import Job, JobState
 from arm.models.track import Track
 from arm.models.notifications import Notifications
@@ -83,7 +85,7 @@ def _auto_flag_tracks(job, mainfeature: bool):
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
 
-_ACTIVE_STATUSES = {"active", "ripping", "transcoding", "waiting"}
+_ACTIVE_STATUSES = {"ripping", "transcoding", "waiting"}
 _WAITING_STATUSES = {"waiting", "waiting_transcode"}
 
 _SORTABLE_COLUMNS = {
@@ -294,7 +296,7 @@ def start_waiting_job(job_id: int):
     if job.status != JobState.MANUAL_WAIT_STARTED.value:
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
-    if job.source_type == "folder":
+    if job.source_type == SourceType.folder.value:
         # Folder jobs: launch rip_folder in a background thread.
         # Pass job_id, not the ORM object — the thread has its own session
         # scope and the original object would be detached.
@@ -375,7 +377,7 @@ def change_job_config(job_id: int, body: dict):
     changes = []
     config_updates = {}  # collected for atomic apply under lock
 
-    valid_ripmethods = ('mkv', 'backup')
+    valid_ripmethods = tuple(m.value for m in RipMethod)
     valid_disctypes = ('dvd', 'bluray', 'bluray4k', 'music', 'data')
     valid_audio_formats = (
         'flac', 'mp3', 'vorbis', 'opus', 'm4a', 'wav', 'mka',
@@ -1145,9 +1147,11 @@ def transcode_callback(job_id: int, body: dict):
             track = track_map.get(str(tr.track_number))
             if track:
                 if tr.status == JobStatus.completed:
-                    track.status = "transcoded"
+                    track.status = TrackStatus.transcoded.value
                 elif tr.status == JobStatus.failed:
-                    track.status = f"transcode_failed: {(tr.error or '')[:200]}"
+                    track.status = TrackStatus.transcode_failed.value
+                    if tr.error:
+                        track.error = tr.error
 
     db.session.commit()
     return {"success": True, "job_id": job.job_id, "status": job.status}
@@ -1337,7 +1341,7 @@ def update_track_fields(job_id: int, track_id: int, body: dict):
         setattr(track, key, value)
     # Re-enabling clears any prior reason; prescan re-fires it next pass.
     if "enabled" in clean:
-        track.skip_reason = None if clean["enabled"] else "user_disabled"
+        track.skip_reason = None if clean["enabled"] else SkipReason.user_disabled.value
     # Keep track.title in sync — the webhook payload reads track.title for
     # the filename, so it must reflect the current episode_name when set.
     if "episode_name" in clean and clean["episode_name"]:

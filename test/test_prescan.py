@@ -29,7 +29,7 @@ def sample_job_with_drive(app_context):
     job.start_time = None
     job.stop_time = None
     job.job_length = ""
-    job.status = "active"
+    job.status='ripping'
     job.stage = ""
     job.no_of_titles = 0
     job.title = "TEST_DISC"

@@ -36,7 +36,7 @@ def music_job(app_context):
     job.start_time = None
     job.stop_time = None
     job.job_length = ""
-    job.status = "active"
+    job.status='ripping'
     job.stage = "170750493000"
     job.no_of_titles = 0
     job.title = "DARK_SIDE"

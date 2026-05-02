@@ -114,7 +114,7 @@ class TestRetryOnLocked:
 
     def test_dirty_state_preserved_across_retry(self, retry_db):
         """Modified attributes must persist after retry, not revert to DB values."""
-        job = _make_job(title="Original", status="active")
+        job = _make_job(title="Original", status='ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -339,7 +339,7 @@ class TestDatabaseUpdaterSimplified:
     def test_sets_attributes_and_commits(self, retry_db):
         from arm.services.files import database_updater
 
-        job = _make_job(title="Original", status="active")
+        job = _make_job(title="Original", status='ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -359,7 +359,7 @@ class TestDatabaseUpdaterSimplified:
         """wait_time parameter is accepted for backward compat."""
         from arm.services.files import database_updater
 
-        job = _make_job(status="active")
+        job = _make_job(status='ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -391,7 +391,7 @@ class TestProactiveRollback:
 
     def test_rollback_clears_pending_error(self, retry_db):
         """Simulate bad session state and verify rollback recovers it."""
-        job = _make_job(status="active")
+        job = _make_job(status='ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -415,7 +415,7 @@ class TestProactiveRollback:
     def test_remove_gives_clean_session(self, retry_db):
         """After remove(), next access gets a fresh session."""
         # Dirty the session
-        job = _make_job(status="active")
+        job = _make_job(status='ripping')
         db.session.add(job)
         # Don't commit - just remove
         db.session.remove()
