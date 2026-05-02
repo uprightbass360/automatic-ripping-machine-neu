@@ -894,6 +894,8 @@ def _track_to_dict(track):
         episode_number=track.episode_number,
         episode_name=track.episode_name,
         custom_filename=track.custom_filename,
+        process=track.process if track.process is not None else True,
+        skip_reason=track.skip_reason,
     ).model_dump(mode="json")
 
 
