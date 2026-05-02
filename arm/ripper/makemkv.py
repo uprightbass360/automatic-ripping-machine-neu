@@ -745,6 +745,12 @@ def makemkv_mkv(job, rawpath):
             f"--minlength={job.config.MINLENGTH}",
         ]
         logging.info("Process all tracks from disc.")
+        # Optimistically mark all tracks as rip candidates so the UI
+        # doesn't show them as "Skipped" mid-rip; apply_makemkv_skips
+        # below flips back the ones MakeMKV actually filters.
+        for t in job.tracks:
+            t.process = True
+        db.session.commit()
         skips: list[dict] = []
         for msg in run(cmd, OutputType.MSG):
             # Mark tracks ripped in real-time as MakeMKV saves each title.
