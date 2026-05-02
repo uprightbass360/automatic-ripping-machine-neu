@@ -106,6 +106,64 @@ def test_process_single_tracks_sets_too_long(app_context, sample_job, tmp_path):
     assert long_track.skip_reason == "too_long"
 
 
+def test_all_tracks_path_marks_long_tracks_as_process_true(app_context, sample_job, tmp_path):
+    """The all-tracks rip path (mkv-all branch) must set process=True on
+    tracks that survive MakeMKV's --minlength filter, so the UI doesn't
+    mislabel actively-ripping tracks as 'Skipped' mid-rip."""
+    import unittest.mock
+    from arm.models.track import Track
+    from arm.models.system_drives import SystemDrives
+    from arm.ripper import makemkv as mkv_mod
+
+    drive = SystemDrives()
+    drive.mount = sample_job.devpath
+    drive.job_id_current = sample_job.job_id
+    drive.mdisc = 0
+    db.session.add(drive)
+
+    sample_job.config.MINLENGTH = "600"
+    sample_job.config.MAXLENGTH = "99999"
+    sample_job.config.MKV_ARGS = ""
+    sample_job.no_of_titles = 3
+    db.session.commit()
+
+    long_track = Track(sample_job.job_id, "0", 4568, "4:3", 29.97, False,
+                       "MakeMKV", "t0", "t0.mkv")
+    short1 = Track(sample_job.job_id, "1", 21, "4:3", 29.97, False,
+                   "MakeMKV", "t1", "t1.mkv")
+    short2 = Track(sample_job.job_id, "2", 60, "4:3", 29.97, False,
+                   "MakeMKV", "t2", "t2.mkv")
+    db.session.add_all([long_track, short1, short2])
+    db.session.commit()
+
+    skip_msg_1 = unittest.mock.MagicMock()
+    skip_msg_1.message = ("Title #1 has length of 21 seconds which is less "
+                          "than minimum title length of 600 seconds and was "
+                          "therefore skipped")
+    skip_msg_2 = unittest.mock.MagicMock()
+    skip_msg_2.message = ("Title #2 has length of 60 seconds which is less "
+                          "than minimum title length of 600 seconds and was "
+                          "therefore skipped")
+    del skip_msg_1.code
+    del skip_msg_2.code
+
+    with unittest.mock.patch.object(mkv_mod.utils, "get_drive_mode", return_value="auto"), \
+         unittest.mock.patch.object(mkv_mod, "get_track_info"), \
+         unittest.mock.patch.object(mkv_mod, "_mark_ripped_from_disk"), \
+         unittest.mock.patch.object(mkv_mod, "run", return_value=iter([skip_msg_1, skip_msg_2])):
+        mkv_mod.makemkv_mkv(sample_job, str(tmp_path))
+
+    db.session.refresh(long_track)
+    db.session.refresh(short1)
+    db.session.refresh(short2)
+    assert long_track.process is True
+    assert long_track.skip_reason is None
+    assert short1.process is False
+    assert short1.skip_reason == "makemkv_skipped"
+    assert short2.process is False
+    assert short2.skip_reason == "makemkv_skipped"
+
+
 def test_folder_prescan_auto_disable_sets_too_short(app_context, sample_job):
     """The folder-import prescan auto-disable should set both enabled=False
     AND skip_reason='too_short' on tracks below MINLENGTH."""
