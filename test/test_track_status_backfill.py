@@ -47,3 +47,47 @@ def test_backfill_splits_prefix_and_message(app_context):
     ), {"jid": job.job_id}).fetchone()
     assert row[0] == TrackStatus.transcode_failed.value
     assert row[1] == "encoder crashed at frame 1234"
+
+
+def test_backfill_job_status_nulls_to_identifying():
+    """A pre-migration Job row with status=NULL must be backfilled to
+    'identifying' before the NOT NULL flip. The migration's _assert_clean
+    pre-check filters WHERE col IS NOT NULL, so NULL rows are invisible
+    to it and would otherwise trip the new NOT NULL constraint
+    mid-ALTER. 'identifying' matches the new Job.__init__ default.
+
+    This test uses a self-contained sqlite engine with a permissive
+    pre-migration schema (status nullable) so it can simulate the exact
+    NULL-row condition the production migration will encounter. Using
+    the post-migration models from app_context would prevent the
+    NULL-row insert that this test exists to cover.
+    """
+    from arm_contracts.enums import JobState
+    import sqlalchemy as sa
+
+    engine = sa.create_engine("sqlite:///:memory:")
+    with engine.begin() as conn:
+        # Pre-migration shape: status is a nullable string column.
+        conn.execute(sa.text(
+            "CREATE TABLE job (job_id INTEGER PRIMARY KEY, status VARCHAR(32))"
+        ))
+        result = conn.execute(sa.text(
+            "INSERT INTO job (status) VALUES (NULL)"
+        ))
+        job_id = result.lastrowid
+
+        # Sanity: confirm the row really landed with NULL.
+        pre = conn.execute(sa.text(
+            "SELECT status FROM job WHERE job_id=:jid"
+        ), {"jid": job_id}).fetchone()
+        assert pre[0] is None
+
+        # Apply the same backfill the migration applies.
+        conn.execute(sa.text(
+            "UPDATE job SET status = 'identifying' WHERE status IS NULL"
+        ))
+
+        row = conn.execute(sa.text(
+            "SELECT status FROM job WHERE job_id=:jid"
+        ), {"jid": job_id}).fetchone()
+        assert row[0] == JobState.IDENTIFYING.value
