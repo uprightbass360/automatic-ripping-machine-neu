@@ -91,3 +91,28 @@ def test_process_single_tracks_sets_too_long(app_context, sample_job, tmp_path):
     db.session.refresh(long_track)
     assert long_track.process is False
     assert long_track.skip_reason == "too_long"
+
+
+def test_folder_prescan_auto_disable_sets_too_short(app_context, sample_job):
+    """The folder-import prescan auto-disable should set both enabled=False
+    AND skip_reason='too_short' on tracks below MINLENGTH."""
+    from arm.models.track import Track
+    from arm.api.v1.folder import auto_disable_short_tracks
+
+    for n, length in [("0", 4568), ("1", 33), ("2", 22)]:
+        db.session.add(Track(
+            job_id=sample_job.job_id, track_number=n, length=length,
+            aspect_ratio="16:9", fps=23.976, main_feature=False,
+            source="MakeMKV", basename=f"t{n}", filename=f"t{n}.mkv",
+        ))
+    db.session.commit()
+
+    auto_disable_short_tracks(sample_job, minlength=600)
+
+    rows = {t.track_number: t for t in db.session.query(Track).filter_by(job_id=sample_job.job_id)}
+    assert rows["0"].enabled is True
+    assert rows["0"].skip_reason is None
+    assert rows["1"].enabled is False
+    assert rows["1"].skip_reason == "too_short"
+    assert rows["2"].enabled is False
+    assert rows["2"].skip_reason == "too_short"

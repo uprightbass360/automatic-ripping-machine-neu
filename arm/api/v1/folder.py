@@ -18,6 +18,21 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["folder"])
 
 
+def auto_disable_short_tracks(job, minlength: int) -> int:
+    """Disable tracks below `minlength` seconds and tag them with skip_reason.
+
+    MakeMKV silently skips these during rip regardless of the checkbox state,
+    so disabling them prevents misleading UI. Returns the count disabled.
+    """
+    disabled_count = 0
+    for track in job.tracks:
+        if track.length is not None and track.length < minlength:
+            track.enabled = False
+            track.skip_reason = "too_short"
+            disabled_count += 1
+    return disabled_count
+
+
 class FolderScanRequest(BaseModel):
     path: str
 
@@ -182,15 +197,8 @@ def _prescan_and_wait(job_id: int):
             prep_mkv()
             prescan_track_info(job)
 
-            # Auto-disable tracks shorter than MakeMKV's minlength threshold.
-            # MakeMKV silently skips these during rip regardless of the
-            # checkbox state, so disabling them prevents misleading UI.
             minlength = int(cfg.arm_config.get("MINLENGTH", 120))
-            disabled_count = 0
-            for track in job.tracks:
-                if track.length is not None and track.length < minlength:
-                    track.enabled = False
-                    disabled_count += 1
+            disabled_count = auto_disable_short_tracks(job, minlength)
             if disabled_count:
                 log.info("Auto-disabled %d tracks shorter than %ds",
                          disabled_count, minlength)
