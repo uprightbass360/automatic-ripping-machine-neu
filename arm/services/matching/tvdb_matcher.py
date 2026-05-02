@@ -77,7 +77,7 @@ class TvdbMatcher(MatchStrategy):
 
         if season is not None:
             return self._match_single_season(
-                tvdb_id, tracks, season, tolerance,
+                job.job_id, tvdb_id, tracks, season, tolerance,
                 disc_number, disc_total, exclude,
             )
         else:
@@ -91,15 +91,20 @@ class TvdbMatcher(MatchStrategy):
     # ------------------------------------------------------------------
 
     def _match_single_season(
-        self, tvdb_id, tracks, season, tolerance,
+        self, job_id, tvdb_id, tracks, season, tolerance,
         disc_number, disc_total, exclude,
     ) -> MatchResult:
         from arm.services import tvdb
+        from arm.services.tvdb_sync import persist_expected_titles_from_episodes
 
         episodes = _run_async(tvdb.get_season_episodes(tvdb_id, season))
         if not episodes:
             log.info("TVDB: no episodes for series %d season %d", tvdb_id, season)
             return MatchResult(matcher=self.name, season=season, tvdb_id=tvdb_id)
+
+        # Persist expected titles before scoring; even if the match is later
+        # discarded, the runtime data is useful for Layer C / future rematches.
+        persist_expected_titles_from_episodes(job_id, season, episodes)
 
         raw = match_tracks_to_episodes(
             tracks, episodes, tolerance,
