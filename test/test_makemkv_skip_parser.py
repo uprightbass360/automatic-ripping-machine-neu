@@ -24,12 +24,19 @@ def test_parse_skip_message_returns_none_for_non_skip_line():
     assert parse_makemkv_skip_message("Title #1 was added (6 cell(s), 1:16:08)") is None
 
 
+def test_parse_skip_message_strips_makemkv_log_prefix():
+    """ARM's logger sometimes re-emits MakeMKV stdout with a 'MakeMKV: ' prefix."""
+    line = "MakeMKV: Title #7 has length of 42 seconds which is less than minimum title length of 600 seconds and was therefore skipped"
+    result = parse_makemkv_skip_message(line)
+    assert result == {"track_number": "7", "length": 42, "min_length": 600}
+
+
 def test_real_log_extracts_5_skip_records():
     text = _FIXTURE.read_text()
     skips = [
-        parse_makemkv_skip_message(line)
+        parsed
         for line in text.splitlines()
-        if parse_makemkv_skip_message(line) is not None
+        if (parsed := parse_makemkv_skip_message(line)) is not None
     ]
     assert len(skips) == 5
     assert {s["track_number"] for s in skips} == {"2", "3", "4", "5", "6"}
