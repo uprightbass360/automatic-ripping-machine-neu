@@ -1398,7 +1398,7 @@ class TestCleanOldJobs:
         from arm.ripper.utils import clean_old_jobs
         _, db = app_context
 
-        job = self._make_job(db, "active", pid=99999)
+        job = self._make_job(db, "ripping", pid=99999)
 
         with unittest.mock.patch('arm.ripper.utils.psutil.pid_exists', return_value=False):
             clean_old_jobs()

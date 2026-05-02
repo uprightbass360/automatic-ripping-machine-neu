@@ -118,7 +118,9 @@ def sample_job(app_context):
     job.start_time = None
     job.stop_time = None
     job.job_length = ""
-    job.status = "active"
+    # JobState.VIDEO_RIPPING ("ripping") - placeholder active state for test
+    # fixtures. Validated by db.Enum on Job.status.
+    job.status = "ripping"
     job.stage = "170750493000"
     job.no_of_titles = 3
     job.title = "SERIAL_MOM"
@@ -336,7 +338,7 @@ def transcoder_notify_job():
     job.video_type = 'movie'
     job.year = '2024'
     job.disctype = 'bluray'
-    job.status = 'active'
+    job.status = 'ripping'
     job.poster_url = ''
     job.title = 'Movie'
     job.multi_title = False

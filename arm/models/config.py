@@ -44,7 +44,8 @@ class Config(db.Model):
     CHOWN_GROUP = db.Column(db.String(50))
     RIPMETHOD = db.Column(
         db.Enum(RipMethod, name="config_ripmethod_enum",
-                native_enum=False, validate_strings=True),
+                native_enum=False, validate_strings=True,
+                values_callable=lambda e: [m.value for m in e]),
         nullable=True,
     )
     MKV_ARGS = db.Column(db.String(25))

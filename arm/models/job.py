@@ -89,7 +89,8 @@ class Job(db.Model):
     job_length = db.Column(db.String(12))
     status = db.Column(
         db.Enum(JobState, name="job_state_enum",
-                native_enum=False, validate_strings=True),
+                native_enum=False, validate_strings=True,
+                values_callable=lambda e: [m.value for m in e]),
         nullable=False,
     )
     stage = db.Column(db.String(63))
@@ -145,7 +146,8 @@ class Job(db.Model):
     is_iso = db.Column(db.Boolean)
     source_type = db.Column(
         db.Enum(SourceType, name="job_source_type_enum",
-                native_enum=False, validate_strings=True),
+                native_enum=False, validate_strings=True,
+                values_callable=lambda e: [m.value for m in e]),
         default=SourceType.disc.value,
         server_default=SourceType.disc.value,
         nullable=False,
@@ -175,6 +177,13 @@ class Job(db.Model):
         self.video_type = "unknown"
         self.ejected = False
         self.updated = False
+        # Status starts in IDENTIFYING - the disc-identification phase is
+        # the first thing the ripper does after Job() construction.
+        # Production code overwrites this almost immediately via
+        # database_updater(); the default is here so the NOT NULL
+        # constraint on Job.status is satisfied even on bare Job() use
+        # (e.g. from test fixtures that bypass the rip orchestration).
+        self.status = JobState.IDENTIFYING.value
         if cfg.arm_config.get('VIDEOTYPE', 'auto') != "auto":
             self.video_type = cfg.arm_config['VIDEOTYPE']
         if not _skip_hardware:
@@ -193,7 +202,7 @@ class Job(db.Model):
             devpath=None,
             _skip_hardware=True,
         )
-        job.source_type = "folder"
+        job.source_type = SourceType.folder.value
         job.source_path = source_path
         job.disctype = disctype
         job.start_time = dt.now()
@@ -399,14 +408,14 @@ class Job(db.Model):
     @property
     def makemkv_source(self) -> str:
         """Return the MakeMKV source string for this job."""
-        if self.source_type == "folder":
+        if self.source_type == SourceType.folder.value:
             return f"file:{self.source_path}"
         return f"dev:{self.devpath}"
 
     @property
     def is_folder_import(self) -> bool:
         """Return True if this job was created from a folder import."""
-        return self.source_type == "folder"
+        return self.source_type == SourceType.folder.value
 
     @property
     def type_subfolder(self):

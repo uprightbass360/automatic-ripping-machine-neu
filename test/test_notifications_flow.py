@@ -21,7 +21,7 @@ class TestNotify:
         job.video_type = 'movie'
         job.disctype = 'bluray'
         job.label = 'SERIAL_MOM'
-        job.status = 'active'
+        job.status='ripping'
         job.path = None
         job.raw_path = None
         job.transcode_path = None
