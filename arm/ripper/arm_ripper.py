@@ -2,6 +2,7 @@
 It would help clear up main and make things easier to find
 """
 import logging
+from collections import Counter
 from importlib.util import find_spec
 from pathlib import Path
 import sys
@@ -70,6 +71,27 @@ def _post_rip_handoff(job):
         utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
 
 
+def check_empty_rip(job) -> bool:
+    """Return True if the job ended with zero tracks ripped, False otherwise.
+
+    On True, also writes a structured failure reason to job.errors so the
+    UI can surface it. Caller should set job.status to a failure state.
+    """
+    tracks = list(job.tracks)
+    n_ripped = sum(1 for t in tracks if t.ripped)
+    if n_ripped > 0:
+        return False
+    reasons = Counter(t.skip_reason or "unknown" for t in tracks)
+    breakdown = ", ".join(f"{n} {reason}" for reason, n in reasons.most_common())
+    job.errors = (
+        f"All {len(tracks)} tracks were filtered or unprocessed: {breakdown}. "
+        f"Check MINLENGTH (current: {job.config.MINLENGTH}s) and "
+        f"MAXLENGTH ({job.config.MAXLENGTH}s)."
+    )
+    db.session.commit()
+    return True
+
+
 def rip_visual_media(have_dupes, job, logfile, protection):
     """
     Main ripping function for dvd and Blu-rays, movies or series.
@@ -110,6 +132,13 @@ def rip_visual_media(have_dupes, job, logfile, protection):
 
     # Persist raw_path to DB — this is the actual directory on disk
     utils.database_updater({'raw_path': makemkv_out_path}, job)
+
+    if check_empty_rip(job):
+        job.status = JobState.FAILURE.value
+        db.session.commit()
+        logging.warning("Empty rip detected: %s", job.errors)
+        notify_exit(job)
+        return
 
     _post_rip_handoff(job)
     logging.info("************* Ripping with MakeMKV completed *************")
