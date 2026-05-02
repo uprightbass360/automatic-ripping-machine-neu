@@ -50,7 +50,7 @@ def _disc_dir_exists(mountpoint, name):
 # JobState lives in shared contracts so transcoder + arm-ui can import the
 # same enum that arm-neu persists. Re-exported here for backwards
 # compatibility with any existing `from arm.models.job import JobState`.
-from arm_contracts.enums import JobState  # noqa: E402,F401
+from arm_contracts.enums import JobState, SourceType  # noqa: E402,F401
 
 
 JOB_STATUS_FINISHED = {
@@ -87,13 +87,11 @@ class Job(db.Model):
     start_time = db.Column(db.DateTime)
     stop_time = db.Column(db.DateTime)
     job_length = db.Column(db.String(12))
-    status = db.Column(db.String(32))
-    """Now that we have JobState, we should migrate this column.
     status = db.Column(
-        db.Enum(JobState, name="job_state_enum", native_enum=False, validate_strings=True),
-        nullable=False
+        db.Enum(JobState, name="job_state_enum",
+                native_enum=False, validate_strings=True),
+        nullable=False,
     )
-    """
     stage = db.Column(db.String(63))
     no_of_titles = db.Column(db.Integer)
     title = db.Column(db.String(256))
@@ -145,7 +143,13 @@ class Job(db.Model):
     pid = db.Column(db.Integer)
     pid_hash = db.Column(db.Integer)
     is_iso = db.Column(db.Boolean)
-    source_type = db.Column(db.String(16), default="disc", nullable=False, server_default="disc")
+    source_type = db.Column(
+        db.Enum(SourceType, name="job_source_type_enum",
+                native_enum=False, validate_strings=True),
+        default=SourceType.disc.value,
+        server_default=SourceType.disc.value,
+        nullable=False,
+    )
     source_path = db.Column(db.String(1024), nullable=True)
     manual_start = db.Column(db.Boolean)
     manual_pause = db.Column(db.Boolean)
