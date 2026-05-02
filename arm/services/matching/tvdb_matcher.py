@@ -123,6 +123,12 @@ class TvdbMatcher(MatchStrategy):
         self, tvdb_id, tracks, tolerance, max_season,
         disc_number, disc_total, exclude,
     ) -> MatchResult:
+        # Note: ExpectedTitle persistence is intentionally NOT done here.
+        # Unlike _match_single_season which has a stable season anchor,
+        # best-season matching scans across all seasons. Persisting episodes
+        # from a tentative season would create stale ExpectedTitle rows if
+        # the best-fit season later changes. Layer C will need to revisit
+        # this if we want runtime-aware filtering for best-season jobs.
         from arm.services import tvdb
 
         log.info("TVDB: no season from metadata, scanning seasons 1-%d", max_season)
