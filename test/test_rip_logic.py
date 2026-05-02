@@ -24,7 +24,7 @@ class TestJobState:
 
     def test_ripping_value(self):
         from arm.models.job import JobState
-        assert JobState.VIDEO_RIPPING.value == "ripping"
+        assert JobState.VIDEO_RIPPING.value == "video_ripping"
 
     def test_transcoding_value(self):
         from arm.models.job import JobState
@@ -1398,7 +1398,7 @@ class TestCleanOldJobs:
         from arm.ripper.utils import clean_old_jobs
         _, db = app_context
 
-        job = self._make_job(db, "ripping", pid=99999)
+        job = self._make_job(db, "video_ripping", pid=99999)
 
         with unittest.mock.patch('arm.ripper.utils.psutil.pid_exists', return_value=False):
             clean_old_jobs()

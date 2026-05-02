@@ -85,8 +85,18 @@ def _auto_flag_tracks(job, mainfeature: bool):
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
 
 
-_ACTIVE_STATUSES = {"ripping", "transcoding", "waiting"}
-_WAITING_STATUSES = {"waiting", "waiting_transcode"}
+_ACTIVE_STATUSES = {
+    JobState.VIDEO_RIPPING.value,
+    JobState.AUDIO_RIPPING.value,
+    JobState.TRANSCODE_ACTIVE.value,
+    JobState.MANUAL_PAUSED.value,
+    JobState.MAKEMKV_THROTTLED.value,
+}
+_WAITING_STATUSES = {
+    JobState.MANUAL_PAUSED.value,
+    JobState.MAKEMKV_THROTTLED.value,
+    JobState.TRANSCODE_WAITING.value,
+}
 
 _SORTABLE_COLUMNS = {
     "title": Job.title,
@@ -293,7 +303,7 @@ def start_waiting_job(job_id: int):
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
 
-    if job.status != JobState.MANUAL_WAIT_STARTED.value:
+    if job.status != JobState.MANUAL_PAUSED.value:
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
     if job.source_type == SourceType.folder.value:
@@ -326,7 +336,7 @@ def pause_waiting_job(job_id: int, body: dict | None = None):
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
 
-    if job.status != JobState.MANUAL_WAIT_STARTED.value:
+    if job.status != JobState.MANUAL_PAUSED.value:
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
     if body and "paused" in body:
@@ -350,7 +360,7 @@ def cancel_waiting_job(job_id: int):
     if not job:
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
 
-    if job.status != JobState.MANUAL_WAIT_STARTED.value:
+    if job.status != JobState.MANUAL_PAUSED.value:
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
     notification = Notifications(

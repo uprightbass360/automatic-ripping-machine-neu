@@ -205,14 +205,14 @@ def _prescan_and_wait(job_id: int):
                 log.info("Auto-disabled %d tracks shorter than %ds",
                          disabled_count, minlength)
 
-            job.status = JobState.MANUAL_WAIT_STARTED.value
+            job.status = JobState.MANUAL_PAUSED.value
             db.session.commit()
             log.info("Prescan complete for job %s — %d tracks found, waiting for review",
                      job_id, len(list(job.tracks)))
         except Exception as exc:
             log.error("Prescan failed for job %s: %s", job_id, exc)
             try:
-                job.status = JobState.MANUAL_WAIT_STARTED.value
+                job.status = JobState.MANUAL_PAUSED.value
                 job.errors = f"Prescan failed: {exc}"
                 db.session.commit()
             except Exception:

@@ -21,7 +21,7 @@ class TestNotify:
         job.video_type = 'movie'
         job.disctype = 'bluray'
         job.label = 'SERIAL_MOM'
-        job.status='ripping'
+        job.status='video_ripping'
         job.path = None
         job.raw_path = None
         job.transcode_path = None
@@ -249,7 +249,7 @@ class TestRipMusic:
             cfg.arm_config['ABCDE_CONFIG_FILE'] = original
 
     def test_sets_status_ripping(self):
-        """Sets job status to 'ripping' before calling abcde."""
+        """Sets job status to 'audio_ripping' before calling abcde."""
         from arm.ripper.utils import rip_music
         import arm.config.config as cfg
 
@@ -264,9 +264,11 @@ class TestRipMusic:
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
                  unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
                 rip_music(job, 'test.log')
-                # First call should set status to ripping
+                # First call should set status to audio_ripping (the
+                # disambiguated wire string for music ripping; was
+                # 'ripping' before contracts v2.0.0 alias-collision fix).
                 first_call = mock_updater.call_args_list[0][0][0]
-                assert first_call['status'] == 'ripping'
+                assert first_call['status'] == 'audio_ripping'
         finally:
             cfg.arm_config['ABCDE_CONFIG_FILE'] = original
 
@@ -284,7 +286,6 @@ class TestRipMusic:
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
                  unittest.mock.patch('arm.ripper.utils._stream_abcde_output', return_value=[]), \
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
-                 unittest.mock.patch('arm.ripper.utils._update_music_tracks_ripped_only'), \
                  unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
                 result = rip_music(job, 'test.log')
                 assert result is False
@@ -376,7 +377,7 @@ class TestCleanOldJobs:
         job.title = 'ZOMBIE'
         job.title_auto = 'ZOMBIE'
         job.label = 'ZOMBIE'
-        job.status = 'ripping'
+        job.status = 'video_ripping'
         job.pid = 999999  # Non-existent PID
         job.pid_hash = 0
         db.session.add(job)
@@ -400,7 +401,7 @@ class TestCleanOldJobs:
         job.title = 'RUNNING'
         job.title_auto = 'RUNNING'
         job.label = 'RUNNING'
-        job.status = 'ripping'
+        job.status = 'video_ripping'
         job.pid = os.getpid()  # This PID exists
         job.pid_hash = hash(unittest.mock.MagicMock())
         db.session.add(job)
@@ -414,4 +415,4 @@ class TestCleanOldJobs:
             clean_old_jobs()
 
         db.session.refresh(job)
-        assert job.status == 'ripping'  # unchanged
+        assert job.status == 'video_ripping'  # unchanged

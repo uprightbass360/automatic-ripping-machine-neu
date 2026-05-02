@@ -367,7 +367,7 @@ class TestTvdbMatch:
         """disc_number and disc_total from request body are set on the job before matching."""
         sample_job.disc_number = 1
         sample_job.disc_total = 1
-        sample_job.status = "waiting"
+        sample_job.status = "manual_paused"
         db.session.commit()
 
         captured_disc_number = None
@@ -394,7 +394,7 @@ class TestTvdbMatch:
         """In preview mode (apply=false), original disc values are restored after matching."""
         sample_job.disc_number = 1
         sample_job.disc_total = 2
-        sample_job.status = "waiting"
+        sample_job.status = "manual_paused"
         db.session.commit()
 
         def fake_match(job, season=None, tolerance=None, apply=False):
@@ -416,7 +416,7 @@ class TestTvdbMatch:
         """In apply mode (apply=true), disc overrides persist on the job."""
         sample_job.disc_number = 1
         sample_job.disc_total = 2
-        sample_job.status = "waiting"
+        sample_job.status = "manual_paused"
         db.session.commit()
 
         def fake_match(job, season=None, tolerance=None, apply=False):

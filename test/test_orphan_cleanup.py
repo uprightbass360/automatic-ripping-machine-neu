@@ -37,7 +37,7 @@ class TestCleanupOrphanedJobs:
         assert count == 1
 
     def test_waiting_job_gets_failed(self, mock_clean, app_context, sample_job):
-        sample_job.status = JobState.MANUAL_WAIT_STARTED.value
+        sample_job.status = JobState.MANUAL_PAUSED.value
         db.session.commit()
 
         from arm.services.job_cleanup import cleanup_orphaned_jobs

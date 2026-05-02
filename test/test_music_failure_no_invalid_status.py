@@ -1,27 +1,23 @@
-"""Regression: music-rip failure paths must not write a non-enum
-``status`` value into ``Track.status``.
+"""Regression: music-rip failure paths must write a valid TrackStatus
+member into ``Track.status``.
 
 Background
 ----------
-Before this fix, the abcde wrapper's ``TimeoutError`` and
-``subprocess.CalledProcessError`` branches in ``utils.rip_music`` called
-``_update_music_tracks(job, ripped=False, status="fail")``.  ``"fail"``
-is not a member of ``TrackStatus``; with the column declared as
-``db.Enum(... validate_strings=True)`` the commit raises a
-``LookupError`` / ``StatementError``.  In production the helper swallows
-the exception in its broad ``except`` clause and rolls back, so the
-breakage is silent - the per-track status never advances and no test
-catches it.
+Before TrackStatus.failed existed, the abcde wrapper's ``TimeoutError``
+and ``subprocess.CalledProcessError`` branches in ``utils.rip_music``
+called a workaround helper (``_update_music_tracks_ripped_only``) that
+only flipped ``ripped`` to False and left ``status`` at its prior value
+(typically 'pending'). That was a deliberate workaround for the missing
+TrackStatus member.
 
-This test pins the contract:
+With ``TrackStatus.failed`` shipped in arm_contracts v2.0.0, the failure
+branches now call ``_update_music_tracks(job, ripped=False,
+status=TrackStatus.failed.value)`` directly. This test pins:
 
 * both abcde failure modes (TimeoutError, CalledProcessError) finish
   cleanly (no raised LookupError, function returns False),
-* per-track ``status`` stays at its prior value (``"pending"`` from
-  ``Track.__init__``) - i.e. we no longer attempt to coerce a bare
-  ``"fail"`` string into the enum column,
-* ``ripped`` is False (the only field the failure path is allowed to
-  flip).
+* per-track ``status`` is set to ``TrackStatus.failed.value``,
+* ``ripped`` is False.
 """
 import os
 import unittest.mock
@@ -57,7 +53,7 @@ def music_job(app_context):
     job.start_time = None
     job.stop_time = None
     job.job_length = ""
-    job.status = 'ripping'
+    job.status = 'audio_ripping'
     job.stage = "170750493000"
     job.no_of_titles = 0
     job.title = "DARK_SIDE"
@@ -140,25 +136,18 @@ def _seed_tracks(job, count=3):
 # Regression tests
 # ---------------------------------------------------------------------------
 
-class TestMusicFailureUsesRippedOnlyHelper:
-    """The abcde failure branches MUST route through
-    ``_update_music_tracks_ripped_only`` and never through
-    ``_update_music_tracks(..., status="fail")``.
+class TestMusicFailureMarksTracksFailed:
+    """The abcde failure branches MUST mark per-track status as
+    ``TrackStatus.failed``. Prior to v2.0.0 of arm_contracts there was no
+    failed member and the code routed through a ripped-only workaround;
+    now the workaround is retired and the failed status is the source of
+    truth at the track level."""
 
-    The naive integration test ("status stays pending on failure") is
-    insufficient: the buggy code path also leaves status at 'pending',
-    because ``_update_music_tracks`` swallows the resulting LookupError
-    in its broad try/except and rolls back.  So we additionally assert
-    the helper *call shape*, which is what actually flipped between the
-    buggy and fixed versions.
-    """
-
-    def test_called_process_error_routes_through_ripped_only_helper(
+    def test_called_process_error_marks_tracks_failed(
         self, music_job, tmp_path
     ):
         """Non-zero abcde exit -> CalledProcessError branch -> calls
-        ``_update_music_tracks_ripped_only(job, ripped=False)``, never
-        ``_update_music_tracks(..., status="fail")``."""
+        ``_update_music_tracks(job, ripped=False, status='failed')``."""
         tracks = _seed_tracks(music_job)
         music_job.config.LOGPATH = str(tmp_path)
         logfile = "abcde_test.log"
@@ -175,35 +164,33 @@ class TestMusicFailureUsesRippedOnlyHelper:
              unittest.mock.patch('subprocess.Popen', return_value=mock_proc), \
              unittest.mock.patch(
                  'arm.ripper.utils._update_music_tracks'
-             ) as mock_with_status, \
-             unittest.mock.patch(
-                 'arm.ripper.utils._update_music_tracks_ripped_only'
-             ) as mock_ripped_only:
+             ) as mock_with_status:
             result = utils.rip_music(music_job, logfile)
 
         assert result is False
-        # The fixed code path uses the ripped-only helper
-        mock_ripped_only.assert_called_once_with(music_job, ripped=False)
-        # And does NOT invoke the helper that would attempt to write
-        # a non-enum 'fail' string into Track.status
+        # The fixed code path now calls _update_music_tracks with the
+        # generic failed status. Find at least one such call.
+        failed_calls = [
+            c for c in mock_with_status.call_args_list
+            if c.kwargs.get('status') == TrackStatus.failed.value
+            and c.kwargs.get('ripped') is False
+        ]
+        assert failed_calls, (
+            f"Expected at least one _update_music_tracks call with "
+            f"status='failed' and ripped=False, got: "
+            f"{mock_with_status.call_args_list!r}"
+        )
+        # And NO call should pass a bare 'fail' (the JobState string,
+        # which is not a TrackStatus member).
         for call in mock_with_status.call_args_list:
             assert call.kwargs.get('status') != 'fail', \
                 f"_update_music_tracks called with bare 'fail': {call!r}"
-            assert call.kwargs.get('status') != TrackStatus.pending.value or True
 
-        # And the live tracks remain unchanged on status (no real DB
-        # write of an invalid enum happened either).
-        for t in tracks:
-            db.session.refresh(t)
-            assert t.status == TrackStatus.pending.value
-            assert t.status != "fail"
-
-    def test_timeout_error_routes_through_ripped_only_helper(
+    def test_timeout_error_marks_tracks_failed(
         self, music_job, tmp_path
     ):
         """abcde stall -> TimeoutError branch -> calls
-        ``_update_music_tracks_ripped_only(job, ripped=False)``, never
-        ``_update_music_tracks(..., status="fail")``."""
+        ``_update_music_tracks(job, ripped=False, status='failed')``."""
         tracks = _seed_tracks(music_job)
         music_job.config.LOGPATH = str(tmp_path)
         logfile = "abcde_test.log"
@@ -223,41 +210,44 @@ class TestMusicFailureUsesRippedOnlyHelper:
              ), \
              unittest.mock.patch(
                  'arm.ripper.utils._update_music_tracks'
-             ) as mock_with_status, \
-             unittest.mock.patch(
-                 'arm.ripper.utils._update_music_tracks_ripped_only'
-             ) as mock_ripped_only:
+             ) as mock_with_status:
             result = utils.rip_music(music_job, logfile)
 
         assert result is False
-        mock_ripped_only.assert_called_once_with(music_job, ripped=False)
+        failed_calls = [
+            c for c in mock_with_status.call_args_list
+            if c.kwargs.get('status') == TrackStatus.failed.value
+            and c.kwargs.get('ripped') is False
+        ]
+        assert failed_calls, (
+            f"Expected at least one _update_music_tracks call with "
+            f"status='failed' and ripped=False, got: "
+            f"{mock_with_status.call_args_list!r}"
+        )
         for call in mock_with_status.call_args_list:
             assert call.kwargs.get('status') != 'fail', \
                 f"_update_music_tracks called with bare 'fail': {call!r}"
 
-        for t in tracks:
-            db.session.refresh(t)
-            assert t.status == TrackStatus.pending.value
-            assert t.status != "fail"
 
+class TestUpdateMusicTracksFailedStatus:
+    """Direct unit test: _update_music_tracks with TrackStatus.failed
+    actually persists to the DB without raising the LookupError that
+    used to break the buggy ``status='fail'`` path before TrackStatus
+    grew the failed member."""
 
-class TestUpdateMusicTracksRippedOnly:
-    """Direct unit test of the helper used by both failure branches.
-    Belt-and-braces in case the integration tests above ever get
-    short-circuited by a mock change - this would still catch a
-    regression on the helper itself."""
-
-    def test_helper_does_not_touch_status(self, music_job):
+    def test_helper_persists_failed_status(self, music_job):
         tracks = _seed_tracks(music_job, count=2)
 
         # Sanity: starting state is the constructor default.
         for t in tracks:
             assert t.status == TrackStatus.pending.value
 
-        # Should be a no-op on `status` and flip `ripped` to False.
-        utils._update_music_tracks_ripped_only(music_job, ripped=False)
+        # Should set status='failed' and ripped=False on all tracks.
+        utils._update_music_tracks(
+            music_job, ripped=False, status=TrackStatus.failed.value,
+        )
 
         for t in tracks:
             db.session.refresh(t)
-            assert t.status == TrackStatus.pending.value
+            assert t.status == TrackStatus.failed.value
             assert t.ripped is False

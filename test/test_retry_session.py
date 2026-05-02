@@ -114,13 +114,13 @@ class TestRetryOnLocked:
 
     def test_dirty_state_preserved_across_retry(self, retry_db):
         """Modified attributes must persist after retry, not revert to DB values."""
-        job = _make_job(title="Original", status='ripping')
+        job = _make_job(title="Original", status='video_ripping')
         db.session.add(job)
         db.session.commit()
 
         # Modify attributes
         job.title = "Modified"
-        job.status = "ripping"
+        job.status = "video_ripping"
 
         call_count = {"n": 0}
         real_commit = BaseSession.commit
@@ -140,7 +140,7 @@ class TestRetryOnLocked:
         db.session.expire_all()
         result = db.session.query(Job).first()
         assert result.title == "Modified", f"Expected 'Modified', got '{result.title}'"
-        assert result.status == "ripping", f"Expected 'ripping', got '{result.status}'"
+        assert result.status == "video_ripping", f"Expected 'video_ripping', got '{result.status}'"
 
     def test_new_object_survives_retry(self, retry_db):
         """A newly added object must survive rollback+retry."""
@@ -339,7 +339,7 @@ class TestDatabaseUpdaterSimplified:
     def test_sets_attributes_and_commits(self, retry_db):
         from arm.services.files import database_updater
 
-        job = _make_job(title="Original", status='ripping')
+        job = _make_job(title="Original", status='video_ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -359,7 +359,7 @@ class TestDatabaseUpdaterSimplified:
         """wait_time parameter is accepted for backward compat."""
         from arm.services.files import database_updater
 
-        job = _make_job(status='ripping')
+        job = _make_job(status='video_ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -391,7 +391,7 @@ class TestProactiveRollback:
 
     def test_rollback_clears_pending_error(self, retry_db):
         """Simulate bad session state and verify rollback recovers it."""
-        job = _make_job(status='ripping')
+        job = _make_job(status='video_ripping')
         db.session.add(job)
         db.session.commit()
 
@@ -415,7 +415,7 @@ class TestProactiveRollback:
     def test_remove_gives_clean_session(self, retry_db):
         """After remove(), next access gets a fresh session."""
         # Dirty the session
-        job = _make_job(status='ripping')
+        job = _make_job(status='video_ripping')
         db.session.add(job)
         # Don't commit - just remove
         db.session.remove()
