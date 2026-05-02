@@ -37,3 +37,57 @@ def test_track_skip_reason_set_to_too_short(app_context, sample_job):
 
     rows = db.session.query(Track).filter_by(skip_reason="too_short").all()
     assert len(rows) == 1
+
+
+def test_process_single_tracks_sets_too_short(app_context, sample_job, tmp_path):
+    """When a track is below MINLENGTH, process_single_tracks sets
+    process=False and skip_reason='too_short'."""
+    from unittest.mock import patch
+    from arm.models.track import Track
+    from arm.ripper import makemkv
+
+    sample_job.config.MINLENGTH = "600"
+    sample_job.config.MAXLENGTH = "5000"
+    sample_job.config.MKV_ARGS = ""
+
+    short = Track(
+        job_id=sample_job.job_id, track_number="0", length=33,
+        aspect_ratio="16:9", fps=23.976, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    db.session.add(short)
+    db.session.commit()
+    db.session.refresh(sample_job)
+
+    with patch.object(makemkv, "run", return_value=iter([])):
+        makemkv.process_single_tracks(sample_job, str(tmp_path), "auto")
+
+    db.session.refresh(short)
+    assert short.process is False
+    assert short.skip_reason == "too_short"
+
+
+def test_process_single_tracks_sets_too_long(app_context, sample_job, tmp_path):
+    from unittest.mock import patch
+    from arm.models.track import Track
+    from arm.ripper import makemkv
+
+    sample_job.config.MINLENGTH = "600"
+    sample_job.config.MAXLENGTH = "5000"
+    sample_job.config.MKV_ARGS = ""
+
+    long_track = Track(
+        job_id=sample_job.job_id, track_number="0", length=12345,
+        aspect_ratio="16:9", fps=23.976, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    db.session.add(long_track)
+    db.session.commit()
+    db.session.refresh(sample_job)
+
+    with patch.object(makemkv, "run", return_value=iter([])):
+        makemkv.process_single_tracks(sample_job, str(tmp_path), "auto")
+
+    db.session.refresh(long_track)
+    assert long_track.process is False
+    assert long_track.skip_reason == "too_long"

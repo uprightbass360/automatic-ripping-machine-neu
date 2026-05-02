@@ -1291,20 +1291,19 @@ def process_single_tracks(job, rawpath, mode: str):
         # Process single track automatically based on start and finish times
         if mode == 'auto':
             if track.length < int(job.config.MINLENGTH):
-                # too short
                 logging.info(f"Track #{track.track_number} of {job.no_of_titles}. Length ({track.length}) "
                              f"is less than minimum length ({job.config.MINLENGTH}).  Skipping")
                 track.process = False
-
+                track.skip_reason = "too_short"
             elif track.length > int(job.config.MAXLENGTH):
-                # too long
                 logging.info(f"Track #{track.track_number} of {job.no_of_titles}. "
                              f"Length ({track.length}) is greater than maximum length ({job.config.MAXLENGTH}).  "
                              "Skipping")
                 track.process = False
+                track.skip_reason = "too_long"
             else:
-                # track is just right
                 track.process = True
+                track.skip_reason = None
 
         # Rip the track if the user has set it to rip, or in auto mode and the time is good
         if track.process:
@@ -1328,6 +1327,7 @@ def process_single_tracks(job, rawpath, mode: str):
             collections.deque(run(cmd, OutputType.MSG), maxlen=0)
             track.ripped = True
             db.session.commit()
+    db.session.commit()
 
 
 def setup_rawpath(raw_path):
