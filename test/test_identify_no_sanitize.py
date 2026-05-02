@@ -15,6 +15,7 @@ class TestUpdateJobNoSanitize:
         match.type = "movie"
         match.imdb_id = "tt0111127"
         match.poster_url = ""
+        match.raw_result = None
         match.score = 0.95
         match.title_score = 0.95
         match.year_score = 1.0
@@ -46,6 +47,7 @@ class TestUpdateJobNoSanitize:
         match.type = "movie"
         match.imdb_id = "tt0076759"
         match.poster_url = ""
+        match.raw_result = None
         match.score = 0.95
         match.title_score = 0.95
         match.year_score = 1.0
@@ -76,6 +78,7 @@ class TestUpdateJobNoSanitize:
         match.type = "movie"
         match.imdb_id = "tt1259521"
         match.poster_url = ""
+        match.raw_result = None
         match.score = 0.95
         match.title_score = 0.95
         match.year_score = 1.0
@@ -106,6 +109,7 @@ class TestUpdateJobNoSanitize:
         match.type = "movie"
         match.imdb_id = "tt0112384"
         match.poster_url = ""
+        match.raw_result = None
         match.score = 0.95
         match.title_score = 0.95
         match.year_score = 1.0
@@ -136,6 +140,7 @@ class TestUpdateJobNoSanitize:
         match.type = "movie"
         match.imdb_id = "tt0062622"
         match.poster_url = ""
+        match.raw_result = None
         match.score = 0.95
         match.title_score = 0.95
         match.year_score = 1.0

@@ -543,7 +543,8 @@ class TestIdentifyDvdCrc:
              unittest.mock.patch('arm.services.metadata_sync.lookup_crc_sync',
                                  return_value=crc_result), \
              unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
-             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'), \
+             unittest.mock.patch('arm.ripper.identify._write_movie_expected_title'):
             mock_dvdid.compute.return_value = "abc123"
             mock_utils.extract_year.return_value = "1999"
             result = identify_dvd(job)
@@ -606,7 +607,8 @@ class TestIdentifyDvdCrc:
              unittest.mock.patch('arm.services.metadata_sync.get_details_sync',
                                  return_value=details_result) as mock_details, \
              unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
-             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'), \
+             unittest.mock.patch('arm.ripper.identify._write_movie_expected_title'):
             mock_dvdid.compute.return_value = "abc123"
             mock_utils.extract_year.return_value = "2016"
             result = identify_dvd(job)
@@ -633,7 +635,8 @@ class TestIdentifyDvdCrc:
                                  return_value=crc_result), \
              unittest.mock.patch('arm.services.metadata_sync.get_details_sync') as mock_details, \
              unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
-             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'), \
+             unittest.mock.patch('arm.ripper.identify._write_movie_expected_title'):
             mock_dvdid.compute.return_value = "abc123"
             mock_utils.extract_year.return_value = "2020"
             result = identify_dvd(job)
@@ -659,7 +662,8 @@ class TestIdentifyDvdCrc:
              unittest.mock.patch('arm.services.metadata_sync.get_details_sync',
                                  side_effect=Exception("API timeout")), \
              unittest.mock.patch('arm.ripper.identify.utils') as mock_utils, \
-             unittest.mock.patch('arm.ripper.identify._detect_track_99'):
+             unittest.mock.patch('arm.ripper.identify._detect_track_99'), \
+             unittest.mock.patch('arm.ripper.identify._write_movie_expected_title'):
             mock_dvdid.compute.return_value = "abc123"
             mock_utils.extract_year.return_value = "2016"
             result = identify_dvd(job)
