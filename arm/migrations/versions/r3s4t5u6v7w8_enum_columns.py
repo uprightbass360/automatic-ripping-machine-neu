@@ -57,9 +57,9 @@ def _assert_clean(conn, table, column, allowed):
 def upgrade() -> None:
     conn = op.get_bind()
 
-    # 1. Track.status backfill: split 'transcode_failed: <msg>' rows.
-    #    The error text is preserved in the existing Track.error column,
-    #    which is db.Text (no length cap).
+    # 1a. Track.status backfill: split 'transcode_failed: <msg>' rows.
+    #     The error text is preserved in the existing Track.error column,
+    #     which is db.Text (no length cap).
     conn.execute(sa.text("""
         UPDATE track
         SET error = CASE
@@ -70,6 +70,16 @@ def upgrade() -> None:
             status = 'transcode_failed'
         WHERE status LIKE 'transcode_failed:%'
     """))
+
+    # 1b. Backfill Job.status NULLs to 'identifying' before the NOT NULL
+    #     flip below. _assert_clean filters WHERE col IS NOT NULL, so NULL
+    #     rows would otherwise pass the pre-check and then trip the new
+    #     constraint mid-ALTER. 'identifying' matches the new
+    #     Job.__init__ default and is the natural state for a row that
+    #     was created but never had its status populated.
+    conn.execute(sa.text(
+        "UPDATE job SET status = 'identifying' WHERE status IS NULL"
+    ))
 
     # 2. Pre-checks: refuse to migrate if any column has an out-of-band
     #    value. Better to fail loudly here than to silently truncate or

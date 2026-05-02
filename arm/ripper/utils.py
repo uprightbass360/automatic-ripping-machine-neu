@@ -1061,7 +1061,12 @@ def clean_old_jobs():
     :return: None
     """
     # Exclude terminal states and transcode states (managed by the external transcoder)
-    excluded = ['fail', 'success', 'waiting_transcode', 'transcoding']
+    excluded = [
+        JobState.FAILURE.value,
+        JobState.SUCCESS.value,
+        JobState.TRANSCODE_WAITING.value,
+        JobState.TRANSCODE_ACTIVE.value,
+    ]
     active_jobs = db.session.query(Job).filter(Job.status.notin_(excluded)).all()
     # Clean up abandoned jobs
     for job in active_jobs:
