@@ -239,11 +239,14 @@ def test_real_migration_module_executes_backfill_against_seeded_db(tmp_path):
         ))
 
     # Load the production migration module so we exercise its actual
-    # SQL strings (not a fork in this test file).
-    mig_path = (
-        "/home/upb/src/automatic-ripping-machine-neu/arm/migrations/"
-        "versions/s4t5u6v7w8x9_jobstate_disambiguation.py"
-    )
+    # SQL strings (not a fork in this test file). Resolve relative to
+    # this test file so the path works locally and in CI.
+    import os
+    mig_path = os.path.normpath(os.path.join(
+        os.path.dirname(__file__),
+        "..", "arm", "migrations", "versions",
+        "s4t5u6v7w8x9_jobstate_disambiguation.py",
+    ))
     spec = importlib.util.spec_from_file_location(
         "s4t5u6v7w8x9_jobstate_disambiguation", mig_path,
     )
