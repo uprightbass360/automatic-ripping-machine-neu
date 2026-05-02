@@ -113,6 +113,10 @@ def _job_to_dict(job):
     transcode_overrides arrives from the DB as a JSON string; pre-parse
     it to a dict so the contract's `dict | None` type validates. Legacy-
     key stripping is consumer-side (arm-ui) and not the producer's job.
+
+    expected_titles is a db.relationship (not a column), so it has to be
+    added explicitly. Pydantic's from_attributes=True on ExpectedTitle
+    handles the per-row validation.
     """
     data = {
         col.name: getattr(job, col.name)
@@ -124,6 +128,7 @@ def _job_to_dict(job):
             data["transcode_overrides"] = json.loads(raw_overrides)
         except (json.JSONDecodeError, TypeError):
             data["transcode_overrides"] = None
+    data["expected_titles"] = list(job.expected_titles or [])
     return JobContract.model_validate(data).model_dump(mode="json")
 
 
