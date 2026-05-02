@@ -23,7 +23,7 @@ def test_job_detail_includes_expected_titles(client, app_context, sample_job):
         job_id=sample_job.job_id,
         source="omdb",
         title="Inception",
-        runtime_seconds=8523,  # fractional, not 8520
+        runtime_seconds=8523,
         external_id="tt1375666",
     ))
     db.session.commit()
@@ -61,7 +61,7 @@ def test_job_detail_includes_tv_episode_rows(client, app_context, sample_job):
             title=f"Episode {n}",
             season=1,
             episode_number=n,
-            runtime_seconds=2820 + n,  # avoid round numbers
+            runtime_seconds=2820 + n,
         ))
     db.session.commit()
 
