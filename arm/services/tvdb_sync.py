@@ -82,6 +82,9 @@ def persist_expected_titles_from_episodes(
 ) -> None:
     """Write one ExpectedTitle per TVDB episode for the given job.
 
+    Takes job_id rather than a Job instance so it can be called from
+    matcher context where no session-attached ORM object is needed.
+
     Episodes are dicts shaped like
     {"number": int, "name": str, "runtime": int_seconds}
     (the shape produced by tvdb.get_season_episodes which converts
