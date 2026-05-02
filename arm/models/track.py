@@ -20,6 +20,7 @@ class Track(db.Model):
     source = db.Column(db.String(32))
     process = db.Column(db.Boolean)
     enabled = db.Column(db.Boolean, default=True)
+    skip_reason = db.Column(db.String(32), nullable=True)
     chapters = db.Column(db.Integer, default=0)
     filesize = db.Column(db.BigInteger, default=0)
     # Per-track title metadata (nullable — inherits job-level when null)
