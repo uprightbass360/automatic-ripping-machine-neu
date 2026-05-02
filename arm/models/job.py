@@ -1,4 +1,3 @@
-import enum
 import logging
 import os
 import psutil
@@ -48,53 +47,10 @@ def _disc_dir_exists(mountpoint, name):
     return _find_disc_dir(mountpoint, name) is not None
 
 
-class JobState(str, enum.Enum):
-    """Possible states for Job.status.
-
-    The origin of the states is getting unclear at this point. Therefore, the
-    possible `Job.status` states are defined as fixed enums to handle and group
-    them better. Some come from CD, some from DVD ripping.
-
-    Note: The timestamps could also be saved particularily for each step to
-          show, for example, the pure transcoding time without the waiting
-          time.
-    """
-
-    # Job Finished States
-    SUCCESS = "success"
-    FAILURE = "fail"
-
-    # Manual wait (see job.config.MANUAL_WAIT)
-    MANUAL_WAIT_STARTED = "waiting"
-
-    # Disc identification phase
-    IDENTIFYING = "identifying"
-    """Indicate that ARM is identifying the disc (reading label, querying APIs)."""
-
-    # Job identified and ready to rip
-    IDLE = "ready"
-    """Job has been identified and is ready to proceed to ripping."""
-
-    # Video Ripping States
-    VIDEO_RIPPING = "ripping"
-    """Indicate that makemkv is ripping."""
-    VIDEO_WAITING = "waiting"
-    """Indicate that the job waits for user input or for the next queue slot."""
-    VIDEO_INFO = "info"
-    """Indicate that the job calls makemkv info"""
-
-    # Audio ripping states
-    AUDIO_RIPPING = "ripping"
-
-    # Post-rip states
-    COPYING = "copying"
-    """Indicate that ripped files are being moved to shared/network storage."""
-    EJECTING = "ejecting"
-    """Indicate that the disc is being ejected from the drive."""
-
-    # Transcoding states
-    TRANSCODE_ACTIVE = "transcoding"
-    TRANSCODE_WAITING = "waiting_transcode"
+# JobState lives in shared contracts so transcoder + arm-ui can import the
+# same enum that arm-neu persists. Re-exported here for backwards
+# compatibility with any existing `from arm.models.job import JobState`.
+from arm_contracts.enums import JobState  # noqa: E402,F401
 
 
 JOB_STATUS_FINISHED = {
