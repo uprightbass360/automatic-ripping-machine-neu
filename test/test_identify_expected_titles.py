@@ -61,3 +61,74 @@ def test_write_movie_expected_title_idempotent(app_context, sample_job):
     assert rows[0].title == "V2"
     assert rows[0].source == "tmdb"
     assert rows[0].runtime_seconds == 8523
+
+
+def test_update_job_skips_expected_title_for_series(app_context, sample_job):
+    """update_job should NOT write a movie ExpectedTitle for series matches.
+    TV ExpectedTitle rows are populated by the TVDB path in A6."""
+    from unittest.mock import MagicMock, patch
+    from arm.models.expected_title import ExpectedTitle
+    from arm.ripper.identify import update_job
+
+    # Construct a minimal MatchSelection-like return that update_job consumes.
+    best = MagicMock()
+    best.title = "Some Series"
+    best.year = "2020"
+    best.type = "series"
+    best.imdb_id = "tt9999999"
+    best.poster_url = ""
+    best.score = 0.95
+    best.title_score = 0.95
+    best.year_score = 1.0
+    best.type_score = 1.0
+    best.raw_result = {"runtime_seconds": 2820}
+
+    selection = MagicMock()
+    selection.hasnicetitle = True
+    selection.best = best
+    selection.label_info = None
+    selection.all_scored = [best]
+
+    with patch("arm.ripper.arm_matcher.match_disc", return_value=selection):
+        update_job(sample_job, {"Search": [{"_": "_"}]})
+
+    # No ExpectedTitle row should be written for a series match.
+    rows = db.session.query(ExpectedTitle).filter_by(
+        job_id=sample_job.job_id
+    ).all()
+    assert rows == []
+
+
+def test_update_job_writes_expected_title_for_movie(app_context, sample_job):
+    """update_job SHOULD write a movie ExpectedTitle for movie matches."""
+    from unittest.mock import MagicMock, patch
+    from arm.models.expected_title import ExpectedTitle
+    from arm.ripper.identify import update_job
+
+    best = MagicMock()
+    best.title = "Inception"
+    best.year = "2010"
+    best.type = "movie"
+    best.imdb_id = "tt1375666"
+    best.poster_url = ""
+    best.score = 0.95
+    best.title_score = 0.95
+    best.year_score = 1.0
+    best.type_score = 1.0
+    best.raw_result = {"runtime_seconds": 8880}
+
+    selection = MagicMock()
+    selection.hasnicetitle = True
+    selection.best = best
+    selection.label_info = None
+    selection.all_scored = [best]
+
+    with patch("arm.ripper.arm_matcher.match_disc", return_value=selection):
+        update_job(sample_job, {"Search": [{"_": "_"}]})
+
+    rows = db.session.query(ExpectedTitle).filter_by(
+        job_id=sample_job.job_id
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].title == "Inception"
+    assert rows[0].runtime_seconds == 8880

@@ -672,17 +672,21 @@ def update_job(job, search_results):
             args['season_auto'] = str(selection.label_info.season_number)
             args['season'] = str(selection.label_info.season_number)
     result = utils.database_updater(args, job)
-    runtime_seconds = (best.raw_result or {}).get("runtime_seconds")
-    provider = (cfg.arm_config.get("METADATA_PROVIDER") or "omdb").lower()
-    if provider not in ("omdb", "tmdb"):
-        provider = "omdb"
-    _write_movie_expected_title(
-        job,
-        title=title,
-        imdb_id=best.imdb_id,
-        runtime_seconds=runtime_seconds,
-        source=provider,
-    )
+
+    # Only write ExpectedTitle for movies. TV series matches are handled by the
+    # TVDB-based path in A6, which writes one row per episode.
+    if best.type == "movie":
+        runtime_seconds = (best.raw_result or {}).get("runtime_seconds")
+        provider = (cfg.arm_config.get("METADATA_PROVIDER") or "omdb").lower()
+        if provider not in ("omdb", "tmdb"):
+            provider = "omdb"
+        _write_movie_expected_title(
+            job,
+            title=title,
+            imdb_id=best.imdb_id,
+            runtime_seconds=runtime_seconds,
+            source=provider,
+        )
     return result
 
 
