@@ -477,3 +477,29 @@ class TestNamingPreviewForJob:
         assert resp.status_code == 200
         data = resp.json()
         assert data["tracks"] == []
+
+
+def test_job_detail_track_includes_process_and_skip_reason(client, app_context, sample_job):
+    """Test that /jobs/{id}/detail serializes process and skip_reason in tracks."""
+    t1 = Track(
+        sample_job.job_id, '0', 4568, '4:3', 29.97, True,
+        'MakeMKV', 't0', 't0.mkv',
+    )
+    t1.process = True
+    t2 = Track(
+        sample_job.job_id, '1', 21, '4:3', 29.97, False,
+        'MakeMKV', 't1', 't1.mkv',
+    )
+    t2.process = False
+    t2.skip_reason = "too_short"
+    db.session.add_all([t1, t2])
+    db.session.commit()
+
+    response = client.get(f"/api/v1/jobs/{sample_job.job_id}/detail")
+    assert response.status_code == 200
+    data = response.json()
+    tracks = {t["track_number"]: t for t in data["tracks"]}
+    assert tracks["0"]["process"] is True
+    assert tracks["0"]["skip_reason"] is None
+    assert tracks["1"]["process"] is False
+    assert tracks["1"]["skip_reason"] == "too_short"
