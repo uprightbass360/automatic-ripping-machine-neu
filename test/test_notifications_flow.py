@@ -284,6 +284,7 @@ class TestRipMusic:
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
                  unittest.mock.patch('arm.ripper.utils._stream_abcde_output', return_value=[]), \
                  unittest.mock.patch('arm.ripper.utils._update_music_tracks'), \
+                 unittest.mock.patch('arm.ripper.utils._update_music_tracks_ripped_only'), \
                  unittest.mock.patch('subprocess.Popen', return_value=mock_proc):
                 result = rip_music(job, 'test.log')
                 assert result is False

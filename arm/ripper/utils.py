@@ -859,13 +859,18 @@ def rip_music(job, logfile):
             err = str(te)
             args = {"status": JobState.FAILURE.value, "errors": err}
             database_updater(args, job)
-            _update_music_tracks(job, ripped=False, status="fail")
+            # Music rip failure: leave per-track status at its current
+            # value (pending), since TrackStatus has no music-rip-failed
+            # member. The job-level JobState.FAILURE above is the source
+            # of truth. Tracks stay marked ripped=False.
+            _update_music_tracks_ripped_only(job, ripped=False)
             logging.error(err)
         except subprocess.CalledProcessError as ab_error:
             err = f"Call to abcde failed with code: {ab_error.returncode}"
             args = {"status": JobState.FAILURE.value, "errors": err}
             database_updater(args, job)
-            _update_music_tracks(job, ripped=False, status="fail")
+            # Music rip failure: same rationale as the TimeoutError branch.
+            _update_music_tracks_ripped_only(job, ripped=False)
             logging.error(err)
         finally:
             if tmp_config:
