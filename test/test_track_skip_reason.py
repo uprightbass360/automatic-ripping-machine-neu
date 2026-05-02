@@ -173,3 +173,26 @@ def test_manual_re_enable_clears_skip_reason(client, app_context, sample_job):
     db.session.refresh(t)
     assert t.enabled is True
     assert t.skip_reason is None
+
+
+def test_manual_patch_without_enabled_leaves_skip_reason_alone(client, app_context, sample_job):
+    """A PATCH that does not include 'enabled' must not touch skip_reason."""
+    from arm.models.track import Track
+
+    t = Track(
+        job_id=sample_job.job_id, track_number="0", length=4568,
+        aspect_ratio="4:3", fps=29.97, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    t.skip_reason = "makemkv_skipped"
+    db.session.add(t)
+    db.session.commit()
+
+    response = client.patch(
+        f"/api/v1/jobs/{sample_job.job_id}/tracks/{t.track_id}",
+        json={"filename": "renamed.mkv"},
+    )
+    assert response.status_code == 200
+    db.session.refresh(t)
+    assert t.filename == "renamed.mkv"
+    assert t.skip_reason == "makemkv_skipped"
