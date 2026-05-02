@@ -480,7 +480,6 @@ class TestNamingPreviewForJob:
 
 
 def test_job_detail_track_includes_process_and_skip_reason(client, app_context, sample_job):
-    """Test that /jobs/{id}/detail serializes process and skip_reason in tracks."""
     t1 = Track(
         sample_job.job_id, '0', 4568, '4:3', 29.97, True,
         'MakeMKV', 't0', 't0.mkv',
@@ -492,7 +491,14 @@ def test_job_detail_track_includes_process_and_skip_reason(client, app_context, 
     )
     t2.process = False
     t2.skip_reason = "too_short"
-    db.session.add_all([t1, t2])
+    # Legacy row: pre-existing tracks may have process=NULL in the DB.
+    # The serializer must default those to True so they remain rippable.
+    t3 = Track(
+        sample_job.job_id, '2', 3601, '16:9', 23.976, False,
+        'MakeMKV', 't2', 't2.mkv',
+    )
+    t3.process = None
+    db.session.add_all([t1, t2, t3])
     db.session.commit()
 
     response = client.get(f"/api/v1/jobs/{sample_job.job_id}/detail")
@@ -503,3 +509,5 @@ def test_job_detail_track_includes_process_and_skip_reason(client, app_context, 
     assert tracks["0"]["skip_reason"] is None
     assert tracks["1"]["process"] is False
     assert tracks["1"]["skip_reason"] == "too_short"
+    assert tracks["2"]["process"] is True
+    assert tracks["2"]["skip_reason"] is None
