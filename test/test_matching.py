@@ -728,6 +728,9 @@ class TestTvdbMatcherMatch:
              ), \
              unittest.mock.patch(
                  "arm.services.matching.tvdb_matcher.get_excluded_episodes", return_value=set()
+             ), \
+             unittest.mock.patch(
+                 "arm.services.tvdb_sync.persist_expected_titles_from_episodes"
              ):
             result = TvdbMatcher().match(job, tracks)
 
@@ -818,6 +821,9 @@ class TestTvdbMatcherMatch:
              ), \
              unittest.mock.patch(
                  "arm.services.matching.tvdb_matcher.get_excluded_episodes", return_value=set()
+             ), \
+             unittest.mock.patch(
+                 "arm.services.tvdb_sync.persist_expected_titles_from_episodes"
              ):
             result = TvdbMatcher().match(job, [{"track_number": "0", "length": 3550}])
 
