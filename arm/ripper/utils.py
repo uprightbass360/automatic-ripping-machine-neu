@@ -475,8 +475,7 @@ def _update_music_tracks(job, ripped, status):
     """Bulk-update ripped/status on all tracks for a music job.
 
     `status` must be a member-value of TrackStatus (validated at the DB
-    layer via db.Enum). For music-rip failure where no enum member
-    applies, use _update_music_tracks_ripped_only() instead.
+    layer via db.Enum).
     """
     try:
         Track.query.filter_by(job_id=job.job_id).update(
@@ -485,21 +484,6 @@ def _update_music_tracks(job, ripped, status):
         db.session.commit()
     except Exception as exc:
         logging.debug("Could not update music tracks: %s", exc)
-        db.session.rollback()
-
-
-def _update_music_tracks_ripped_only(job, ripped):
-    """Bulk-update only the ripped boolean on all tracks for a music job.
-
-    Used on music-rip failure - TrackStatus has no music-failed member,
-    so we leave status at its prior value (typically pending) rather
-    than coerce to a misleading transcode_failed.
-    """
-    try:
-        Track.query.filter_by(job_id=job.job_id).update({"ripped": ripped})
-        db.session.commit()
-    except Exception as exc:
-        logging.debug("Could not update music tracks (ripped-only): %s", exc)
         db.session.rollback()
 
 
@@ -844,11 +828,10 @@ def rip_music(job, logfile):
                 logging.error(err)
                 args = {"status": JobState.FAILURE.value, "errors": err}
                 database_updater(args, job)
-                # Music rip failure: leave per-track status at its current
-                # value (pending), since TrackStatus has no music-rip-failed
-                # member. The job-level JobState.FAILURE above is the source
-                # of truth. Tracks stay marked ripped=False.
-                _update_music_tracks_ripped_only(job, ripped=False)
+                # Music rip failure: mark per-track status as failed so the
+                # UI can render the failure state. Job-level JobState.FAILURE
+                # above is the source of truth at the job level.
+                _update_music_tracks(job, ripped=False, status=TrackStatus.failed.value)
                 return False
             logging.info("abcde call successful")
             _update_music_tracks(job, ripped=True, status=TrackStatus.success.value)
@@ -859,18 +842,15 @@ def rip_music(job, logfile):
             err = str(te)
             args = {"status": JobState.FAILURE.value, "errors": err}
             database_updater(args, job)
-            # Music rip failure: leave per-track status at its current
-            # value (pending), since TrackStatus has no music-rip-failed
-            # member. The job-level JobState.FAILURE above is the source
-            # of truth. Tracks stay marked ripped=False.
-            _update_music_tracks_ripped_only(job, ripped=False)
+            # Music rip failure: mark per-track status as failed.
+            _update_music_tracks(job, ripped=False, status=TrackStatus.failed.value)
             logging.error(err)
         except subprocess.CalledProcessError as ab_error:
             err = f"Call to abcde failed with code: {ab_error.returncode}"
             args = {"status": JobState.FAILURE.value, "errors": err}
             database_updater(args, job)
             # Music rip failure: same rationale as the TimeoutError branch.
-            _update_music_tracks_ripped_only(job, ripped=False)
+            _update_music_tracks(job, ripped=False, status=TrackStatus.failed.value)
             logging.error(err)
         finally:
             if tmp_config:
@@ -1405,7 +1385,7 @@ def _poll_manual_wait(job):
         sleep_time += 5
         db.session.refresh(job)
 
-        if job.status != JobState.MANUAL_WAIT_STARTED.value:
+        if job.status != JobState.MANUAL_PAUSED.value:
             logging.info("Job status changed externally (cancelled). Aborting wait.")
             raise RipperException("Job was cancelled during manual wait.")
 
@@ -1444,7 +1424,7 @@ def check_for_wait(job):
     else:
         logging.info(f"Waiting {job.config.MANUAL_WAIT_TIME} seconds for manual override.")
     import datetime
-    database_updater({"status": JobState.MANUAL_WAIT_STARTED.value,
+    database_updater({"status": JobState.MANUAL_PAUSED.value,
                       "wait_start_time": datetime.datetime.now()}, job)
     _poll_manual_wait(job)
     database_updater({"status": JobState.IDLE.value, "manual_start": False}, job)

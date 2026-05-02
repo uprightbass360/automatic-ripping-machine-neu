@@ -257,7 +257,7 @@ class TestPrescanAndWait:
     @patch("arm.api.v1.folder.db")
     @patch("arm.api.v1.folder.Job")
     def test_prescan_success(self, mock_job_cls, mock_db):
-        """Job transitions from IDENTIFYING to MANUAL_WAIT_STARTED on success."""
+        """Job transitions from IDENTIFYING to MANUAL_PAUSED on success."""
         from arm.api.v1.folder import _prescan_and_wait
 
         mock_job = MagicMock()
@@ -274,7 +274,7 @@ class TestPrescanAndWait:
         mock_prep.assert_called_once()
         mock_prescan.assert_called_once_with(mock_job)
         mock_db.session.remove.assert_called_once()
-        assert mock_job.status == "waiting"
+        assert mock_job.status == "manual_paused"
         mock_db.session.commit.assert_called()
 
     @patch("arm.api.v1.folder.db")
@@ -302,7 +302,7 @@ class TestPrescanAndWait:
     @patch("arm.api.v1.folder.db")
     @patch("arm.api.v1.folder.Job")
     def test_prescan_failure_still_transitions(self, mock_job_cls, mock_db):
-        """On failure, job gets error message and still transitions to MANUAL_WAIT_STARTED."""
+        """On failure, job gets error message and still transitions to MANUAL_PAUSED."""
         from arm.api.v1.folder import _prescan_and_wait
 
         mock_job = MagicMock()
@@ -315,7 +315,7 @@ class TestPrescanAndWait:
                    side_effect=RuntimeError("MakeMKV crashed")):
             _prescan_and_wait(11)
 
-        assert mock_job.status == "waiting"
+        assert mock_job.status == "manual_paused"
         assert "Prescan failed" in mock_job.errors
         mock_db.session.remove.assert_called_once()
         assert "MakeMKV crashed" in mock_job.errors

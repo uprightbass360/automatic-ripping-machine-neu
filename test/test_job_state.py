@@ -18,7 +18,7 @@ class TestJobFinished:
         assert sample_job.finished is False
 
     def test_ripping_not_finished(self, sample_job):
-        sample_job.status = "ripping"
+        sample_job.status = "video_ripping"
         assert sample_job.finished is False
 
     def test_transcoding_not_finished(self, sample_job):
@@ -34,7 +34,7 @@ class TestJobIdle:
         assert sample_job.idle is True
 
     def test_ripping_not_idle(self, sample_job):
-        sample_job.status = "ripping"
+        sample_job.status = "video_ripping"
         assert sample_job.idle is False
 
     def test_success_not_idle(self, sample_job):
@@ -46,11 +46,11 @@ class TestJobRipping:
     """Test job.ripping property."""
 
     def test_ripping_state(self, sample_job):
-        sample_job.status = "ripping"
+        sample_job.status = "video_ripping"
         assert sample_job.ripping is True
 
     def test_waiting_state(self, sample_job):
-        sample_job.status = "waiting"
+        sample_job.status = "manual_paused"
         assert sample_job.ripping is True
 
     def test_ready_not_ripping(self, sample_job):
@@ -75,12 +75,12 @@ class TestJobRippingFinished:
         assert sample_job.ripping_finished is True
 
     def test_ejected_job(self, sample_job):
-        sample_job.status = "ripping"
+        sample_job.status = "video_ripping"
         sample_job.ejected = True
         assert sample_job.ripping_finished is True
 
     def test_no_drive_job(self, sample_job):
-        sample_job.status = "ripping"
+        sample_job.status = "video_ripping"
         sample_job.drive = None
         assert sample_job.ripping_finished is True
 

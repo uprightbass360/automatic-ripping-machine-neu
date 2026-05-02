@@ -8,7 +8,7 @@ import pytest
 class TestCheckForWait:
     """Test check_for_wait() wait loop behavior.
 
-    Key enum values: MANUAL_WAIT_STARTED="waiting", IDLE="active".
+    Key enum values: MANUAL_PAUSED="manual_paused", IDLE="ready".
     check_for_wait() enters the loop when job.config.MANUAL_WAIT or is_ripping_paused().
     """
 

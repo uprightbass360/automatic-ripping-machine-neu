@@ -177,9 +177,7 @@ class TestRipMusicTimeoutCatch:
              patch("arm.ripper.utils.database_updater") as mock_db_update, \
              patch("arm.ripper.utils._stream_abcde_output",
                    side_effect=TimeoutError("CD rip timed out after 600s")), \
-             patch("arm.ripper.utils._update_music_tracks") as mock_tracks, \
-             patch("arm.ripper.utils._update_music_tracks_ripped_only") \
-                 as mock_tracks_ripped_only:
+             patch("arm.ripper.utils._update_music_tracks") as mock_tracks:
             mock_cfg.arm_config = {
                 "ABCDE_CONFIG_FILE": "/nonexistent/abcde.conf",
                 "CD_RIP_TIMEOUT": 600,
@@ -200,13 +198,12 @@ class TestRipMusicTimeoutCatch:
                          if c[0][0].get("status") == JobState.FAILURE.value]
         assert len(failure_calls) == 1
         assert "timed out" in failure_calls[0][0][0]["errors"]
-        # Tracks should be marked ripped=False via the ripped-only helper -
-        # the failure path no longer attempts to coerce a bare "fail" string
-        # into Track.status (TrackStatus has no music-rip-failed member).
-        mock_tracks_ripped_only.assert_called_once_with(sample_job, ripped=False)
-        # And the status-touching helper must NOT have been called for this
-        # failure branch.
-        mock_tracks.assert_not_called()
+        # Tracks must be marked ripped=False with status='failed' (the
+        # generic per-track failure value added in TrackStatus v2.0.0).
+        from arm_contracts.enums import TrackStatus
+        mock_tracks.assert_called_once_with(
+            sample_job, ripped=False, status=TrackStatus.failed.value,
+        )
 
 
 # ── identify.py: udev re-read after mount failure ────────────────────────

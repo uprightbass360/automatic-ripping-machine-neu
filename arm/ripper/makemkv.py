@@ -602,7 +602,7 @@ def makemkv_info(job, select=None, index=9999, options=None):
     info_options = ["info", "--cache=1"] + options + [f"disc:{index:d}", "--minlength=0"]
     wait_time = job.config.MANUAL_WAIT_TIME
     max_processes = cfg.arm_config["MAX_CONCURRENT_MAKEMKVINFO"]
-    job.status = JobState.VIDEO_WAITING.value
+    job.status = JobState.MAKEMKV_THROTTLED.value
     db.session.commit()
     utils.sleep_check_process("makemkvcon", max_processes, sleep=(10, wait_time, 10))
     job.status = JobState.VIDEO_INFO.value
@@ -611,7 +611,7 @@ def makemkv_info(job, select=None, index=9999, options=None):
         yield from run(info_options, select)
     finally:
         logging.info("MakeMKV info exits.")
-        job.status = JobState.VIDEO_WAITING.value
+        job.status = JobState.MAKEMKV_THROTTLED.value
         db.session.commit()
         if max_processes:
             logging.info(f"Penalty {wait_time}s")
@@ -717,8 +717,10 @@ def makemkv_mkv(job, rawpath):
 
     # route to ripping functions.
     if mode == 'manual':  # Run if mode is manual, user selects tracks
-        # Set job status to waiting
-        job.status = JobState.VIDEO_WAITING.value
+        # Set job status to manual-paused: user-pause (manual mode track
+        # selection), not the system-initiated makemkvcon concurrency
+        # throttle (which is MAKEMKV_THROTTLED).
+        job.status = JobState.MANUAL_PAUSED.value
         db.session.commit()
         # Process Tracks
         if manual_wait(job):  # Alert user: tracks are ready and wait for 30 minutes

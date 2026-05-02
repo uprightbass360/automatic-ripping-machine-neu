@@ -49,7 +49,7 @@ class TestJobFromFolder:
             job = Job.from_folder("/ingress/Movie", "bluray")
 
         job.title = "Movie"
-        job.status = "ripping"
+        job.status = "video_ripping"
         job.label = "MOVIE"
         db.session.add(job)
         db.session.commit()

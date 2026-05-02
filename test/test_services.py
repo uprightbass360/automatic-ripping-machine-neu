@@ -582,7 +582,7 @@ class TestProcessLogfile:
 
         job = MagicMock()
         job.disctype = "bluray"
-        job.status = "ripping"
+        job.status = "video_ripping"
         job_results = {}
 
         with patch("arm.services.jobs.process_makemkv_logfile",
@@ -595,7 +595,7 @@ class TestProcessLogfile:
 
         job = MagicMock()
         job.disctype = "music"
-        job.status = "ripping"
+        job.status = "audio_ripping"
         job.logfile = "music.log"
         job_results = {}
 
