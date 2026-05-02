@@ -72,14 +72,11 @@ def _post_rip_handoff(job):
 
 
 def check_empty_rip(job) -> bool:
-    """Return True if the job ended with zero tracks ripped, False otherwise.
-
-    On True, also writes a structured failure reason to job.errors so the
-    UI can surface it. Caller should set job.status to a failure state.
-    """
+    """Return True and stage a structured job.errors message if no tracks were ripped."""
     tracks = list(job.tracks)
-    n_ripped = sum(1 for t in tracks if t.ripped)
-    if n_ripped > 0:
+    if not tracks:
+        return False
+    if any(t.ripped for t in tracks):
         return False
     reasons = Counter(t.skip_reason or "unknown" for t in tracks)
     breakdown = ", ".join(f"{n} {reason}" for reason, n in reasons.most_common())
@@ -88,7 +85,6 @@ def check_empty_rip(job) -> bool:
         f"Check MINLENGTH (current: {job.config.MINLENGTH}s) and "
         f"MAXLENGTH ({job.config.MAXLENGTH}s)."
     )
-    db.session.commit()
     return True
 
 

@@ -50,3 +50,12 @@ def test_at_least_one_ripped_track_does_not_fail(app_context, sample_job):
     db.session.commit()
 
     assert check_empty_rip(sample_job) is False
+
+
+def test_no_tracks_at_all_does_not_fail(app_context, sample_job):
+    """A job that reaches the check with zero Track rows is unusual but must not
+    produce a confusing 'All 0 tracks were filtered: .' message."""
+    from arm.ripper.arm_ripper import check_empty_rip
+
+    assert check_empty_rip(sample_job) is False
+    assert sample_job.errors in (None, "")
