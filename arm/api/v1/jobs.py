@@ -1333,6 +1333,11 @@ def update_track_fields(job_id: int, track_id: int, body: dict):
 
     for key, value in clean.items():
         setattr(track, key, value)
+    # Mirror the user's enable/disable choice into skip_reason. Re-enabling
+    # clears any prior reason (auto-disable from prescan would re-fire on
+    # the next prescan if needed).
+    if "enabled" in clean:
+        track.skip_reason = None if clean["enabled"] else "user_disabled"
     # Keep track.title in sync — the webhook payload reads track.title for
     # the filename, so it must reflect the current episode_name when set.
     if "episode_name" in clean and clean["episode_name"]:

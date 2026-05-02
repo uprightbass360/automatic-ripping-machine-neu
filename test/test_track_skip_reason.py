@@ -1,6 +1,19 @@
 """Tests for the new skip_reason column on Track."""
 
+import pytest
 from arm.database import db
+
+
+@pytest.fixture
+def client(app_context):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from arm.api.v1.jobs import router
+
+    app = FastAPI()
+    app.include_router(router)
+    with TestClient(app) as c:
+        yield c
 
 
 def test_track_skip_reason_default_null(app_context, sample_job):
@@ -116,3 +129,47 @@ def test_folder_prescan_auto_disable_sets_too_short(app_context, sample_job):
     assert rows["1"].skip_reason == "too_short"
     assert rows["2"].enabled is False
     assert rows["2"].skip_reason == "too_short"
+
+
+def test_manual_disable_sets_user_disabled(client, app_context, sample_job):
+    from arm.models.track import Track
+
+    t = Track(
+        job_id=sample_job.job_id, track_number="0", length=4568,
+        aspect_ratio="4:3", fps=29.97, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    db.session.add(t)
+    db.session.commit()
+
+    response = client.patch(
+        f"/api/v1/jobs/{sample_job.job_id}/tracks/{t.track_id}",
+        json={"enabled": False},
+    )
+    assert response.status_code == 200
+    db.session.refresh(t)
+    assert t.enabled is False
+    assert t.skip_reason == "user_disabled"
+
+
+def test_manual_re_enable_clears_skip_reason(client, app_context, sample_job):
+    from arm.models.track import Track
+
+    t = Track(
+        job_id=sample_job.job_id, track_number="0", length=4568,
+        aspect_ratio="4:3", fps=29.97, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    t.enabled = False
+    t.skip_reason = "user_disabled"
+    db.session.add(t)
+    db.session.commit()
+
+    response = client.patch(
+        f"/api/v1/jobs/{sample_job.job_id}/tracks/{t.track_id}",
+        json={"enabled": True},
+    )
+    assert response.status_code == 200
+    db.session.refresh(t)
+    assert t.enabled is True
+    assert t.skip_reason is None
