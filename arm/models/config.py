@@ -1,6 +1,7 @@
 from prettytable import PrettyTable
 
 from arm.database import db
+from arm.enums import RipMethod
 
 
 hidden_attribs = ("OMDB_API_KEY", "EMBY_USERID", "EMBY_PASSWORD",
@@ -41,7 +42,11 @@ class Config(db.Model):
     SET_MEDIA_OWNER = db.Column(db.Boolean)
     CHOWN_USER = db.Column(db.String(50))
     CHOWN_GROUP = db.Column(db.String(50))
-    RIPMETHOD = db.Column(db.String(25))
+    RIPMETHOD = db.Column(
+        db.Enum(RipMethod, name="config_ripmethod_enum",
+                native_enum=False, validate_strings=True),
+        nullable=True,
+    )
     MKV_ARGS = db.Column(db.String(25))
     DELRAWFILES = db.Column(db.Boolean)
     HASHEDKEYS = db.Column(db.Boolean)

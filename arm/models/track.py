@@ -1,3 +1,5 @@
+from arm_contracts.enums import TrackStatus, SkipReason
+
 from arm.database import db
 
 
@@ -15,12 +17,20 @@ class Track(db.Model):
     orig_filename = db.Column(db.String(256))
     new_filename = db.Column(db.String(256))
     ripped = db.Column(db.Boolean)
-    status = db.Column(db.String(32))
+    status = db.Column(
+        db.Enum(TrackStatus, name="track_status_enum",
+                native_enum=False, validate_strings=True),
+        nullable=True,
+    )
     error = db.Column(db.Text)
     source = db.Column(db.String(32))
     process = db.Column(db.Boolean)
     enabled = db.Column(db.Boolean, default=True)
-    skip_reason = db.Column(db.String(32), nullable=True)
+    skip_reason = db.Column(
+        db.Enum(SkipReason, name="track_skip_reason_enum",
+                native_enum=False, validate_strings=True),
+        nullable=True,
+    )
     chapters = db.Column(db.Integer, default=0)
     filesize = db.Column(db.BigInteger, default=0)
     # Per-track title metadata (nullable — inherits job-level when null)
@@ -48,7 +58,7 @@ class Track(db.Model):
         self.source = source
         self.basename = basename
         self.filename = filename
-        self.status = 'pending'
+        self.status = TrackStatus.pending.value
         self.ripped = False
         self.process = False
         self.enabled = True
