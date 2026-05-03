@@ -436,12 +436,18 @@ class TestApiSystemVersion:
         assert data["db_head"] == "def456"
 
     def test_version_db_path_reflects_postgres_dsn(self, client):
-        """For non-sqlite DSN, db_path returns the URI itself and db_size_bytes is None."""
+        """For non-sqlite DSN, db_path masks the password and db_size_bytes is None."""
         pg_uri = "postgresql://arm:secret@db.example.com:5432/arm"
         response = self._patch_version(client, db_uri=pg_uri, db_row=("rev_pg",))
         assert response.status_code == 200
         data = response.json()
-        assert data["db_path"] == pg_uri
+        # db_path is masked: dialect/host/port/db preserved, password redacted.
+        assert data["db_path"] is not None
+        assert "secret" not in data["db_path"]      # password gone
+        assert "arm" in data["db_path"]              # username preserved
+        assert "db.example.com" in data["db_path"]   # host preserved
+        assert "postgresql" in data["db_path"]       # dialect preserved
+        # db_size_bytes is None for non-sqlite (file size meaningless)
         assert data["db_size_bytes"] is None
         assert data["db_version"] == "rev_pg"
 
