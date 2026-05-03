@@ -62,7 +62,15 @@ class Track(db.Model):
         self.filename = filename
         self.status = TrackStatus.pending.value
         self.ripped = False
-        self.process = False
+        # process=None means "not yet decided"; the serializer at
+        # arm/api/v1/jobs.py:_track_to_dict treats NULL as True so the
+        # disc-review widget can render fresh tracks as rippable until
+        # the rip path explicitly sets True/False (process_single_tracks
+        # for manual-mode, the all-tracks loop for auto-mode, or
+        # apply_makemkv_skips for tracks MakeMKV refuses).
+        # If we set False here, fresh-from-prescan tracks would render
+        # as 'skip' in the review UI for the entire wait phase.
+        self.process = None
         self.enabled = True
         self.chapters = chapters
         self.filesize = filesize

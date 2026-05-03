@@ -258,7 +258,10 @@ class TestTrackCreation:
         assert track.length == 5400
         assert track.main_feature is True
         assert track.ripped is False  # default
-        assert track.process is False  # default
+        # process=None means "not yet decided" - the API serializer
+        # defaults None to True so the disc-review widget renders fresh
+        # tracks as rippable until the rip path explicitly sets True/False.
+        assert track.process is None
 
     def test_track_str(self, app_context):
         from arm.models.track import Track
