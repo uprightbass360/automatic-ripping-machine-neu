@@ -989,6 +989,38 @@ def put_track(job, t_no, seconds, aspect, fps, mainfeature, source, filename="",
     database_adder(job_track)
 
 
+def mark_prescan_filter_state(job, minlength: int, maxlength: int) -> None:
+    """Apply length-based filter to job tracks immediately after pre-scan.
+
+    Before this runs, fresh Track rows have process=None (the
+    'not yet decided' default). The serializer at
+    arm/api/v1/jobs.py:_track_to_dict treats None as True, so
+    every track would render as rippable in the disc-review widget.
+
+    This helper stamps process=False + skip_reason for tracks
+    outside the configured length bounds, so the widget's
+    isFiltered(track) check (track.process === false) shows them
+    as 'skip'. Long-enough tracks keep process=None and render
+    rippable. The rip-time filter (process_single_tracks for
+    manual mode, the all-tracks loop for auto mode) still runs
+    afterward and refines the decision per track.
+
+    No-ops on tracks with length=None (music CDs, unscanned
+    folder imports). Caller is responsible for db.session.commit().
+    """
+    from arm_contracts.enums import SkipReason
+
+    for t in job.tracks:
+        if t.length is None:
+            continue
+        if t.length < minlength:
+            t.process = False
+            t.skip_reason = SkipReason.too_short.value
+        elif t.length > maxlength:
+            t.process = False
+            t.skip_reason = SkipReason.too_long.value
+
+
 def arm_setup(arm_log: Logger) -> None:
     """
     Setup arm - Create all the directories we need for arm to run

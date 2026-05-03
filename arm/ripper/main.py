@@ -197,14 +197,14 @@ def main():
                 tracks = list(job.tracks)
                 if len(tracks) == 0:
                     raise RuntimeError("MakeMKV returned 0 titles")
-                # Apply length-based filter so the disc-review widget
-                # renders short titles as 'skip' before rip starts.
-                # Without this, every track shows as rippable until the
-                # rip phase decides per-track via process_single_tracks
-                # (manual mode) or apply_makemkv_skips (all-tracks mode).
-                # arm-ui's DiscReviewWidget.isFiltered() trusts backend
-                # truth (track.process / skip_reason) per commit fb08d0a.
-                from arm_contracts.enums import SkipReason
+                for t in tracks:
+                    t.enabled = True
+                # Stamp process=False + skip_reason on out-of-bounds
+                # tracks so the disc-review widget renders them as 'skip'
+                # before the rip phase decides. arm-ui's
+                # DiscReviewWidget.isFiltered() trusts backend truth
+                # (track.process / skip_reason) per fb08d0a; long-enough
+                # tracks keep process=None and render rippable.
                 try:
                     minlength = int(job.config.MINLENGTH)
                 except (TypeError, ValueError):
@@ -213,16 +213,7 @@ def main():
                     maxlength = int(job.config.MAXLENGTH)
                 except (TypeError, ValueError):
                     maxlength = 99999
-                for t in tracks:
-                    t.enabled = True
-                    if t.length is None:
-                        continue
-                    if t.length < minlength:
-                        t.process = False
-                        t.skip_reason = SkipReason.too_short.value
-                    elif t.length > maxlength:
-                        t.process = False
-                        t.skip_reason = SkipReason.too_long.value
+                utils.mark_prescan_filter_state(job, minlength, maxlength)
                 db.session.commit()
                 logging.info("Pre-scan complete: %d tracks found", len(tracks))
                 break
