@@ -103,7 +103,7 @@ def _install_session_cleanup(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle."""
-    db.init_engine('sqlite:///' + cfg.arm_config['DBFILE'])
+    db.init_engine(cfg.get_db_uri())
 
     # Start cached disk usage - never blocks on NFS stalls
     from arm.services.disk_usage_cache import register_paths, start_background_refresh

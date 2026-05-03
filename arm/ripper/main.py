@@ -49,7 +49,7 @@ from arm.ripper.ARMInfo import ARMInfo  # noqa E402
 from arm.services import drives as drive_utils  # noqa E402
 
 # Initialise standalone database (no Flask)
-db.init_engine('sqlite:///' + cfg.arm_config['DBFILE'])
+db.init_engine(cfg.get_db_uri())
 # Ripper threads are more tolerant of delays than API requests —
 # set a higher commit retry timeout (90s vs the default 10s).
 db.session.commit_timeout = 90

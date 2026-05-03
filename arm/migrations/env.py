@@ -12,7 +12,7 @@ config = context.config
 
 # Set the database URL from ARM config if not already set via command line
 if not config.get_main_option(_SQLALCHEMY_URL):
-    config.set_main_option(_SQLALCHEMY_URL, "sqlite:///" + cfg.arm_config["DBFILE"])
+    config.set_main_option(_SQLALCHEMY_URL, cfg.get_db_uri())
 
 # Import all models so metadata is populated
 import arm.models  # noqa: F401,E402
