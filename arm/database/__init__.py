@@ -168,6 +168,11 @@ class RetrySession(Session):
                 # constraint violations etc.) are not retry-friendly. PG
                 # raises OperationalError for unrelated reasons that should
                 # NOT be retried.
+                # The substring 'locked' matches both SQLITE_BUSY ("database
+                # is locked") and SQLITE_LOCKED (table-level lock conflict).
+                # SQLITE_LOCKED is rare under WAL mode + BEGIN IMMEDIATE
+                # (configured in _set_sqlite_pragma); when it does fire, the
+                # snapshot-and-replay machinery handles it the same way.
                 is_sqlite_busy = (
                     getattr(exc.orig, '__module__', '').startswith('sqlite3')
                     and 'locked' in str(exc.orig).lower()
