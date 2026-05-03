@@ -19,6 +19,7 @@ from sqlalchemy import (
     DateTime, SmallInteger, Unicode, Enum, ForeignKey,
     create_engine, text, event,
 )
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import (
     DeclarativeBase, relationship, backref,
     scoped_session, sessionmaker, Session,
@@ -160,8 +161,18 @@ class RetrySession(Session):
             try:
                 super().commit()
                 return
-            except Exception as exc:
-                if "locked" in str(exc).lower() and elapsed < timeout:
+            except OperationalError as exc:
+                # SQLite raises OperationalError-wrapping-sqlite3.OperationalError
+                # when the database file is locked. Retry only that specific
+                # case; other OperationalErrors (connection refused, network,
+                # constraint violations etc.) are not retry-friendly. PG
+                # raises OperationalError for unrelated reasons that should
+                # NOT be retried.
+                is_sqlite_busy = (
+                    getattr(exc.orig, '__module__', '').startswith('sqlite3')
+                    and 'locked' in str(exc.orig).lower()
+                )
+                if is_sqlite_busy and elapsed < timeout:
                     # Snapshot dirty state before rollback destroys it
                     dirty, new, deleted = self._snapshot_dirty(self)
                     self.rollback()
@@ -179,6 +190,10 @@ class RetrySession(Session):
                     log.warning("db commit failed: %s", exc)
                     self.rollback()
                     raise
+            except Exception as exc:
+                log.warning("db commit failed: %s", exc)
+                self.rollback()
+                raise
 
 
 # ---------------------------------------------------------------------------
