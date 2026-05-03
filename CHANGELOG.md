@@ -1,5 +1,44 @@
 # Changelog
 
+## [17.5.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.4.0...v17.5.0) (2026-05-03)
+
+
+### Features
+
+* add ExpectedTitle ORM model with Job relationship ([8203e34](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8203e34337e479aac0ea270c3685f058b3d36330))
+* add parse_runtime helper for metadata-provider runtime strings ([29ec1d4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/29ec1d407c6cc9135d57138db38e2c8334166a41))
+* add Track.skip_reason column for filter-decision tracking ([92e79f2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/92e79f256c9ebd8c30942e60326aac9a444bdc77))
+* alembic migration for expected_title table ([3aedc6d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3aedc6d275f57784c0e21882df70c937817492fc))
+* **config:** add get_db_uri() DSN selection helper ([be59622](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/be5962251d39178a6c63b59e89b54e466e995c6b))
+* empty-rip jobs fail with structured skip_reason breakdown ([9c72c00](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9c72c00041c7f4040be6005c653d378336ec26c0))
+* **enums:** add arm/enums.py with RipMethod and AudioTitleSource ([1e52690](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1e526908f1181540bad3d50fd84006f18e305417))
+* folder prescan auto-disable sets skip_reason='too_short' ([1219ca7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1219ca79ceb2e30ca0f75ea5424ab16e060c926c))
+* manual UI track toggle writes user_disabled skip_reason ([b93d147](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b93d14740718a35d5944ae0cc6f95fa73118dc50))
+* **migration:** backfill old JobState wire strings; extend TrackStatus ([e26e009](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e26e009c184467c165adb0a209f11011b8ec4381))
+* **migration:** convert 5 columns to db.Enum + split track status ([6181c10](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6181c10ffbfbe4ac9800194a444e5954753cc1d4))
+* parse MakeMKV skip messages and persist skip_reason in all-tracks mode ([d294f8a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d294f8a8e00b48e72cb61bc5e1277505a07132c1))
+* persist TVDB episode list as ExpectedTitle rows ([5002508](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/50025081562b9d750c1a4eaef8538bcdc94507ff))
+* process_single_tracks persists too_short/too_long skip_reason ([a60c42b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a60c42b8f4a9699b7a60d0360b2560040b54df9e))
+* retain runtime_seconds in OMDb/TMDb normalizers ([3d82dff](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3d82dfff4a73851d955e225238c0c214544343a1))
+* serialize expected_titles on job detail endpoint ([641ef16](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/641ef1625b328a66f3b4843cf8a690c08d7c5921))
+* serialize process and skip_reason on track detail ([6af8534](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6af853484b8e9a8742d394297508891a70ca1985))
+* write ExpectedTitle row on successful movie identification ([25dafd4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/25dafd4e2da17ef6166eddc305b9811b0363133c))
+
+
+### Bug Fixes
+
+* avoid sqlite side effects in version probe; mask DSN in boot log ([a2dfac7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a2dfac7b926726cb7ee85efb85aa9ab90ac777a1))
+* guard movie ExpectedTitle write to type=='movie' only ([e225033](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e2250338a45ab52ea2e447dd434ed76431384751))
+* **makemkv:** mark all-tracks rip candidates as process=True ([8577667](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/85776677989c8e359b664ca26e46d08297a6fdc0))
+* **migration+sweep:** backfill Job.status NULLs; finish bare-string sweep ([b635ceb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b635ceb2dfa17cbbd6e3feb3b30a6ff3e822f6da))
+* **migration:** remap legacy track.status='fail' rows to 'failed' ([c82f927](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c82f927184162296dc897c5d06e06055cfc967f1))
+* **music:** all music-failure paths use _update_music_tracks_ripped_only ([fbebacc](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fbebacc04c0a5383faf46b11d95ce4e2e661259e))
+* parse_runtime rejects bool inputs (int subclass guard) ([01c4341](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/01c4341fd674b0f25c6d26454d4b0cc8f8840653))
+* **prescan:** mark too-short/too-long tracks as filtered before review ([f2f1003](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f2f10031c2b27650815e2602f4dbc71f393a99c2))
+* **security:** mask DSN password in /api/v1/system/version response ([935dd8d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/935dd8da2e40b97b545beb566ea6b4b4104f3caf))
+* **test:** use relative path so migration-module test runs in CI ([d656309](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d6563098279b7125a3cb9937d3593145176fee73))
+* **track:** default process=None on init so review widget renders rippable ([1ee6013](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1ee6013570e2d68732469ccd25e7475d95922b61))
+
 ## [17.4.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.3.0...v17.4.0) (2026-04-30)
 
 
