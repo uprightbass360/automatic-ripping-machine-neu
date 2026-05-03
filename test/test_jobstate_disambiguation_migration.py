@@ -2,70 +2,116 @@
 ``s4t5u6v7w8x9_jobstate_disambiguation`` correctly maps old wire strings
 to the disambiguated v2.0.0 set.
 
-The four backfill SQL fragments are exercised against a self-contained
-in-memory sqlite engine that mirrors the pre-migration schema (status as
-a permissive VARCHAR). This bypasses the ORM enum validator on
-``Job.status`` so the test can seed rows holding the old wire strings -
-which is exactly the row state the production migration will encounter
-in the wild.
+The four backfill SQL fragments are exercised end-to-end via the alembic
+``command.upgrade`` harness: upgrade to the revision before
+``r3s4t5u6v7w8`` (no enum CHECK constraint, so legacy wire strings can
+be seeded), insert legacy rows, then upgrade through both
+``r3s4t5u6v7w8`` (enum constraints + 'fail'->'failed' track backfill)
+and ``s4t5u6v7w8x9`` (the disambiguation backfills) so coverage credits
+the migration modules' ``upgrade()`` bodies.
 
-Pattern matched from ``test/test_track_status_backfill.py``.
+Pattern matched from ``test/test_migration_transcode_overrides_drop_legacy.py``.
 """
+import os
+
 import pytest
 import sqlalchemy as sa
 
+from alembic import command
+from alembic.config import Config as AlembicConfig
 
-def _make_engine_with_legacy_job_table():
-    """Create an in-memory sqlite engine with a permissive 'job' table
-    matching the pre-migration shape (status as a plain VARCHAR with no
-    CHECK constraint, so we can insert any wire string)."""
-    engine = sa.create_engine("sqlite:///:memory:")
+
+_MIGRATIONS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'arm', 'migrations',
+)
+# Pre-enum revision: schema has plain VARCHAR columns with no CHECK
+# constraint, so legacy wire strings can be seeded directly.
+_PREV_REVISION = 'q2r3s4t5u6v7'
+# After r3: enum CHECK constraints + 'fail'->'failed' track backfill (PR #317).
+_R3_REVISION = 'r3s4t5u6v7w8'
+# After s4t5: JobState disambiguation backfills.
+_S4T5_REVISION = 's4t5u6v7w8x9'
+
+
+def _make_config(db_path):
+    """Build an Alembic Config pointed at a scratch SQLite DB."""
+    cfg = AlembicConfig()
+    cfg.set_main_option('script_location', _MIGRATIONS_DIR)
+    cfg.set_main_option('sqlalchemy.url', f'sqlite:///{db_path}')
+    return cfg
+
+
+@pytest.fixture
+def upgraded_db(tmp_path):
+    """Upgrade to the revision just before r3 (no enum constraints).
+
+    Yields ``(cfg, engine)``; the test seeds legacy rows via raw SQL
+    against the engine, then calls ``command.upgrade(cfg, target)`` to
+    invoke the migration body via alembic.
+    """
+    db_path = tmp_path / 'test.db'
+    cfg = _make_config(str(db_path))
+    command.upgrade(cfg, _PREV_REVISION)
+
+    engine = sa.create_engine(f'sqlite:///{db_path}')
+    yield cfg, engine
+    engine.dispose()
+
+
+def _insert_job(engine, status, disctype, job_id=None):
+    """Insert a single job row with the given status/disctype.
+
+    The guid column is NOT NULL post-m8n9 (added in m8n9o0p1q2r3); pass a
+    unique value derived from job_id (if provided) or sqlite's
+    ``lastrowid`` lookup.
+    """
     with engine.begin() as conn:
-        conn.execute(sa.text("""
-            CREATE TABLE job (
-                job_id INTEGER PRIMARY KEY,
-                status VARCHAR(32),
-                disctype VARCHAR(20)
+        if job_id is None:
+            # Let sqlite assign the rowid; we still need a unique guid.
+            # Use a sentinel placeholder we'll overwrite immediately.
+            result = conn.execute(
+                sa.text(
+                    "INSERT INTO job (status, disctype, guid) "
+                    "VALUES (:status, :disctype, lower(hex(randomblob(16))))"
+                ),
+                {"status": status, "disctype": disctype},
             )
-        """))
-    return engine
+            return result.lastrowid
+        result = conn.execute(
+            sa.text(
+                "INSERT INTO job (job_id, status, disctype, guid) "
+                "VALUES (:jid, :status, :disctype, :guid)"
+            ),
+            {
+                "jid": job_id,
+                "status": status,
+                "disctype": disctype,
+                "guid": f"test-guid-{job_id}",
+            },
+        )
+        return result.lastrowid
 
 
-def _backfill_job_status(conn):
-    """Apply the same three UPDATE statements the migration applies, in
-    the same order. Order matters: the music-disctype filter must run
-    BEFORE the catch-all 'ripping' update or all music rows would be
-    mis-routed to video_ripping."""
-    conn.execute(sa.text(
-        "UPDATE job SET status = 'audio_ripping' "
-        "WHERE status = 'ripping' AND disctype = 'music'"
-    ))
-    conn.execute(sa.text(
-        "UPDATE job SET status = 'video_ripping' WHERE status = 'ripping'"
-    ))
-    conn.execute(sa.text(
-        "UPDATE job SET status = 'manual_paused' WHERE status = 'waiting'"
-    ))
+def _fetch_status(engine, job_id):
+    with engine.connect() as conn:
+        return conn.execute(
+            sa.text("SELECT status FROM job WHERE job_id = :jid"),
+            {"jid": job_id},
+        ).scalar()
 
 
-def test_ripping_music_disc_backfills_to_audio_ripping():
+def test_ripping_music_disc_backfills_to_audio_ripping(upgraded_db):
     """status='ripping' AND disctype='music' must become 'audio_ripping'."""
-    engine = _make_engine_with_legacy_job_table()
-    with engine.begin() as conn:
-        result = conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES ('ripping', 'music')"
-        ))
-        jid = result.lastrowid
+    cfg, engine = upgraded_db
+    jid = _insert_job(engine, status='ripping', disctype='music')
 
-        _backfill_job_status(conn)
+    command.upgrade(cfg, _S4T5_REVISION)
 
-        row = conn.execute(sa.text(
-            "SELECT status FROM job WHERE job_id=:jid"
-        ), {"jid": jid}).fetchone()
-        assert row[0] == 'audio_ripping'
+    assert _fetch_status(engine, jid) == 'audio_ripping'
 
 
-def test_ripping_video_disc_backfills_to_video_ripping():
+def test_ripping_video_disc_backfills_to_video_ripping(upgraded_db):
     """status='ripping' AND disctype!='music' must become 'video_ripping'.
 
     Exercises the order dependency between the two 'ripping' UPDATE
@@ -73,53 +119,39 @@ def test_ripping_video_disc_backfills_to_video_ripping():
     test above would still pass but this one would fail because the
     music row would have been mis-routed to video_ripping first.
     """
-    engine = _make_engine_with_legacy_job_table()
-    with engine.begin() as conn:
-        for disctype in ("dvd", "bluray", "bluray4k"):
-            result = conn.execute(sa.text(
-                "INSERT INTO job (status, disctype) VALUES ('ripping', :dt)"
-            ), {"dt": disctype})
-            jid = result.lastrowid
+    cfg, engine = upgraded_db
+    jids = {}
+    for disctype in ("dvd", "bluray", "bluray4k"):
+        jids[disctype] = _insert_job(
+            engine, status='ripping', disctype=disctype,
+        )
 
-            _backfill_job_status(conn)
+    command.upgrade(cfg, _S4T5_REVISION)
 
-            row = conn.execute(sa.text(
-                "SELECT status FROM job WHERE job_id=:jid"
-            ), {"jid": jid}).fetchone()
-            assert row[0] == 'video_ripping', (
-                f"disctype={disctype!r}: expected 'video_ripping', got {row[0]!r}"
-            )
+    for disctype, jid in jids.items():
+        actual = _fetch_status(engine, jid)
+        assert actual == 'video_ripping', (
+            f"disctype={disctype!r}: expected 'video_ripping', got {actual!r}"
+        )
 
 
-def test_backfill_order_protects_music_rows():
+def test_backfill_order_protects_music_rows(upgraded_db):
     """Mixed-disctype seed: a music row + a video row, both starting at
     'ripping'. After backfill, the music row must be 'audio_ripping' and
     the video row must be 'video_ripping'. This is the canonical
     regression for the order bug - if the catch-all UPDATE ran first,
     BOTH rows would end up 'video_ripping'."""
-    engine = _make_engine_with_legacy_job_table()
-    with engine.begin() as conn:
-        music_id = conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES ('ripping', 'music')"
-        )).lastrowid
-        video_id = conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES ('ripping', 'bluray')"
-        )).lastrowid
+    cfg, engine = upgraded_db
+    music_id = _insert_job(engine, status='ripping', disctype='music')
+    video_id = _insert_job(engine, status='ripping', disctype='bluray')
 
-        _backfill_job_status(conn)
+    command.upgrade(cfg, _S4T5_REVISION)
 
-        music_status = conn.execute(sa.text(
-            "SELECT status FROM job WHERE job_id=:jid"
-        ), {"jid": music_id}).fetchone()[0]
-        video_status = conn.execute(sa.text(
-            "SELECT status FROM job WHERE job_id=:jid"
-        ), {"jid": video_id}).fetchone()[0]
-
-        assert music_status == 'audio_ripping'
-        assert video_status == 'video_ripping'
+    assert _fetch_status(engine, music_id) == 'audio_ripping'
+    assert _fetch_status(engine, video_id) == 'video_ripping'
 
 
-def test_waiting_backfills_to_manual_paused():
+def test_waiting_backfills_to_manual_paused(upgraded_db):
     """status='waiting' rows all collapse to 'manual_paused'.
 
     This is intentionally lossy: we lose the distinction between
@@ -128,195 +160,180 @@ def test_waiting_backfills_to_manual_paused():
     rarely loses real information; an operator with a pinned-throttle
     row can correct manually post-migration.
     """
-    engine = _make_engine_with_legacy_job_table()
-    with engine.begin() as conn:
-        for disctype in ("music", "bluray", "dvd"):
-            jid = conn.execute(sa.text(
-                "INSERT INTO job (status, disctype) VALUES ('waiting', :dt)"
-            ), {"dt": disctype}).lastrowid
+    cfg, engine = upgraded_db
+    jids = {}
+    for disctype in ("music", "bluray", "dvd"):
+        jids[disctype] = _insert_job(
+            engine, status='waiting', disctype=disctype,
+        )
 
-            _backfill_job_status(conn)
+    command.upgrade(cfg, _S4T5_REVISION)
 
-            row = conn.execute(sa.text(
-                "SELECT status FROM job WHERE job_id=:jid"
-            ), {"jid": jid}).fetchone()
-            assert row[0] == 'manual_paused'
+    for disctype, jid in jids.items():
+        actual = _fetch_status(engine, jid)
+        assert actual == 'manual_paused', (
+            f"disctype={disctype!r}: expected 'manual_paused', got {actual!r}"
+        )
 
 
-def test_unknown_status_value_is_left_alone_for_assert_clean_to_catch():
-    """Backfill UPDATEs only target the known-old wire strings; an
-    unrelated out-of-band value passes through unchanged so the
-    migration's RuntimeError post-check can flag it.
+def test_r3_assert_clean_raises_on_bogus_value(upgraded_db):
+    """The r3 ``_assert_clean`` pre-check must reject out-of-band values
+    on ``job.status`` before the column type swap. Bogus values seeded
+    in the pre-r3 schema reach r3 first and trip its pre-check (which
+    also lists the offending values for operator triage)."""
+    cfg, engine = upgraded_db
+    _insert_job(engine, status='totally-bogus', disctype='dvd')
+    _insert_job(engine, status='also-bogus', disctype='music')
+
+    with pytest.raises(RuntimeError) as exc_info:
+        command.upgrade(cfg, _S4T5_REVISION)
+
+    msg = str(exc_info.value)
+    assert 'totally-bogus' in msg
+    assert 'also-bogus' in msg
+
+
+def test_s4t5_post_backfill_raises_on_unmapped_value(upgraded_db):
+    """The s4t5 post-backfill check at lines 107-111 of
+    ``s4t5u6v7w8x9_jobstate_disambiguation.py`` formats and raises a
+    ``RuntimeError`` when any row still holds a value not in the new
+    JobState set after the backfill UPDATEs run.
+
+    In the normal linear upgrade path this check is dead code (every
+    value in r3's allowed set except 'ripping'/'waiting' carries over
+    to s4t5's, and those two are explicitly backfilled). To exercise
+    the production code path we run r3 first (so the schema has the
+    CHECK constraint), then directly invoke ``s4t5.upgrade()`` against
+    a connection that bypasses that constraint via raw SQL with
+    ``op.get_bind()`` monkey-patched (same pattern as the reference
+    test's idempotent-second-run case).
     """
-    engine = _make_engine_with_legacy_job_table()
-    with engine.begin() as conn:
-        jid = conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES ('totally-bogus', 'dvd')"
-        )).lastrowid
-
-        _backfill_job_status(conn)
-
-        row = conn.execute(sa.text(
-            "SELECT status FROM job WHERE job_id=:jid"
-        ), {"jid": jid}).fetchone()
-        assert row[0] == 'totally-bogus'
-
-
-def test_assert_clean_post_check_raises_on_bogus_value():
-    """The migration's post-backfill RuntimeError must fire when an
-    out-of-band value remains, and the message must include row counts
-    so the operator can decide between manual fix vs. restore-from-backup.
-    """
-    NEW_JOB_STATE_VALUES = (
-        'success', 'fail', 'manual_paused', 'identifying', 'ready',
-        'video_ripping', 'audio_ripping', 'info', 'copying', 'ejecting',
-        'transcoding', 'waiting_transcode', 'makemkv_throttled',
+    import alembic.op as alembic_op
+    from arm.migrations.versions import (
+        s4t5u6v7w8x9_jobstate_disambiguation as mig,
     )
 
-    engine = _make_engine_with_legacy_job_table()
+    cfg, engine = upgraded_db
+    # Bring schema to r3 (enum CHECK in place) with a clean dataset.
+    command.upgrade(cfg, _R3_REVISION)
+
+    # Seed a row holding a value that's NOT in NEW_JOB_STATE_VALUES.
+    # r3's enum CHECK won't accept it via standard INSERT, but sqlite
+    # only enforces CHECK at modification time - we sidestep by issuing
+    # a raw SQL UPDATE inside the same connection used by the migration.
     with engine.begin() as conn:
-        # Two rows of the same bad value to confirm count aggregation.
+        conn.execute(
+            sa.text(
+                "INSERT INTO job (status, disctype, guid) "
+                "VALUES ('identifying', 'dvd', 'bogus-seed-guid')"
+            )
+        )
+        # 'identifying' is in BOTH r3 and s4t5 sets, so insert passes.
+        # Now flip it to a value that's outside s4t5's allowed set but
+        # that the s4t5 backfill UPDATEs DON'T touch (so it survives to
+        # the post-backfill check). Use sqlite's CHECK-bypass via
+        # PRAGMA writable_schema is heavyweight; instead, drop the
+        # CHECK by recreating the table without it. Simpler: use
+        # op.batch_alter_table to widen the column to plain String for
+        # the duration of the test.
+    # Direct invocation of s4t5.upgrade() with op.get_bind patched.
+    with engine.begin() as conn:
+        # Drop the CHECK by renaming the table and recreating without
+        # constraint - sqlite lacks ALTER TABLE DROP CHECK.
+        conn.execute(sa.text("ALTER TABLE job RENAME TO _job_old"))
+        # Recreate with permissive status column, copy rows, drop old.
+        # We only need the columns the migration reads/writes.
+        cols = conn.execute(sa.text("PRAGMA table_info(_job_old)")).fetchall()
+        col_defs = []
+        col_names = []
+        for cid, name, ctype, notnull, dflt, pk in cols:
+            col_names.append(name)
+            if name == 'status':
+                ctype = 'VARCHAR(32)'  # drop the CHECK
+            piece = f'"{name}" {ctype}'
+            if pk:
+                piece += ' PRIMARY KEY'
+            if notnull and not pk:
+                piece += ' NOT NULL'
+            if dflt is not None:
+                piece += f' DEFAULT {dflt}'
+            col_defs.append(piece)
+        conn.execute(sa.text(f'CREATE TABLE job ({", ".join(col_defs)})'))
+        col_list = ', '.join(f'"{c}"' for c in col_names)
         conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES "
-            "('totally-bogus', 'dvd'), ('totally-bogus', 'bluray'), "
-            "('also-bogus', 'music')"
+            f"INSERT INTO job ({col_list}) SELECT {col_list} FROM _job_old"
+        ))
+        conn.execute(sa.text("DROP TABLE _job_old"))
+        # Now flip the seeded row to an out-of-band value that the s4t5
+        # backfill UPDATEs do not touch (not 'ripping', not 'waiting').
+        conn.execute(sa.text(
+            "UPDATE job SET status = 'unmapped-bogus-value' "
+            "WHERE guid = 'bogus-seed-guid'"
+        ))
+        conn.execute(sa.text(
+            "INSERT INTO job (status, disctype, guid) "
+            "VALUES ('unmapped-bogus-value', 'bluray', "
+            "'bogus-seed-guid-2')"
         ))
 
-        _backfill_job_status(conn)
+    # Invoke the production s4t5.upgrade() with op.get_bind patched.
+    with pytest.raises(RuntimeError) as exc_info:
+        with engine.begin() as conn:
+            orig_get_bind = alembic_op.get_bind
+            alembic_op.get_bind = lambda: conn
+            try:
+                mig.upgrade()
+            finally:
+                alembic_op.get_bind = orig_get_bind
 
-        # Mirror the production post-check (must stay in lockstep with
-        # arm/migrations/versions/s4t5u6v7w8x9_jobstate_disambiguation.py).
-        rows = conn.execute(sa.text(
-            "SELECT status, COUNT(*) FROM job "
-            "WHERE status IS NOT NULL AND status NOT IN :allowed "
-            "GROUP BY status"
-        ).bindparams(sa.bindparam('allowed', expanding=True)),
-            {'allowed': list(NEW_JOB_STATE_VALUES)}
-        ).fetchall()
-
-    # Verify: aggregation produced (value, count) pairs, total is 3.
-    assert rows, "Expected the bogus rows to remain in the bad set"
-    summary = {value: count for value, count in rows}
-    assert summary == {'totally-bogus': 2, 'also-bogus': 1}
-
-    # Verify the message format: includes counts AND value, raises RuntimeError.
-    bad_summary = ', '.join(
-        f"{value!r}: {count} row(s)" for value, count in sorted(rows)
-    )
-    total = sum(count for _, count in rows)
-    with pytest.raises(RuntimeError, match=r"3 row\(s\)") as exc_info:
-        raise RuntimeError(
-            f"job.status contains {total} row(s) with values not in the "
-            f"new JobState set ({bad_summary}). Allowed: "
-            f"{sorted(NEW_JOB_STATE_VALUES)}. Fix the rows manually then "
-            f"retry."
-        )
     msg = str(exc_info.value)
-    assert "'totally-bogus': 2 row(s)" in msg
-    assert "'also-bogus': 1 row(s)" in msg
+    # Verify the production message format: total row count, per-value
+    # counts, and the allowed-set for operator triage.
+    assert 'unmapped-bogus-value' in msg
+    assert '2 row(s)' in msg
+    assert 'JobState' in msg
 
 
-def test_real_migration_module_executes_backfill_against_seeded_db(tmp_path):
+def test_real_migration_module_executes_backfill_against_seeded_db(upgraded_db):
     """End-to-end: actually invoke the migration's upgrade() against a
     fresh sqlite DB and confirm seeded legacy rows land at the new
     wire strings.
 
-    This exercises the production migration body (not just the SQL
-    fragments mirrored in the helpers above), so a typo in the
-    migration's UPDATE order would fail this test even if the
-    standalone fragment tests pass.
+    This exercises the production migration body (not just SQL fragments
+    mirrored in helpers), so a typo in the migration's UPDATE order
+    would fail this test.
     """
-    import importlib.util
+    cfg, engine = upgraded_db
 
-    db_path = tmp_path / "migration.db"
-    engine = sa.create_engine(f"sqlite:///{db_path}")
+    music_id = _insert_job(engine, status='ripping', disctype='music')
+    video_id = _insert_job(engine, status='ripping', disctype='bluray')
+    waiting_id = _insert_job(engine, status='waiting', disctype='dvd')
+    success_id = _insert_job(engine, status='success', disctype='dvd')
 
-    # Build a permissive pre-migration schema by hand: the production
-    # migration assumes the 'job' table already exists with status as a
-    # CHECK-constrained enum. For test isolation we create a permissive
-    # schema (no CHECK), seed the rows, then drop the constraint
-    # expectation and exercise just the backfill UPDATEs from the
-    # migration module.
-    with engine.begin() as conn:
-        conn.execute(sa.text("""
-            CREATE TABLE job (
-                job_id INTEGER PRIMARY KEY,
-                status VARCHAR(32) NOT NULL,
-                disctype VARCHAR(20)
-            )
-        """))
-        conn.execute(sa.text("""
-            CREATE TABLE track (
-                track_id INTEGER PRIMARY KEY,
-                status VARCHAR(32)
-            )
-        """))
-        # Seed legacy rows
-        conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES "
-            "('ripping', 'music'), ('ripping', 'bluray'), "
-            "('waiting', 'dvd'), ('success', 'dvd')"
-        ))
+    command.upgrade(cfg, _S4T5_REVISION)
 
-    # Load the production migration module so we exercise its actual
-    # SQL strings (not a fork in this test file). Resolve relative to
-    # this test file so the path works locally and in CI.
-    import os
-    mig_path = os.path.normpath(os.path.join(
-        os.path.dirname(__file__),
-        "..", "arm", "migrations", "versions",
-        "s4t5u6v7w8x9_jobstate_disambiguation.py",
-    ))
-    spec = importlib.util.spec_from_file_location(
-        "s4t5u6v7w8x9_jobstate_disambiguation", mig_path,
+    assert _fetch_status(engine, music_id) == 'audio_ripping'
+    assert _fetch_status(engine, video_id) == 'video_ripping'
+    assert _fetch_status(engine, waiting_id) == 'manual_paused'
+    assert _fetch_status(engine, success_id) == 'success'
+
+
+def test_migration_module_constants_are_intact():
+    """Sanity-check the loaded migration module exposes the expected
+    constants - this catches a renamed-revision regression where the
+    plan's down_revision pointer is wrong. Imported via the standard
+    package mechanism so coverage credits the module.
+    """
+    from arm.migrations.versions import (
+        s4t5u6v7w8x9_jobstate_disambiguation as mig,
     )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
 
-    # Apply just the backfill UPDATEs from the migration body. We cannot
-    # run module.upgrade() directly because it relies on alembic's
-    # op.get_bind() context, which isn't set up in a unit test. The
-    # backfill SQL is the part with the order-dependency bug surface,
-    # so exercising the strings verbatim is the meaningful coverage.
-    with engine.begin() as conn:
-        # Mirror migration upgrade() backfill ordering:
-        conn.execute(sa.text("""
-            UPDATE job
-            SET status = 'audio_ripping'
-            WHERE status = 'ripping' AND disctype = 'music'
-        """))
-        conn.execute(sa.text("""
-            UPDATE job
-            SET status = 'video_ripping'
-            WHERE status = 'ripping'
-        """))
-        conn.execute(sa.text("""
-            UPDATE job
-            SET status = 'manual_paused'
-            WHERE status = 'waiting'
-        """))
-
-        rows = conn.execute(sa.text(
-            "SELECT status, disctype FROM job ORDER BY job_id"
-        )).fetchall()
-
-    statuses = [(r[0], r[1]) for r in rows]
-    assert statuses == [
-        ('audio_ripping', 'music'),
-        ('video_ripping', 'bluray'),
-        ('manual_paused', 'dvd'),
-        ('success', 'dvd'),
-    ]
-
-    # Sanity-check that the loaded migration module exposes the expected
-    # constants - this catches a renamed-revision regression where the
-    # plan's down_revision pointer is wrong.
-    assert module.revision == 's4t5u6v7w8x9'
-    assert module.down_revision == 'r3s4t5u6v7w8'
-    assert 'failed' in module.NEW_TRACK_STATUS_VALUES
-    assert 'manual_paused' in module.NEW_JOB_STATE_VALUES
-    assert 'makemkv_throttled' in module.NEW_JOB_STATE_VALUES
-    assert 'video_ripping' in module.NEW_JOB_STATE_VALUES
-    assert 'audio_ripping' in module.NEW_JOB_STATE_VALUES
-    assert 'waiting' not in module.NEW_JOB_STATE_VALUES
-    assert 'ripping' not in module.NEW_JOB_STATE_VALUES
+    assert mig.revision == 's4t5u6v7w8x9'
+    assert mig.down_revision == 'r3s4t5u6v7w8'
+    assert 'failed' in mig.NEW_TRACK_STATUS_VALUES
+    assert 'manual_paused' in mig.NEW_JOB_STATE_VALUES
+    assert 'makemkv_throttled' in mig.NEW_JOB_STATE_VALUES
+    assert 'video_ripping' in mig.NEW_JOB_STATE_VALUES
+    assert 'audio_ripping' in mig.NEW_JOB_STATE_VALUES
+    assert 'waiting' not in mig.NEW_JOB_STATE_VALUES
+    assert 'ripping' not in mig.NEW_JOB_STATE_VALUES
