@@ -5,6 +5,7 @@ database is locked, rolls back on non-lock errors, respects the
 timeout, and that an explicit rollback() clears stale session state
 (the same primitive the per-endpoint cleanup wrapper relies on).
 """
+import sqlite3
 import threading
 import time
 import unittest.mock
@@ -103,7 +104,7 @@ class TestRetryOnLocked:
             call_count["n"] += 1
             if call_count["n"] == 1:
                 raise OperationalError(
-                    "commit", {}, Exception("database is locked")
+                    "commit", {}, sqlite3.OperationalError("database is locked")
                 )
             return real_commit(session_self)
 
@@ -129,7 +130,7 @@ class TestRetryOnLocked:
             call_count["n"] += 1
             if call_count["n"] == 1:
                 raise OperationalError(
-                    "commit", {}, Exception("database is locked")
+                    "commit", {}, sqlite3.OperationalError("database is locked")
                 )
             return real_commit(session_self)
 
@@ -154,7 +155,7 @@ class TestRetryOnLocked:
             call_count["n"] += 1
             if call_count["n"] == 1:
                 raise OperationalError(
-                    "commit", {}, Exception("database is locked")
+                    "commit", {}, sqlite3.OperationalError("database is locked")
                 )
             return real_commit(session_self)
 
@@ -167,7 +168,7 @@ class TestRetryOnLocked:
     def test_retries_with_backoff(self, retry_db):
         """Verify exponential backoff timing between retries."""
         lock_error = OperationalError(
-            "commit", {}, Exception("database is locked")
+            "commit", {}, sqlite3.OperationalError("database is locked")
         )
         timestamps = []
         real_commit = BaseSession.commit
@@ -193,7 +194,7 @@ class TestRetryOnLocked:
     def test_timeout_raises(self, retry_db):
         """Commit raises after timeout is exceeded."""
         lock_error = OperationalError(
-            "commit", {}, Exception("database is locked")
+            "commit", {}, sqlite3.OperationalError("database is locked")
         )
 
         def always_locked(session_self):
