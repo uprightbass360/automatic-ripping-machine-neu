@@ -4,8 +4,11 @@ import platform
 import subprocess
 
 import psutil
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
+from sqlalchemy import create_engine, inspect, text
 
 import arm.config.config as cfg
 from arm.database import db
@@ -134,10 +137,6 @@ def _read_makemkv_version() -> str:
 
 def _read_db_revisions(db_uri: str, install_path: str) -> tuple[str, str]:
     """Return (current_revision, head_revision), both 'unknown' on lookup failure."""
-    from alembic.config import Config
-    from alembic.script import ScriptDirectory
-    from sqlalchemy import create_engine, inspect, text
-
     db_head = "unknown"
     try:
         config = Config()

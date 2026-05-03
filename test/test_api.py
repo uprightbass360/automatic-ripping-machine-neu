@@ -359,9 +359,9 @@ class TestApiSystemVersion:
             m.patch("arm.api.v1.system.cfg.get_db_uri", return_value=db_uri),
             m.patch("arm.api.v1.system.subprocess.run", return_value=proc),
             m.patch("arm.api.v1.system.os.path.isfile", return_value=db_file_exists),
-            m.patch("alembic.script.ScriptDirectory.from_config", return_value=mock_script),
-            m.patch("sqlalchemy.create_engine", return_value=mock_engine),
-            m.patch("sqlalchemy.inspect", return_value=mock_inspector),
+            m.patch("arm.api.v1.system.ScriptDirectory.from_config", return_value=mock_script),
+            m.patch("arm.api.v1.system.create_engine", return_value=mock_engine),
+            m.patch("arm.api.v1.system.inspect", return_value=mock_inspector),
             m.patch("builtins.open", open_mock or m.Mock(side_effect=open_side)),
         ):
             return client.get('/api/v1/system/version')
@@ -424,8 +424,8 @@ class TestApiSystemVersion:
             m.patch("arm.api.v1.system.subprocess.run",
                     return_value=m.Mock(stdout="", stderr="")),
             m.patch("arm.api.v1.system.os.path.isfile", return_value=True),
-            m.patch("alembic.script.ScriptDirectory.from_config", return_value=mock_script),
-            m.patch("sqlalchemy.create_engine",
+            m.patch("arm.api.v1.system.ScriptDirectory.from_config", return_value=mock_script),
+            m.patch("arm.api.v1.system.create_engine",
                     side_effect=OperationalError("stmt", {}, Exception("file is not a database"))),
             m.patch("builtins.open", m.mock_open(read_data="1.0.0")),
         ):
