@@ -12,6 +12,7 @@ from datetime import datetime
 from time import time
 
 import bcrypt
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 import arm.config.config as cfg
@@ -41,77 +42,95 @@ def _alembic_upgrade(mig_dir, db_uri):
     command.upgrade(alembic_cfg, "head")
 
 
-def check_db_version(install_path, db_file):
+def check_db_version(install_path, db_uri):
     """
     Check if db exists and is up-to-date.
     If it doesn't exist create it.  If it's out of date update it.
+
+    db_uri is a SQLAlchemy DSN (sqlite:///path/to/file.db OR
+    postgresql+psycopg://user:pass@host:5432/db). Sqlite-specific
+    file-existence bootstrap is gated behind the sqlite:/// prefix;
+    other backends are expected to be provisioned by the operator
+    (CREATE DATABASE etc.) before ARM starts.
     """
     from alembic.script import ScriptDirectory
     from alembic.config import Config
-    import sqlite3
 
-    db_uri = 'sqlite:///' + db_file
     mig_dir = os.path.join(install_path, path_migrations)
 
     config = Config()
     config.set_main_option("script_location", mig_dir)
     script = ScriptDirectory.from_config(config)
-
-    # Create db file if it doesn't exist
-    if not os.path.isfile(db_file):
-        log.info("No database found.  Initializing arm.db...")
-        make_dir(os.path.dirname(db_file))
-        _alembic_upgrade(mig_dir, db_uri)
-        if not os.path.isfile(db_file):
-            log.error("Can't create database file.  This could be a permissions issue.")
-            return
-
-    # Check to see if db is at current revision
     head_revision = script.get_current_head()
     log.debug("Alembic Head is: " + head_revision)
 
-    conn = sqlite3.connect(db_file)
-    c = conn.cursor()
+    # Sqlite-specific bootstrap: create the file + parent directory if
+    # missing. Other backends require the operator to have created the
+    # database out of band; an empty PG database falls through to the
+    # has_table() check below and runs migrations from scratch.
+    if db_uri.startswith('sqlite:///'):
+        db_file = db_uri[len('sqlite:///'):]
+        if not os.path.isfile(db_file):
+            log.info("No database found.  Initializing arm.db...")
+            make_dir(os.path.dirname(db_file))
+            _alembic_upgrade(mig_dir, db_uri)
+            if not os.path.isfile(db_file):
+                log.error("Can't create database file.  This could be a permissions issue.")
+                return
 
+    engine = create_engine(db_uri)
     try:
-        c.execute('SELECT version_num FROM alembic_version')
-        db_version = c.fetchone()[0]
-    except sqlite3.OperationalError:
-        log.warning("alembic_version table missing — running migrations to initialize database.")
-        conn.close()
-        _alembic_upgrade(mig_dir, db_uri)
-        return
+        if not inspect(engine).has_table('alembic_version'):
+            log.warning("alembic_version table missing — running migrations to initialize database.")
+            _alembic_upgrade(mig_dir, db_uri)
+            return
+
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
+            db_version = row[0] if row else None
+    finally:
+        engine.dispose()
 
     log.debug(f"Database version is: {db_version}")
     if head_revision == db_version:
         log.info("Database is up to date")
-    else:
-        log.info(
-            f"Database out of date. Head is {head_revision} and database is {db_version}.  Upgrading database...")
+        return
+
+    log.info(
+        f"Database out of date. Head is {head_revision} and database is {db_version}.  Upgrading database...")
+
+    # Sqlite-only in-process backup. PG operators back up via pg_dump
+    # before invoking the upgrade; documented in the operator runbook.
+    if db_uri.startswith('sqlite:///'):
+        db_file = db_uri[len('sqlite:///'):]
         dt = datetime.now()
         timestamp = dt.strftime("%Y-%m-%d_%H%M%S")
         backup_path = f"{db_file}_migration_{timestamp}"
         log.info(f"Backing up database '{db_file}' to '{backup_path}'.")
         shutil.copy(db_file, backup_path)
-        _alembic_upgrade(mig_dir, db_uri)
-        log.info("Upgrade complete.  Validating version level...")
+    else:
+        log.info(
+            "Non-sqlite DSN: in-process backup skipped. Operators are "
+            "responsible for snapshotting the database before migrations."
+        )
 
-        try:
-            c.execute("SELECT version_num FROM alembic_version")
-            db_version = c.fetchone()[0]
-        except sqlite3.OperationalError:
-            log.error("alembic_version table still missing after upgrade.")
-            conn.close()
-            return
+    _alembic_upgrade(mig_dir, db_uri)
+    log.info("Upgrade complete.  Validating version level...")
 
-        log.debug(f"Database version is: {db_version}")
-        if head_revision == db_version:
-            log.info("Database is now up to date")
-        else:
-            log.error(f"Database is still out of date. "
-                      f"Head is {head_revision} and database is {db_version}.  Exiting arm.")
+    engine = create_engine(db_uri)
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
+            db_version = row[0] if row else None
+    finally:
+        engine.dispose()
 
-    conn.close()
+    log.debug(f"Database version is: {db_version}")
+    if head_revision == db_version:
+        log.info("Database is now up to date")
+    else:
+        log.error(f"Database is still out of date. "
+                  f"Head is {head_revision} and database is {db_version}.  Exiting arm.")
 
 
 def arm_alembic_get():
@@ -202,8 +221,7 @@ def arm_db_migrate():
     Migrate the existing database to the newest version, keeping user data
     """
     install_path = cfg.arm_config['INSTALLPATH']
-    db_file = cfg.arm_config['DBFILE']
-    db_uri = 'sqlite:///' + db_file
+    db_uri = cfg.get_db_uri()
     mig_dir = os.path.join(install_path, path_migrations)
 
     head_revision = arm_alembic_get()
@@ -213,12 +231,23 @@ def arm_db_migrate():
         "Database out of date." +
         f" Head is {head_revision} and database is {db_revision.version_num}." +
         " Upgrading database...")
-    dt = datetime.now()
-    timestamp = dt.strftime("%Y-%m-%d_%H%M")
-    log.info(
-        f"Backing up database '{db_file}' " +
-        f"to '{db_file}_migration_{timestamp}'.")
-    shutil.copy(db_file, db_file + "_migration_" + timestamp)
+
+    # Sqlite-only in-process backup. PG operators back up via pg_dump
+    # before invoking the upgrade; documented in the operator runbook.
+    if db_uri.startswith('sqlite:///'):
+        db_file = db_uri[len('sqlite:///'):]
+        dt = datetime.now()
+        timestamp = dt.strftime("%Y-%m-%d_%H%M")
+        log.info(
+            f"Backing up database '{db_file}' " +
+            f"to '{db_file}_migration_{timestamp}'.")
+        shutil.copy(db_file, db_file + "_migration_" + timestamp)
+    else:
+        log.info(
+            "Non-sqlite DSN: in-process backup skipped. Operators are "
+            "responsible for snapshotting the database before migrations."
+        )
+
     _alembic_upgrade(mig_dir, db_uri)
     log.info("Upgrade complete.  Validating version level...")
 

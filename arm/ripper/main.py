@@ -292,7 +292,7 @@ def setup():
     # Auto-migrate database schema if out of date (before any DB queries)
     from arm.services.config import check_db_version
     try:
-        check_db_version(cfg.arm_config['INSTALLPATH'], cfg.arm_config['DBFILE'])
+        check_db_version(cfg.arm_config['INSTALLPATH'], cfg.get_db_uri())
     except Exception as e:
         # Migration may fail if another ripper process is migrating concurrently.
         # Re-check: if DB is now current (other process succeeded), continue.
