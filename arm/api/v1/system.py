@@ -132,11 +132,11 @@ def _read_makemkv_version() -> str:
         return "unknown"
 
 
-def _read_db_revisions(db_file: str, install_path: str) -> tuple[str, str]:
+def _read_db_revisions(db_uri: str, install_path: str) -> tuple[str, str]:
     """Return (current_revision, head_revision), both 'unknown' on lookup failure."""
-    import sqlite3
     from alembic.config import Config
     from alembic.script import ScriptDirectory
+    from sqlalchemy import create_engine, inspect, text
 
     db_head = "unknown"
     try:
@@ -147,23 +147,32 @@ def _read_db_revisions(db_file: str, install_path: str) -> tuple[str, str]:
         pass
 
     db_version = "unknown"
-    if db_file and os.path.isfile(db_file):
+    if not db_uri:
+        return db_version, db_head
+    try:
+        engine = create_engine(db_uri)
         try:
-            conn = sqlite3.connect(db_file)
-            cursor = conn.cursor()
-            cursor.execute('SELECT version_num FROM alembic_version')
-            row = cursor.fetchone()
-            if row:
-                db_version = row[0]
-            conn.close()
-        except Exception:
-            pass
+            if not inspect(engine).has_table('alembic_version'):
+                return db_version, db_head
+            with engine.connect() as conn:
+                row = conn.execute(text('SELECT version_num FROM alembic_version')).fetchone()
+                if row:
+                    db_version = row[0]
+        finally:
+            engine.dispose()
+    except Exception:
+        pass
     return db_version, db_head
 
 
-def _db_file_size(db_file: str) -> int | None:
-    """Return the SQLite file size in bytes, or None if unreadable."""
-    if not (db_file and os.path.isfile(db_file)):
+def _db_file_size(db_uri: str) -> int | None:
+    """Return the SQLite file size in bytes. Returns None for non-sqlite
+    DSNs (postgres etc.) where file size is meaningless, and None for
+    sqlite files that don't exist or can't be read."""
+    if not db_uri or not db_uri.startswith('sqlite:///'):
+        return None
+    db_file = db_uri[len('sqlite:///'):]
+    if not os.path.isfile(db_file):
         return None
     try:
         return os.path.getsize(db_file)
@@ -175,16 +184,22 @@ def _db_file_size(db_file: str) -> int | None:
 def get_version():
     """Return ARM, MakeMKV, and database versions."""
     install_path = cfg.arm_config.get("INSTALLPATH", "")
-    db_file = cfg.arm_config.get("DBFILE", "")
-    db_version, db_head = _read_db_revisions(db_file, install_path)
+    db_uri = cfg.get_db_uri()
+    db_version, db_head = _read_db_revisions(db_uri, install_path)
+    # db_path: for sqlite, return the file path (operator-friendly);
+    # for other DSNs, return the URI itself (caller can parse).
+    if db_uri.startswith('sqlite:///'):
+        db_path = db_uri[len('sqlite:///'):] or None
+    else:
+        db_path = db_uri or None
 
     return {
         "arm_version": _read_arm_version(install_path),
         "makemkv_version": _read_makemkv_version(),
         "db_version": db_version,
         "db_head": db_head,
-        "db_path": db_file or None,
-        "db_size_bytes": _db_file_size(db_file),
+        "db_path": db_path,
+        "db_size_bytes": _db_file_size(db_uri),
     }
 
 
