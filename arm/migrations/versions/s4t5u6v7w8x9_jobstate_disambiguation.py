@@ -94,16 +94,25 @@ def upgrade() -> None:
 
     # 2. Refuse to migrate if any row still holds a value not in the new
     #    enum set after backfill. Better to fail loudly here than to
-    #    silently truncate.
+    #    silently truncate. Report row counts per bad value so the
+    #    operator can decide between manual fix vs. restore-from-backup.
     rows = conn.execute(sa.text(
-        "SELECT DISTINCT status FROM job WHERE status IS NOT NULL"
-    )).fetchall()
-    bad = sorted({r[0] for r in rows if r[0] not in NEW_JOB_STATE_VALUES})
-    if bad:
+        "SELECT status, COUNT(*) FROM job "
+        "WHERE status IS NOT NULL AND status NOT IN :allowed "
+        "GROUP BY status"
+    ).bindparams(sa.bindparam('allowed', expanding=True)),
+        {'allowed': list(NEW_JOB_STATE_VALUES)}
+    ).fetchall()
+    if rows:
+        bad_summary = ', '.join(
+            f"{value!r}: {count} row(s)" for value, count in sorted(rows)
+        )
+        total = sum(count for _, count in rows)
         raise RuntimeError(
-            f"job.status contains values not in the new JobState set: "
-            f"{bad}. Allowed: {sorted(NEW_JOB_STATE_VALUES)}. Fix the "
-            f"rows manually then retry."
+            f"job.status contains {total} row(s) with values not in the "
+            f"new JobState set ({bad_summary}). Allowed: "
+            f"{sorted(NEW_JOB_STATE_VALUES)}. Fix the rows manually then "
+            f"retry."
         )
 
     # 3. Swap the CHECK constraint on job.status to the new value set.

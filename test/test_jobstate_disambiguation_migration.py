@@ -164,36 +164,56 @@ def test_unknown_status_value_is_left_alone_for_assert_clean_to_catch():
 
 def test_assert_clean_post_check_raises_on_bogus_value():
     """The migration's post-backfill RuntimeError must fire when an
-    out-of-band value remains. We re-implement the post-check in this
-    test so a bug in the production check can't silently pass."""
-    NEW_JOB_STATE_VALUES = {
+    out-of-band value remains, and the message must include row counts
+    so the operator can decide between manual fix vs. restore-from-backup.
+    """
+    NEW_JOB_STATE_VALUES = (
         'success', 'fail', 'manual_paused', 'identifying', 'ready',
         'video_ripping', 'audio_ripping', 'info', 'copying', 'ejecting',
         'transcoding', 'waiting_transcode', 'makemkv_throttled',
-    }
+    )
 
     engine = _make_engine_with_legacy_job_table()
     with engine.begin() as conn:
+        # Two rows of the same bad value to confirm count aggregation.
         conn.execute(sa.text(
-            "INSERT INTO job (status, disctype) VALUES ('totally-bogus', 'dvd')"
+            "INSERT INTO job (status, disctype) VALUES "
+            "('totally-bogus', 'dvd'), ('totally-bogus', 'bluray'), "
+            "('also-bogus', 'music')"
         ))
 
         _backfill_job_status(conn)
 
+        # Mirror the production post-check (must stay in lockstep with
+        # arm/migrations/versions/s4t5u6v7w8x9_jobstate_disambiguation.py).
         rows = conn.execute(sa.text(
-            "SELECT DISTINCT status FROM job WHERE status IS NOT NULL"
-        )).fetchall()
-        bad = sorted({r[0] for r in rows if r[0] not in NEW_JOB_STATE_VALUES})
+            "SELECT status, COUNT(*) FROM job "
+            "WHERE status IS NOT NULL AND status NOT IN :allowed "
+            "GROUP BY status"
+        ).bindparams(sa.bindparam('allowed', expanding=True)),
+            {'allowed': list(NEW_JOB_STATE_VALUES)}
+        ).fetchall()
 
-        # Mirror the production check.
-        if not bad:
-            pytest.fail("Expected the bogus status to remain in the bad set")
-        with pytest.raises(RuntimeError, match="totally-bogus"):
-            raise RuntimeError(
-                f"job.status contains values not in the new JobState set: "
-                f"{bad}. Allowed: {sorted(NEW_JOB_STATE_VALUES)}. Fix the "
-                f"rows manually then retry."
-            )
+    # Verify: aggregation produced (value, count) pairs, total is 3.
+    assert rows, "Expected the bogus rows to remain in the bad set"
+    summary = {value: count for value, count in rows}
+    assert summary == {'totally-bogus': 2, 'also-bogus': 1}
+
+    # Verify the message format: includes counts AND value, raises RuntimeError.
+    bad_summary = ', '.join(
+        f"{value!r}: {count} row(s)" for value, count in sorted(rows)
+    )
+    total = sum(count for _, count in rows)
+    with pytest.raises(RuntimeError, match=r"3 row\(s\)") as exc_info:
+        raise RuntimeError(
+            f"job.status contains {total} row(s) with values not in the "
+            f"new JobState set ({bad_summary}). Allowed: "
+            f"{sorted(NEW_JOB_STATE_VALUES)}. Fix the rows manually then "
+            f"retry."
+        )
+    msg = str(exc_info.value)
+    assert "'totally-bogus': 2 row(s)" in msg
+    assert "'also-bogus': 1 row(s)" in msg
 
 
 def test_real_migration_module_executes_backfill_against_seeded_db(tmp_path):

@@ -29,7 +29,8 @@ from arm.api.dependencies import require_api_version
 import arm.config.config as cfg
 from arm.constants import SINGLE_TRACK_VIDEO_TYPES
 from arm.database import db
-from arm.enums import RipMethod
+from arm.enums import AudioFormat, RipMethod, SpeedProfile
+from arm_contracts.enums import Disctype
 from arm.models.job import Job, JobState
 from arm.models.track import Track
 from arm.models.notifications import Notifications
@@ -388,12 +389,12 @@ def change_job_config(job_id: int, body: dict):
     config_updates = {}  # collected for atomic apply under lock
 
     valid_ripmethods = tuple(m.value for m in RipMethod)
-    valid_disctypes = ('dvd', 'bluray', 'bluray4k', 'music', 'data')
-    valid_audio_formats = (
-        'flac', 'mp3', 'vorbis', 'opus', 'm4a', 'wav', 'mka',
-        'wv', 'ape', 'mpc', 'spx', 'mp2', 'tta', 'aiff',
-    )
-    valid_speed_profiles = ('safe', 'fast', 'fastest')
+    # Disctype enum has an 'unknown' member but the API rejects it as a
+    # PATCH target - 'unknown' is the initial state for unidentified discs,
+    # not something operators set deliberately.
+    valid_disctypes = tuple(m.value for m in Disctype if m.value != 'unknown')
+    valid_audio_formats = tuple(m.value for m in AudioFormat)
+    valid_speed_profiles = tuple(m.value for m in SpeedProfile)
 
     if 'RIPMETHOD' in body:
         val = str(body['RIPMETHOD']).lower()
