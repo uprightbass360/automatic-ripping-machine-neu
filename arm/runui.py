@@ -31,7 +31,7 @@ def startup():
     try:
         svc_config.check_db_version(
             cfg.arm_config['INSTALLPATH'],
-            cfg.arm_config['DBFILE'],
+            cfg.get_db_uri(),
         )
     except Exception as e:
         logging.error("Database initialization failed: %s", e)

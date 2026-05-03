@@ -1096,6 +1096,7 @@ class TestCheckDbVersion:
         from arm.services.config import check_db_version
 
         db_file = str(tmp_path / "arm.db")
+        db_uri = f"sqlite:///{db_file}"
         install_path = str(tmp_path)
         mig_dir = os.path.join(install_path, "arm/migrations")
 
@@ -1105,7 +1106,7 @@ class TestCheckDbVersion:
             mock_script.get_current_head.return_value = "abc123"
             mock_sd.from_config.return_value = mock_script
 
-            check_db_version(install_path, db_file)
+            check_db_version(install_path, db_uri)
 
         mock_upgrade.assert_called_once()
 
@@ -1114,6 +1115,7 @@ class TestCheckDbVersion:
         import sqlite3
 
         db_file = str(tmp_path / "arm.db")
+        db_uri = f"sqlite:///{db_file}"
         # Create a db with alembic_version table
         conn = sqlite3.connect(db_file)
         conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32))")
@@ -1126,7 +1128,7 @@ class TestCheckDbVersion:
             mock_script.get_current_head.return_value = "abc123"
             mock_sd.from_config.return_value = mock_script
 
-            check_db_version(str(tmp_path), db_file)
+            check_db_version(str(tmp_path), db_uri)
         # Should not raise, no upgrade needed
 
     def test_db_out_of_date_upgrades(self, tmp_path):
@@ -1134,6 +1136,7 @@ class TestCheckDbVersion:
         import sqlite3
 
         db_file = str(tmp_path / "arm.db")
+        db_uri = f"sqlite:///{db_file}"
         conn = sqlite3.connect(db_file)
         conn.execute("CREATE TABLE alembic_version (version_num VARCHAR(32))")
         conn.execute("INSERT INTO alembic_version VALUES ('old_rev')")
@@ -1147,13 +1150,14 @@ class TestCheckDbVersion:
             mock_script.get_current_head.return_value = "new_rev"
             mock_sd.from_config.return_value = mock_script
 
-            check_db_version(str(tmp_path), db_file)
+            check_db_version(str(tmp_path), db_uri)
 
     def test_missing_alembic_table(self, tmp_path):
         from arm.services.config import check_db_version
         import sqlite3
 
         db_file = str(tmp_path / "arm.db")
+        db_uri = f"sqlite:///{db_file}"
         conn = sqlite3.connect(db_file)
         conn.execute("CREATE TABLE dummy (id INTEGER)")
         conn.commit()
@@ -1166,7 +1170,7 @@ class TestCheckDbVersion:
             mock_sd.from_config.return_value = mock_script
 
             # Should run migrations when alembic_version table is missing
-            check_db_version(str(tmp_path), db_file)
+            check_db_version(str(tmp_path), db_uri)
             mock_upgrade.assert_called_once()
 
 
