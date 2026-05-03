@@ -28,8 +28,18 @@ JOB_STATE_VALUES = (
 SOURCE_TYPE_VALUES = ('disc', 'folder')
 TRACK_STATUS_VALUES = (
     'pending', 'ripping', 'encoding', 'success',
-    'transcoded', 'transcode_failed',
+    'transcoded', 'transcode_failed', 'failed',
 )
+# Legacy values that arm-neu wrote to track.status before the enum was
+# introduced, mapped to their nearest TrackStatus member. 'fail' was
+# JobState.FAILURE.value being mistakenly written to track.status by the
+# pre-disambiguation music-rip failure path (fixed in s4t5u6v7w8x9 along
+# with the TrackStatus.failed enum addition). Real production rows
+# observed on hifi 2026-05-03; the backfill migrates them to 'failed' so
+# the column constraint passes.
+LEGACY_TRACK_STATUS_REMAP = {
+    'fail': 'failed',
+}
 SKIP_REASON_VALUES = (
     'too_short', 'too_long', 'makemkv_skipped',
     'user_disabled', 'below_main_feature',
@@ -80,6 +90,21 @@ def upgrade() -> None:
     conn.execute(sa.text(
         "UPDATE job SET status = 'identifying' WHERE status IS NULL"
     ))
+
+    # 1c. Remap legacy track.status values to their TrackStatus equivalents.
+    #     Pre-disambiguation, the music-rip failure path wrote
+    #     JobState.FAILURE.value ('fail') into track.status. The fix
+    #     ('failed' member + helper retirement) shipped in s4t5u6v7w8x9, but
+    #     real production rows from before that fix already exist and need
+    #     remapping for the CHECK constraint to accept them. Add 'failed' to
+    #     TRACK_STATUS_VALUES too so the constraint allows it post-migration
+    #     (s4t5u6v7w8x9 also lists 'failed' in its set, so the value
+    #     persists through the next migration unchanged).
+    for old_value, new_value in LEGACY_TRACK_STATUS_REMAP.items():
+        conn.execute(
+            sa.text("UPDATE track SET status = :new WHERE status = :old"),
+            {"old": old_value, "new": new_value},
+        )
 
     # 2. Pre-checks: refuse to migrate if any column has an out-of-band
     #    value. Better to fail loudly here than to silently truncate or
