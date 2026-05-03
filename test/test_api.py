@@ -320,7 +320,8 @@ class TestApiSystemVersion:
                        makemkv_output="MakeMKV v1.18.3",
                        db_file="/home/arm/db/arm.db", install_path="/opt/arm",
                        db_row=("abc123",), head="def456",
-                       version_file_error=None, db_file_exists=True):
+                       version_file_error=None, db_file_exists=True,
+                       db_uri=None, has_alembic_table=True):
         """Call the version endpoint with all dependencies mocked."""
         import unittest.mock as m
 
@@ -328,20 +329,39 @@ class TestApiSystemVersion:
         proc = m.Mock(stdout=makemkv_output, stderr="")
         mock_script = m.Mock()
         mock_script.get_current_head.return_value = head
-        mock_cursor = m.Mock()
-        mock_cursor.fetchone.return_value = db_row
-        mock_conn = m.Mock()
-        mock_conn.cursor.return_value = mock_cursor
+
+        # Build a mock engine + connection chain. We can't share a real
+        # in-memory sqlite engine across the test client's worker thread,
+        # so mock the SQLAlchemy surface used by _read_db_revisions:
+        # create_engine(...) -> engine; inspect(engine).has_table(...);
+        # engine.connect().__enter__() -> conn;
+        # conn.execute(text(...)).fetchone() -> row.
+        mock_engine = m.MagicMock()
+        mock_inspector = m.MagicMock()
+        mock_inspector.has_table.return_value = has_alembic_table
+        mock_result = m.MagicMock()
+        mock_result.fetchone.return_value = db_row
+        mock_conn_ctx = m.MagicMock()
+        mock_conn_ctx.execute.return_value = mock_result
+        mock_engine.connect.return_value.__enter__.return_value = mock_conn_ctx
+
+        # db_uri defaults to sqlite:///<db_file> so existing call sites
+        # behave the same; tests can pass db_uri="" to force the empty
+        # branch.
+        if db_uri is None:
+            db_uri = ('sqlite:///' + db_file) if db_file else ''
 
         open_side = version_file_error if version_file_error else None
         open_mock = m.mock_open(read_data=arm_version) if not version_file_error else None
 
         with (
             m.patch("arm.api.v1.system.cfg.arm_config", config),
+            m.patch("arm.api.v1.system.cfg.get_db_uri", return_value=db_uri),
             m.patch("arm.api.v1.system.subprocess.run", return_value=proc),
             m.patch("arm.api.v1.system.os.path.isfile", return_value=db_file_exists),
             m.patch("alembic.script.ScriptDirectory.from_config", return_value=mock_script),
-            m.patch("sqlite3.connect", return_value=mock_conn),
+            m.patch("sqlalchemy.create_engine", return_value=mock_engine),
+            m.patch("sqlalchemy.inspect", return_value=mock_inspector),
             m.patch("builtins.open", open_mock or m.Mock(side_effect=open_side)),
         ):
             return client.get('/api/v1/system/version')
@@ -363,14 +383,14 @@ class TestApiSystemVersion:
         assert response.json()["arm_version"] == "unknown"
 
     def test_version_db_version_from_sqlite(self, client):
-        """db_version matches the revision returned by sqlite."""
+        """db_version matches the revision returned by the database."""
         response = self._patch_version(client, db_row=("rev_99x",))
         assert response.status_code == 200
         assert response.json()["db_version"] == "rev_99x"
 
     def test_version_db_unknown_when_no_dbfile(self, client):
-        """db_version is 'unknown' when DBFILE is empty or file does not exist."""
-        response = self._patch_version(client, db_file="", db_file_exists=False)
+        """db_version is 'unknown' when the DSN is empty."""
+        response = self._patch_version(client, db_file="", db_file_exists=False, db_uri="")
         assert response.status_code == 200
         assert response.json()["db_version"] == "unknown"
 
@@ -385,26 +405,28 @@ class TestApiSystemVersion:
         assert data["db_size_bytes"] == 12345
 
     def test_version_db_path_none_when_dbfile_missing(self, client):
-        """db_path/db_size_bytes are None when DBFILE doesn't exist."""
-        response = self._patch_version(client, db_file="", db_file_exists=False)
+        """db_path/db_size_bytes are None when DSN is empty."""
+        response = self._patch_version(client, db_file="", db_file_exists=False, db_uri="")
         data = response.json()
         assert data["db_path"] is None
         assert data["db_size_bytes"] is None
 
-    def test_version_db_version_unknown_on_sqlite_error(self, client):
-        """If sqlite3.connect or the alembic_version query raises, db_version is 'unknown'."""
+    def test_version_db_version_unknown_on_db_error(self, client):
+        """If create_engine or the alembic_version query raises, db_version is 'unknown'."""
         import unittest.mock as m
-        import sqlite3
+        from sqlalchemy.exc import OperationalError
         config = {"INSTALLPATH": "/opt/arm", "DBFILE": "arm.db"}
         mock_script = m.Mock()
         mock_script.get_current_head.return_value = "def456"
         with (
             m.patch("arm.api.v1.system.cfg.arm_config", config),
+            m.patch("arm.api.v1.system.cfg.get_db_uri", return_value="sqlite:///arm.db"),
             m.patch("arm.api.v1.system.subprocess.run",
                     return_value=m.Mock(stdout="", stderr="")),
             m.patch("arm.api.v1.system.os.path.isfile", return_value=True),
             m.patch("alembic.script.ScriptDirectory.from_config", return_value=mock_script),
-            m.patch("sqlite3.connect", side_effect=sqlite3.DatabaseError("file is not a database")),
+            m.patch("sqlalchemy.create_engine",
+                    side_effect=OperationalError("stmt", {}, Exception("file is not a database"))),
             m.patch("builtins.open", m.mock_open(read_data="1.0.0")),
         ):
             response = client.get('/api/v1/system/version')
@@ -412,6 +434,16 @@ class TestApiSystemVersion:
         data = response.json()
         assert data["db_version"] == "unknown"
         assert data["db_head"] == "def456"
+
+    def test_version_db_path_reflects_postgres_dsn(self, client):
+        """For non-sqlite DSN, db_path returns the URI itself and db_size_bytes is None."""
+        pg_uri = "postgresql://arm:secret@db.example.com:5432/arm"
+        response = self._patch_version(client, db_uri=pg_uri, db_row=("rev_pg",))
+        assert response.status_code == 200
+        data = response.json()
+        assert data["db_path"] == pg_uri
+        assert data["db_size_bytes"] is None
+        assert data["db_version"] == "rev_pg"
 
 
 class TestApiJobTitleUpdate:

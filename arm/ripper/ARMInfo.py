@@ -7,10 +7,11 @@ import sys
 import re
 import getpass  # noqa E402
 import logging  # noqa: E402
-import sqlite3
 from alembic.script import ScriptDirectory
 from alembic.config import Config
+from sqlalchemy import create_engine, inspect, text
 
+import arm.config.config as cfg
 from arm.ripper import ProcessHandler
 
 
@@ -108,12 +109,25 @@ class ARMInfo:
 
     def get_db_version(self):
         """
-        Get the ARM database version from the database file
+        Get the ARM database version from the database.
+
+        Uses cfg.get_db_uri() so the diagnostic works against any
+        SQLAlchemy-supported backend, not just sqlite. self.db_file
+        is retained for display purposes (ARMInfo.get_values logs it
+        elsewhere) but is no longer used for the version read.
         """
-        if os.path.isfile(self.db_file):
-            conn = sqlite3.connect(self.db_file)
-            db_c = conn.cursor()
-            db_c.execute("SELECT version_num FROM alembic_version")
-            self.db_version = db_c.fetchone()[0]
-        else:
+        db_uri = cfg.get_db_uri()
+        try:
+            engine = create_engine(db_uri)
+            try:
+                if not inspect(engine).has_table('alembic_version'):
+                    self.db_version = "unknown"
+                    return
+                with engine.connect() as conn:
+                    row = conn.execute(text("SELECT version_num FROM alembic_version")).fetchone()
+                    self.db_version = row[0] if row else "unknown"
+            finally:
+                engine.dispose()
+        except Exception as exc:
+            logging.warning(f"DB version read failed: {exc}")
             self.db_version = "unknown"

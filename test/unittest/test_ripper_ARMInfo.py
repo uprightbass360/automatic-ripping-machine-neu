@@ -1,7 +1,8 @@
 import os
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
-import sqlite3
+
+from sqlalchemy import create_engine, text
 
 from arm.ripper.ARMInfo import ARMInfo
 
@@ -292,36 +293,39 @@ class TestArmInfo(unittest.TestCase):
     """
     def test_get_db_version_fail(self):
         """
-        CHECK "get_db_version" handles none values
+        CHECK "get_db_version" handles a database that has no
+        alembic_version table (e.g. a fresh/uninitialized DB).
         data check:
-            db: None
+            db_version: "unknown"
         """
-        # Patch os.path.isfile to return False for the nonexistent database file
-        with unittest.mock.patch("os.path.isfile") as mock_isfile:
-            mock_isfile.return_value = False
+        # Empty in-memory engine: no alembic_version table, so the
+        # SQLAlchemy code path should bail out and leave db_version
+        # set to "unknown".
+        empty_engine = create_engine("sqlite:///:memory:")
+        with patch("arm.ripper.ARMInfo.cfg.get_db_uri", return_value="sqlite:///:memory:"), \
+             patch("arm.ripper.ARMInfo.create_engine", return_value=empty_engine):
             self.arm_info.get_db_version()
             self.assertEqual(self.arm_info.db_version, "unknown")
 
     def test_get_db_version_pass(self):
         """
-        CHECK "get_db_version" handles none values
+        CHECK "get_db_version" reads alembic_version via SQLAlchemy
         data check:
-            db: None
+            db_version: "mock_version"
         """
-        # Create a temporary in-memory SQLite database for testing purposes
-        conn = sqlite3.connect(":memory:")
-        db_c = conn.cursor()
-        db_c.execute("CREATE TABLE alembic_version (version_num TEXT)")
-        db_c.execute("INSERT INTO alembic_version (version_num) VALUES ('mock_version')")
-        conn.commit()
+        # Build a real in-memory sqlite engine pre-seeded with the
+        # alembic_version row, then patch create_engine to hand it back.
+        # Sharing the in-memory DB across connections is awkward, so we
+        # short-circuit by returning the same engine instance.
+        engine = create_engine("sqlite:///:memory:")
+        with engine.begin() as conn:
+            conn.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(36) PRIMARY KEY)"))
+            conn.execute(text("INSERT INTO alembic_version VALUES ('mock_version')"))
 
-        # Patch os.path.isfile to return True for the existing database file
-        with unittest.mock.patch("os.path.isfile") as mock_isfile:
-            mock_isfile.return_value = True
-            with unittest.mock.patch("sqlite3.connect") as mock_connect:
-                mock_connect.return_value = conn
-                self.arm_info.get_db_version()
-                self.assertEqual(self.arm_info.db_version, "mock_version")
+        with patch("arm.ripper.ARMInfo.cfg.get_db_uri", return_value="sqlite:///:memory:"), \
+             patch("arm.ripper.ARMInfo.create_engine", return_value=engine):
+            self.arm_info.get_db_version()
+            self.assertEqual(self.arm_info.db_version, "mock_version")
 
     """
     ************************************************************
