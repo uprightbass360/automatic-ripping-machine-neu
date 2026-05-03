@@ -218,7 +218,7 @@ class TestRollbackOnError:
         def integrity_error(session_self):
             call_count["n"] += 1
             raise OperationalError(
-                "commit", {}, Exception("UNIQUE constraint failed")
+                "commit", {}, sqlite3.IntegrityError("UNIQUE constraint failed")
             )
 
         with patch.object(BaseSession, 'commit', integrity_error):
@@ -232,7 +232,7 @@ class TestRollbackOnError:
         # Force an error
         def one_time_error(session_self):
             raise OperationalError(
-                "commit", {}, Exception("some database error")
+                "commit", {}, sqlite3.OperationalError("some database error")
             )
 
         with patch.object(BaseSession, 'commit', one_time_error):
