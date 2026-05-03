@@ -254,3 +254,82 @@ def test_manual_patch_without_enabled_leaves_skip_reason_alone(client, app_conte
     db.session.refresh(t)
     assert t.filename == "renamed.mkv"
     assert t.skip_reason == "makemkv_skipped"
+
+
+def test_mark_prescan_filter_state_skips_short_tracks(app_context, sample_job):
+    """mark_prescan_filter_state stamps process=False + skip_reason=too_short
+    on tracks below the configured MINLENGTH so the disc-review widget
+    renders them as 'skip' before the rip phase starts."""
+    from arm.models.track import Track
+    from arm.ripper.utils import mark_prescan_filter_state
+
+    short = Track(
+        job_id=sample_job.job_id, track_number="0", length=33,
+        aspect_ratio="16:9", fps=23.976, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    long_track = Track(
+        job_id=sample_job.job_id, track_number="1", length=5400,
+        aspect_ratio="16:9", fps=23.976, main_feature=True,
+        source="MakeMKV", basename="t1", filename="t1.mkv",
+    )
+    db.session.add_all([short, long_track])
+    db.session.commit()
+    db.session.refresh(sample_job)
+
+    mark_prescan_filter_state(sample_job, minlength=600, maxlength=99999)
+    db.session.commit()
+
+    db.session.refresh(short)
+    db.session.refresh(long_track)
+    assert short.process is False
+    assert short.skip_reason == "too_short"
+    # Long-enough tracks keep process=None (the serializer's NULL->True
+    # default makes the widget render them as rippable).
+    assert long_track.process is None
+    assert long_track.skip_reason is None
+
+
+def test_mark_prescan_filter_state_skips_too_long_tracks(app_context, sample_job):
+    """Tracks above MAXLENGTH get process=False + skip_reason=too_long."""
+    from arm.models.track import Track
+    from arm.ripper.utils import mark_prescan_filter_state
+
+    too_long = Track(
+        job_id=sample_job.job_id, track_number="0", length=12345,
+        aspect_ratio="16:9", fps=23.976, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    db.session.add(too_long)
+    db.session.commit()
+    db.session.refresh(sample_job)
+
+    mark_prescan_filter_state(sample_job, minlength=600, maxlength=5000)
+    db.session.commit()
+
+    db.session.refresh(too_long)
+    assert too_long.process is False
+    assert too_long.skip_reason == "too_long"
+
+
+def test_mark_prescan_filter_state_skips_tracks_with_null_length(app_context, sample_job):
+    """Tracks with length=None (music CDs, unscanned folders) are not
+    touched - process stays None, skip_reason stays None."""
+    from arm.models.track import Track
+    from arm.ripper.utils import mark_prescan_filter_state
+
+    no_length = Track(
+        job_id=sample_job.job_id, track_number="0", length=None,
+        aspect_ratio="", fps=0.0, main_feature=False,
+        source="MakeMKV", basename="t0", filename="t0.mkv",
+    )
+    db.session.add(no_length)
+    db.session.commit()
+    db.session.refresh(sample_job)
+
+    mark_prescan_filter_state(sample_job, minlength=600, maxlength=5000)
+    db.session.commit()
+
+    db.session.refresh(no_length)
+    assert no_length.process is None
+    assert no_length.skip_reason is None
