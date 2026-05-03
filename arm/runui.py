@@ -27,7 +27,7 @@ def _clear_stale_pause():
 
 
 def startup():
-    db.init_engine('sqlite:///' + cfg.arm_config['DBFILE'])
+    db.init_engine(cfg.get_db_uri())
     try:
         svc_config.check_db_version(
             cfg.arm_config['INSTALLPATH'],
