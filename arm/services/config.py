@@ -81,7 +81,7 @@ def check_db_version(install_path, db_uri):
     engine = create_engine(db_uri)
     try:
         if not inspect(engine).has_table('alembic_version'):
-            log.warning("alembic_version table missing — running migrations to initialize database.")
+            log.warning("alembic_version table missing - running migrations to initialize database.")
             _alembic_upgrade(mig_dir, db_uri)
             return
 
@@ -109,7 +109,7 @@ def check_db_version(install_path, db_uri):
         log.info(f"Backing up database '{db_file}' to '{backup_path}'.")
         shutil.copy(db_file, backup_path)
     else:
-        log.info(
+        log.warning(
             "Non-sqlite DSN: in-process backup skipped. Operators are "
             "responsible for snapshotting the database before migrations."
         )
@@ -243,7 +243,7 @@ def arm_db_migrate():
             f"to '{db_file}_migration_{timestamp}'.")
         shutil.copy(db_file, db_file + "_migration_" + timestamp)
     else:
-        log.info(
+        log.warning(
             "Non-sqlite DSN: in-process backup skipped. Operators are "
             "responsible for snapshotting the database before migrations."
         )
