@@ -187,11 +187,22 @@ def get_version():
     db_uri = cfg.get_db_uri()
     db_version, db_head = _read_db_revisions(db_uri, install_path)
     # db_path: for sqlite, return the file path (operator-friendly);
-    # for other DSNs, return the URI itself (caller can parse).
+    # for other DSNs, return the URI with password masked. The endpoint
+    # is unauthenticated inside the docker network and arm-ui renders
+    # this verbatim on the Settings page; an unmasked DSN would leak
+    # the DB password to anyone with browser access.
     if db_uri.startswith('sqlite:///'):
         db_path = db_uri[len('sqlite:///'):] or None
+    elif db_uri:
+        from sqlalchemy.engine.url import make_url
+        try:
+            db_path = make_url(db_uri).render_as_string(hide_password=True)
+        except Exception:
+            # If the URI is malformed, fall back to None rather than
+            # leaking the raw string.
+            db_path = None
     else:
-        db_path = db_uri or None
+        db_path = None
 
     return {
         "arm_version": _read_arm_version(install_path),
