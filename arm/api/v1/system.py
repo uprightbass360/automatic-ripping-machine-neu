@@ -148,6 +148,17 @@ def _read_db_revisions(db_uri: str, install_path: str) -> tuple[str, str]:
     db_version = "unknown"
     if not db_uri:
         return db_version, db_head
+
+    # For sqlite, returning early when the file doesn't exist preserves
+    # the pre-PR-A behavior where _read_db_revisions never auto-created
+    # an empty DB file as a side effect of the version probe.
+    # check_db_version (the boot path) handles file creation; this
+    # endpoint is purely diagnostic.
+    if db_uri.startswith('sqlite:///'):
+        db_file = db_uri[len('sqlite:///'):]
+        if db_file and not os.path.isfile(db_file):
+            return db_version, db_head
+
     try:
         engine = create_engine(db_uri)
         try:

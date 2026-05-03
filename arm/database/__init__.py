@@ -294,7 +294,15 @@ class _DB:
 
         factory = sessionmaker(bind=self._engine, class_=RetrySession)
         self._session_factory = scoped_session(factory)
-        log.info("Database engine initialised: %s", db_uri)
+        # Mask credentials in the log message to avoid leaking the DB
+        # password (postgres DSNs include user:password@host). For sqlite
+        # the masked output is identical to the input.
+        try:
+            from sqlalchemy.engine.url import make_url
+            safe_uri = make_url(db_uri).render_as_string(hide_password=True)
+        except Exception:
+            safe_uri = '<unparseable>'
+        log.info("Database engine initialised: %s", safe_uri)
 
     def dispose(self):
         """Tear down engine and session — used by test fixtures."""

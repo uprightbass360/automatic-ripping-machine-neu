@@ -451,6 +451,24 @@ class TestApiSystemVersion:
         assert data["db_size_bytes"] is None
         assert data["db_version"] == "rev_pg"
 
+    def test_read_db_revisions_does_not_create_missing_sqlite_file(self, tmp_path):
+        """Regression: pre-PR-A _read_db_revisions used os.path.isfile guard
+        before connecting; the SQLAlchemy refactor inadvertently dropped that
+        guard, causing inspect(engine).has_table() to side-effect-create a
+        0-byte sqlite file. The fix re-adds the guard so this purely
+        diagnostic endpoint never mutates the filesystem."""
+        from arm.api.v1.system import _read_db_revisions
+        nonexistent = tmp_path / "does_not_exist.db"
+        db_uri = f"sqlite:///{nonexistent}"
+
+        db_version, _db_head = _read_db_revisions(db_uri, install_path="/tmp/dummy")
+
+        assert db_version == "unknown"
+        assert not nonexistent.exists(), (
+            f"_read_db_revisions auto-created {nonexistent}; should not "
+            f"side-effect-mutate the filesystem"
+        )
+
 
 class TestApiJobTitleUpdate:
     """Test PUT /api/v1/jobs/<id>/title endpoint."""
