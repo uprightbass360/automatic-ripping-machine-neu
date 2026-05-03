@@ -36,3 +36,40 @@ class AudioTitleSource(_StrValueEnum):
     none = "none"
     musicbrainz = "musicbrainz"
     freecddb = "freecddb"
+
+
+class AudioFormat(_StrValueEnum):
+    """abcde audio output format. Used for Job.config.AUDIO_FORMAT.
+
+    Closed set; matches the formats abcde itself supports. Validated at the
+    API boundary (arm/api/v1/jobs.py PUT /jobs/{id}/config) so a typo in a
+    PATCH body fails fast rather than landing in the DB and surfacing later
+    when abcde rejects the format.
+    """
+    flac = "flac"
+    mp3 = "mp3"
+    vorbis = "vorbis"
+    opus = "opus"
+    m4a = "m4a"
+    wav = "wav"
+    mka = "mka"
+    wv = "wv"
+    ape = "ape"
+    mpc = "mpc"
+    spx = "spx"
+    mp2 = "mp2"
+    tta = "tta"
+    aiff = "aiff"
+
+
+class SpeedProfile(_StrValueEnum):
+    """cdparanoia error-correction profile. Used for Job.config.RIP_SPEED_PROFILE.
+
+    Maps to cdparanoia flags via _SPEED_PROFILES in arm/ripper/utils.py:
+      safe    -> "" (full paranoia, slowest, best for scratched discs)
+      fast    -> "-Y" (disable extra paranoia, ~2-4x faster)
+      fastest -> "-Z" (no error correction, pristine discs only, ~5-10x faster)
+    """
+    safe = "safe"
+    fast = "fast"
+    fastest = "fastest"

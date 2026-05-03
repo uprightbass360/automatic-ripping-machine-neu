@@ -31,6 +31,7 @@ import psutil
 
 from netifaces import interfaces, ifaddresses, AF_INET
 
+from arm.enums import SpeedProfile
 from arm_contracts.enums import TrackStatus, WebhookEventType
 
 import arm.config.config as cfg
@@ -678,11 +679,14 @@ def _apply_track_phases(job, grabbing, encoding, tagging):
         db.session.rollback()
 
 
-# cdparanoia options keyed by RIP_SPEED_PROFILE
+# cdparanoia flags keyed by RIP_SPEED_PROFILE. Keys MUST stay in lockstep
+# with arm.enums.SpeedProfile members; the dict-comprehension form below
+# would catch a rename via KeyError, but the explicit literal is easier
+# for grep + faster to read.
 _SPEED_PROFILES = {
-    "safe": "",                # full paranoia — slowest, best for scratched discs
-    "fast": "-Y",              # disable extra paranoia — good balance, ~2-4x faster
-    "fastest": "-Z",           # disable all paranoia — pristine discs only, ~5-10x faster
+    SpeedProfile.safe.value: "",       # full paranoia, slowest, best for scratched discs
+    SpeedProfile.fast.value: "-Y",     # disable extra paranoia, ~2-4x faster
+    SpeedProfile.fastest.value: "-Z",  # no error correction, pristine discs only
 }
 
 
