@@ -90,3 +90,22 @@ try:
     apprise_config = _load_config(apprise_config_path)
 except OSError:
     apprise_config = {}
+
+
+def get_db_uri() -> str:
+    """Return the SQLAlchemy database connection URI.
+
+    Priority order:
+      1. ARM_DATABASE_URL env var (operator override; takes precedence
+         over arm.yaml).
+      2. arm.yaml DATABASE_URL key (operator config).
+      3. sqlite:///<DBFILE> default (backwards compatible).
+
+    Empty string env var or empty arm.yaml value is treated as unset,
+    so the default is returned. This avoids the foot-gun where someone
+    half-clears the override and lands on a malformed URI.
+    """
+    explicit = os.environ.get('ARM_DATABASE_URL') or arm_config.get('DATABASE_URL')
+    if explicit:
+        return explicit
+    return 'sqlite:///' + arm_config['DBFILE']
