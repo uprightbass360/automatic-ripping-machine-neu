@@ -1,5 +1,12 @@
 # Changelog
 
+## [17.5.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.2...v17.5.3) (2026-05-04)
+
+
+### Bug Fixes
+
+* **jobs:** include track_counts in /jobs/paginated response ([aa46443](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/aa46443b51e33183c40c5a1609474da91f8c26df))
+
 ## [17.5.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.1...v17.5.2) (2026-05-04)
 
 
