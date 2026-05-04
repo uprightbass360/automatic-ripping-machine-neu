@@ -1,5 +1,12 @@
 # Changelog
 
+## [17.5.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.0...v17.5.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* **setup:** unwrap alembic Row in db_version, returning version_num string ([6eae127](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6eae1272fac8e3710a62a2c7b67da58f0750ea4b))
+
 ## [17.5.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.4.0...v17.5.0) (2026-05-03)
 
 
