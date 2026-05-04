@@ -242,8 +242,17 @@ def get_jobs_paginated(
     jobs = query.offset((page - 1) * per_page).limit(per_page).all()
     pages = max(1, math.ceil(total / per_page)) if total else 1
 
+    job_dicts = []
+    for j in jobs:
+        d = _job_to_dict(j)
+        # Surface rippable-subset counts so the list UI can render
+        # "ripped/total" without a per-row roundtrip. Matches the shape
+        # /jobs/active and /jobs/{id}/detail emit.
+        d["track_counts"] = svc_jobs.track_counts(j)
+        job_dicts.append(d)
+
     return {
-        "jobs": [_job_to_dict(j) for j in jobs],
+        "jobs": job_dicts,
         "total": total,
         "page": page,
         "per_page": per_page,

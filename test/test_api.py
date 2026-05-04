@@ -2982,6 +2982,40 @@ class TestApiJobsPaginated:
         assert len(data["jobs"]) == 1
         assert data["jobs"][0]["title"] == "SERIAL_MOM"
 
+    def test_paginated_includes_track_counts(self, client, sample_job, app_context):
+        """Each job in the list carries track_counts so the UI can render
+        ripped/total without a per-row roundtrip."""
+        from arm.database import db
+        from arm.models.track import Track
+        # 3 tracks: 1 ripped, 1 enabled (rippable), 1 disabled
+        t1 = Track(job_id=sample_job.job_id, track_number="0", length=3600,
+                   aspect_ratio="16:9", fps=23.976, main_feature=True,
+                   source="MakeMKV", basename="t1.mkv", filename="t1.mkv",
+                   chapters=20, filesize=10000000)
+        t1.enabled = True
+        t1.ripped = True
+        t2 = Track(job_id=sample_job.job_id, track_number="1", length=3600,
+                   aspect_ratio="16:9", fps=23.976, main_feature=False,
+                   source="MakeMKV", basename="t2.mkv", filename="t2.mkv",
+                   chapters=10, filesize=5000000)
+        t2.enabled = True
+        t2.ripped = False
+        t3 = Track(job_id=sample_job.job_id, track_number="2", length=3600,
+                   aspect_ratio="16:9", fps=23.976, main_feature=False,
+                   source="MakeMKV", basename="t3.mkv", filename="t3.mkv",
+                   chapters=5, filesize=1000000)
+        t3.enabled = False
+        t3.ripped = False
+        db.session.add_all([t1, t2, t3])
+        db.session.commit()
+
+        response = client.get('/api/v1/jobs/paginated')
+        data = response.json()
+        job = data["jobs"][0]
+        assert "track_counts" in job
+        assert job["track_counts"]["total"] == 2  # rippable subset
+        assert job["track_counts"]["ripped"] == 1
+
     def test_filter_by_status(self, client, sample_job, app_context):
         response = client.get('/api/v1/jobs/paginated?status=active')
         assert response.status_code == 200
