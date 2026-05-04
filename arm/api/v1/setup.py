@@ -25,6 +25,21 @@ def _read_version() -> str:
     return "unknown"
 
 
+def _row_version(revision) -> str:
+    """Extract the version string from an alembic revision row, or 'unknown'.
+
+    arm_db_check() puts an alembic Row (from arm_db_get) into ``db_revision``.
+    The Row carries a ``version_num`` column; when serialized directly to
+    JSON it becomes ``{}``, which fails the BFF's typed setup contract.
+    """
+    if revision is None:
+        return "unknown"
+    version = getattr(revision, "version_num", None)
+    if isinstance(version, str) and version:
+        return version
+    return "unknown"
+
+
 @router.get("/setup/status")
 def get_setup_status():
     """Return setup state for the wizard.
@@ -74,8 +89,8 @@ def get_setup_status():
         "db_exists": db_status.get("db_exists", False),
         "db_initialized": db_initialized,
         "db_current": db_initialized,
-        "db_version": db_status.get("db_revision", "unknown"),
-        "db_head": db_status.get("head_revision", "unknown"),
+        "db_version": _row_version(db_status.get("db_revision")),
+        "db_head": db_status.get("head_revision") or "unknown",
         "first_run": first_run,
         "arm_version": _read_version(),
         "setup_steps": {

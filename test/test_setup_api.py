@@ -76,6 +76,46 @@ class TestSetupStatus:
         data = response.json()
         assert isinstance(data['arm_version'], str)
 
+    def test_db_version_is_string_when_revision_present(self, client):
+        """db_version must always serialize as a string.
+
+        arm_db_check() returns the alembic Row in db_revision; that row
+        carries a .version_num column. Without unwrapping, JSON serializes
+        it as `{}` and breaks the BFF's typed setup contract.
+        """
+        fake_row = MagicMock()
+        fake_row.version_num = "abc123def456"
+        with patch(
+            'arm.api.v1.setup.arm_db_check',
+            return_value={
+                'db_exists': True,
+                'db_current': True,
+                'db_revision': fake_row,
+                'head_revision': 'abc123def456',
+            },
+        ):
+            response = client.get('/api/v1/setup/status')
+        data = response.json()
+        assert data['db_version'] == 'abc123def456'
+        assert isinstance(data['db_version'], str)
+        assert data['db_head'] == 'abc123def456'
+
+    def test_db_version_unknown_when_revision_missing(self, client):
+        """When db_revision is None, db_version returns the literal 'unknown'."""
+        with patch(
+            'arm.api.v1.setup.arm_db_check',
+            return_value={
+                'db_exists': False,
+                'db_current': False,
+                'db_revision': None,
+                'head_revision': None,
+            },
+        ):
+            response = client.get('/api/v1/setup/status')
+        data = response.json()
+        assert data['db_version'] == 'unknown'
+        assert data['db_head'] == 'unknown'
+
 
 class TestSetupComplete:
     """Test POST /api/v1/setup/complete endpoint."""
