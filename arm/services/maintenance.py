@@ -110,7 +110,11 @@ def get_orphan_folders() -> dict[str, Any]:
             if subdir.is_dir():
                 _scan_dir(subdir, "completed")
 
-    return {"total_size_bytes": total_size, "folders": orphans}
+    return {
+        "roots": [str(raw_path), str(completed_path)],
+        "total_size_bytes": total_size,
+        "folders": orphans,
+    }
 
 
 def get_counts() -> dict[str, int]:
@@ -156,7 +160,7 @@ def delete_log(path_str: str) -> dict[str, Any]:
 
     try:
         resolved.unlink()
-        return {"success": True, "path": path_str}
+        return {"success": True, "path": path_str, "error": None}
     except OSError as exc:
         log.error("Failed to delete log %s: %s", path_str, exc)
         return {"success": False, "path": path_str, "error": "Failed to delete file"}
@@ -183,14 +187,14 @@ def delete_folder(path_str: str) -> dict[str, Any]:
 
     try:
         shutil.rmtree(resolved)
-        return {"success": True, "path": path_str}
+        return {"success": True, "path": path_str, "error": None}
     except OSError as exc:
         log.error("Failed to delete folder %s: %s", path_str, exc)
         return {"success": False, "path": path_str, "error": "Failed to delete directory"}
 
 
 def bulk_delete_logs(paths: list[str]) -> dict[str, Any]:
-    """Delete multiple log files. Best-effort — continues on failures."""
+    """Delete multiple log files. Best-effort - continues on failures."""
     removed = []
     errors = []
     for p in paths:
@@ -199,11 +203,11 @@ def bulk_delete_logs(paths: list[str]) -> dict[str, Any]:
             removed.append(p)
         else:
             errors.append(f"{Path(p).name}: {result.get('error', 'unknown')}")
-    return {"removed": removed, "errors": errors}
+    return {"success": not errors, "removed": removed, "errors": errors}
 
 
 def bulk_delete_folders(paths: list[str]) -> dict[str, Any]:
-    """Delete multiple folders. Best-effort — continues on failures."""
+    """Delete multiple folders. Best-effort - continues on failures."""
     removed = []
     errors = []
     for p in paths:
@@ -212,7 +216,7 @@ def bulk_delete_folders(paths: list[str]) -> dict[str, Any]:
             removed.append(p)
         else:
             errors.append(f"{Path(p).name}: {result.get('error', 'unknown')}")
-    return {"removed": removed, "errors": errors}
+    return {"success": not errors, "removed": removed, "errors": errors}
 
 
 def clear_raw_directories() -> dict[str, Any]:
@@ -223,7 +227,14 @@ def clear_raw_directories() -> dict[str, Any]:
     """
     raw_path = Path(cfg.arm_config.get("RAW_PATH", ""))
     if not raw_path.is_dir():
-        return {"success": False, "error": "RAW_PATH not configured or does not exist"}
+        return {
+            "success": False,
+            "cleared": 0,
+            "freed_bytes": 0,
+            "errors": [],
+            "path": str(raw_path),
+            "error": "RAW_PATH not configured or does not exist",
+        }
 
     cleared = 0
     freed_bytes = 0
@@ -250,4 +261,5 @@ def clear_raw_directories() -> dict[str, Any]:
         "freed_bytes": freed_bytes,
         "errors": errors,
         "path": str(raw_path),
+        "error": None,
     }
