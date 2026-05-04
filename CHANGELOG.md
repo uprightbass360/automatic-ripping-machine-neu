@@ -1,5 +1,12 @@
 # Changelog
 
+## [17.5.4](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.3...v17.5.4) (2026-05-04)
+
+
+### Bug Fixes
+
+* **system/restart:** graceful shutdown via background SIGTERM ([865c45c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/865c45c1a6bf8d18fca877ed444e2bb7cb79aab2))
+
 ## [17.5.3](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.2...v17.5.3) (2026-05-04)
 
 
