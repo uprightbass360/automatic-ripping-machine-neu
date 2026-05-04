@@ -81,7 +81,11 @@ def get_setup_status():
 
     try:
         from arm.models.system_drives import SystemDrives
-        drive_count = SystemDrives.query.count()
+        # stale=True rows are old detections kept for audit history; the
+        # wizard count should reflect drives currently attached.
+        drive_count = SystemDrives.query.filter(
+            (SystemDrives.stale.is_(False)) | (SystemDrives.stale.is_(None))
+        ).count()
     except Exception:
         pass
 
