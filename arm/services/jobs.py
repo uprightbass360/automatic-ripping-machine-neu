@@ -4,9 +4,11 @@ Job management services — extracted from arm/ui/json_api.py.
 All app.logger calls replaced with standard logging.
 """
 import os
+import signal
 import subprocess
 import re
 import html
+import time
 from pathlib import Path
 import datetime
 import logging
@@ -496,12 +498,12 @@ def get_notify_timeout(notify_timeout):
     return return_json
 
 
-def restart_ui():
-    log.debug("Arm ui shutdown....")
-    shutdown_code = subprocess.check_output(
-        "pkill python3",
-        shell=True
-    ).decode("utf-8")
-    log.debug(f"Arm ui shutdown ran into a problem... exit code: {shutdown_code}")
-    return_json = {'success': False, 'error': f"Shutting down A.R.M UI....exit code: {shutdown_code}"}
-    return return_json
+def schedule_self_shutdown(delay_seconds: float = 0.5) -> None:
+    """Send our own process SIGTERM after a short delay so the in-flight HTTP
+    response has time to flush. Docker's restart policy brings us back."""
+    log.info("Restart requested - scheduling self-SIGTERM in %ss", delay_seconds)
+    time.sleep(delay_seconds)
+    try:
+        os.kill(os.getpid(), signal.SIGTERM)
+    except OSError:
+        log.exception("Failed to signal self for restart")

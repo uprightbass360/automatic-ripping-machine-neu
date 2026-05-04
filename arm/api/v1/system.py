@@ -6,7 +6,7 @@ import subprocess
 import psutil
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from fastapi import APIRouter
+from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, inspect, text
 
@@ -41,9 +41,13 @@ def get_system_info():
 
 
 @router.post('/system/restart')
-def restart():
-    """Restart the ARM UI service."""
-    return svc_jobs.restart_ui()
+def restart(background_tasks: BackgroundTasks):
+    """Restart the ARM ripping service.
+
+    Schedules SIGTERM on this process as a background task so the response
+    flushes first. Docker's restart policy brings the container back."""
+    background_tasks.add_task(svc_jobs.schedule_self_shutdown)
+    return {"success": True, "message": "ARM ripping service is restarting"}
 
 
 @router.get('/system/stats')

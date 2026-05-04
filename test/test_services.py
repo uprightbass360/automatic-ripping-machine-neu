@@ -1040,18 +1040,37 @@ class TestSearchConfigNotFound:
         assert first["config"] == "config not found"
 
 
-class TestRestartUi:
-    """Test restart_ui."""
+class TestScheduleSelfShutdown:
+    """Test schedule_self_shutdown.
 
-    def test_restart_returns_json(self):
-        from arm.services.jobs import restart_ui
+    The previous restart_ui() ran pkill python3 inline inside the request
+    handler, which killed the API server before the HTTP response could be
+    flushed and always returned success=False. The replacement is a
+    background-safe SIGTERM-self that lets the response flush first."""
 
-        with patch("arm.services.jobs.subprocess.check_output",
-                   return_value=b"0"):
-            result = restart_ui()
+    def test_schedules_sigterm_after_delay(self):
+        from arm.services.jobs import schedule_self_shutdown
 
-        assert result["success"] is False  # always returns False
-        assert "Shutting down" in result["error"]
+        with patch("arm.services.jobs.os.kill") as mock_kill, \
+             patch("arm.services.jobs.time.sleep") as mock_sleep:
+            schedule_self_shutdown(delay_seconds=0.25)
+
+        mock_sleep.assert_called_once_with(0.25)
+        assert mock_kill.call_count == 1
+        # signaled this PID with SIGTERM
+        args, _ = mock_kill.call_args
+        assert args[0] == os.getpid()
+        import signal as _signal
+        assert args[1] == _signal.SIGTERM
+
+    def test_swallows_oserror_from_kill(self):
+        """If os.kill raises (e.g. permissions), we log and don't bubble up."""
+        from arm.services.jobs import schedule_self_shutdown
+
+        with patch("arm.services.jobs.os.kill", side_effect=OSError("nope")), \
+             patch("arm.services.jobs.time.sleep"):
+            # Must not raise
+            schedule_self_shutdown(delay_seconds=0)
 
 
 class TestGenerateLogEncoding:
