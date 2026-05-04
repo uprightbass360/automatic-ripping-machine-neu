@@ -77,6 +77,18 @@ class TestOrphanFolderDetection:
         assert categories.get("Orphan Movie") == "raw"
         assert categories.get("Another Orphan") == "completed"
 
+    def test_returns_roots(self, app_context, sample_job, tmp_media):
+        """Result includes both scanned roots for parity with orphan-logs."""
+        mock_cfg = {
+            "RAW_PATH": tmp_media["raw"],
+            "COMPLETED_PATH": tmp_media["completed"],
+        }
+        with unittest.mock.patch("arm.config.config.arm_config", mock_cfg):
+            from arm.services.maintenance import get_orphan_folders
+            result = get_orphan_folders()
+
+        assert result["roots"] == [tmp_media["raw"], tmp_media["completed"]]
+
     def test_computes_folder_sizes(self, app_context, sample_job, tmp_media):
         mock_cfg = {
             "RAW_PATH": tmp_media["raw"],
@@ -109,6 +121,78 @@ class TestMaintenanceCounts:
         assert result["orphan_folders"] >= 2  # Orphan Movie + Another Orphan
 
 
+class TestDeleteShapeInvariants:
+    """Wire shapes for delete_log/delete_folder must be invariant across success/failure."""
+
+    def test_delete_log_success_includes_error_none(self, app_context, tmp_logs):
+        with unittest.mock.patch("arm.config.config.arm_config", {"LOGPATH": str(tmp_logs)}):
+            from arm.services.maintenance import delete_log
+            result = delete_log("orphan1.log")
+
+        assert result["success"] is True
+        assert result["path"] == "orphan1.log"
+        assert result["error"] is None
+        assert set(result.keys()) == {"success", "path", "error"}
+
+    def test_delete_log_failure_keys_match(self, app_context, tmp_logs):
+        with unittest.mock.patch("arm.config.config.arm_config", {"LOGPATH": str(tmp_logs)}):
+            from arm.services.maintenance import delete_log
+            result = delete_log("does-not-exist.log")
+
+        assert result["success"] is False
+        assert isinstance(result["error"], str)
+        assert set(result.keys()) == {"success", "path", "error"}
+
+    def test_delete_folder_success_includes_error_none(self, app_context, tmp_media):
+        mock_cfg = {
+            "RAW_PATH": tmp_media["raw"],
+            "COMPLETED_PATH": tmp_media["completed"],
+        }
+        with unittest.mock.patch("arm.config.config.arm_config", mock_cfg):
+            from arm.services.maintenance import delete_folder
+            result = delete_folder("Orphan Movie")
+
+        assert result["success"] is True
+        assert result["error"] is None
+        assert set(result.keys()) == {"success", "path", "error"}
+
+
+class TestBulkDeleteShapeInvariants:
+    """Bulk endpoints carry success: bool for sibling consistency."""
+
+    def test_bulk_delete_logs_all_success(self, app_context, tmp_logs):
+        with unittest.mock.patch("arm.config.config.arm_config", {"LOGPATH": str(tmp_logs)}):
+            from arm.services.maintenance import bulk_delete_logs
+            result = bulk_delete_logs(["orphan1.log", "orphan2.log"])
+
+        assert result["success"] is True
+        assert result["removed"] == ["orphan1.log", "orphan2.log"]
+        assert result["errors"] == []
+        assert set(result.keys()) == {"success", "removed", "errors"}
+
+    def test_bulk_delete_logs_partial_failure(self, app_context, tmp_logs):
+        with unittest.mock.patch("arm.config.config.arm_config", {"LOGPATH": str(tmp_logs)}):
+            from arm.services.maintenance import bulk_delete_logs
+            result = bulk_delete_logs(["orphan1.log", "missing.log"])
+
+        assert result["success"] is False
+        assert result["removed"] == ["orphan1.log"]
+        assert len(result["errors"]) == 1
+
+    def test_bulk_delete_folders_all_success(self, app_context, tmp_media):
+        mock_cfg = {
+            "RAW_PATH": tmp_media["raw"],
+            "COMPLETED_PATH": tmp_media["completed"],
+        }
+        with unittest.mock.patch("arm.config.config.arm_config", mock_cfg):
+            from arm.services.maintenance import bulk_delete_folders
+            result = bulk_delete_folders(["Orphan Movie"])
+
+        assert result["success"] is True
+        assert "Orphan Movie" in result["removed"]
+        assert result["errors"] == []
+
+
 class TestClearRawDirectories:
     def test_clears_files_and_dirs(self, tmp_path):
         """Should remove all contents of RAW_PATH and report counts."""
@@ -128,6 +212,8 @@ class TestClearRawDirectories:
         assert result["cleared"] == 3  # 2 files + 1 dir
         assert result["freed_bytes"] == 3500
         assert result["path"] == str(raw)
+        assert result["errors"] == []
+        assert result["error"] is None
         # Directory itself still exists, but empty
         assert raw.is_dir()
         assert list(raw.iterdir()) == []
@@ -146,10 +232,16 @@ class TestClearRawDirectories:
         assert result["freed_bytes"] == 0
 
     def test_missing_raw_path_fails(self):
-        """Non-existent RAW_PATH should return error."""
+        """Non-existent RAW_PATH should return error - with full-shape invariant."""
         with unittest.mock.patch("arm.config.config.arm_config", {"RAW_PATH": "/nonexistent/path"}):
             from arm.services.maintenance import clear_raw_directories
             result = clear_raw_directories()
 
         assert result["success"] is False
         assert "not configured" in result["error"]
+        # Failure path emits the full success-shape with zero defaults
+        assert result["cleared"] == 0
+        assert result["freed_bytes"] == 0
+        assert result["errors"] == []
+        assert result["path"] == "/nonexistent/path"
+        assert set(result.keys()) == {"success", "cleared", "freed_bytes", "errors", "path", "error"}

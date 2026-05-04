@@ -57,6 +57,7 @@ class TestOrphanEndpoints:
         data = resp.json()
         names = [f["name"] for f in data["folders"]]
         assert "Orphan Movie" in names
+        assert data["roots"] == [tmp_media["raw"], tmp_media["completed"]]
 
 
 class TestDeleteEndpoints:
@@ -65,7 +66,9 @@ class TestDeleteEndpoints:
         with unittest.mock.patch("arm.config.config.arm_config", {"LOGPATH": str(tmp_logs)}):
             resp = maint_client.post("/api/v1/maintenance/delete-log", json={"path": "orphan1.log"})
         assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        body = resp.json()
+        assert body["success"] is True
+        assert body["error"] is None
         assert not target.exists()
 
     def test_delete_log_traversal_rejected(self, app_context, tmp_logs, tmp_path, maint_client):
@@ -90,7 +93,9 @@ class TestDeleteEndpoints:
         with unittest.mock.patch("arm.config.config.arm_config", mock_cfg):
             resp = maint_client.post("/api/v1/maintenance/delete-folder", json={"path": "Orphan Movie"})
         assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        body = resp.json()
+        assert body["success"] is True
+        assert body["error"] is None
 
     def test_bulk_delete_logs(self, app_context, tmp_logs, maint_client):
         paths = ["orphan1.log", "orphan2.log", "nonexistent.log"]
@@ -98,5 +103,17 @@ class TestDeleteEndpoints:
             resp = maint_client.post("/api/v1/maintenance/bulk-delete-logs", json={"paths": paths})
         assert resp.status_code == 200
         data = resp.json()
+        assert data["success"] is False  # mixed: 2 removed, 1 error
         assert len(data["removed"]) == 2
         assert len(data["errors"]) == 1
+
+    def test_bulk_delete_logs_all_success(self, app_context, tmp_logs, maint_client):
+        with unittest.mock.patch("arm.config.config.arm_config", {"LOGPATH": str(tmp_logs)}):
+            resp = maint_client.post(
+                "/api/v1/maintenance/bulk-delete-logs",
+                json={"paths": ["orphan1.log", "orphan2.log"]},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["errors"] == []
