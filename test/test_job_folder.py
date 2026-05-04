@@ -76,6 +76,12 @@ class TestMakemkvSource:
         job = sample_job
         assert job.makemkv_source == "dev:/dev/sr0"
 
+    def test_makemkv_source_for_iso(self, sample_job):
+        """ISO source returns iso:{source_path}."""
+        sample_job.source_type = "iso"
+        sample_job.source_path = "/ingress/Movie.iso"
+        assert sample_job.makemkv_source == "iso:/ingress/Movie.iso"
+
 
 class TestIsFolderImport:
     """Test job.is_folder_import property."""
@@ -90,3 +96,22 @@ class TestIsFolderImport:
     def test_is_folder_import_false_for_disc(self, sample_job):
         """Disc jobs return False."""
         assert sample_job.is_folder_import is False
+
+
+class TestIsIsoImport:
+    """Test job.is_iso_import property."""
+
+    def test_is_iso_import_true(self, sample_job):
+        """ISO source jobs return True."""
+        sample_job.source_type = "iso"
+        assert sample_job.is_iso_import is True
+
+    def test_is_iso_import_false_for_folder(self, sample_job):
+        """Folder source jobs return False."""
+        sample_job.source_type = "folder"
+        assert sample_job.is_iso_import is False
+
+    def test_is_iso_import_false_for_disc(self, sample_job):
+        """Disc source jobs return False."""
+        sample_job.source_type = "disc"
+        assert sample_job.is_iso_import is False

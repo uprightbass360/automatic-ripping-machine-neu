@@ -410,12 +410,19 @@ class Job(db.Model):
         """Return the MakeMKV source string for this job."""
         if self.source_type == SourceType.folder.value:
             return f"file:{self.source_path}"
+        if self.source_type == SourceType.iso.value:
+            return f"iso:{self.source_path}"
         return f"dev:{self.devpath}"
 
     @property
     def is_folder_import(self) -> bool:
         """Return True if this job was created from a folder import."""
         return self.source_type == SourceType.folder.value
+
+    @property
+    def is_iso_import(self) -> bool:
+        """Return True if this job was created from an ISO file import."""
+        return self.source_type == SourceType.iso.value
 
     @property
     def type_subfolder(self):
