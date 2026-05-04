@@ -56,6 +56,54 @@ class TestSetupStatus:
         data = response.json()
         assert 'detected' in data['setup_steps']['drives']
 
+    def test_drives_count_excludes_stale(self, client):
+        """Stale SystemDrives rows must not inflate the wizard drive count.
+
+        After hot-plug events the cleanup pass marks vanished drives with
+        stale=True but keeps the row for audit history. The wizard count
+        should reflect attached drives, not historical ones.
+        """
+        from arm.database import db
+        from arm.models.system_drives import SystemDrives
+
+        active = SystemDrives()
+        active.name = 'Active'
+        active.mount = '/dev/sr0'
+        active.stale = False
+
+        ghost = SystemDrives()
+        ghost.name = 'Ghost'
+        ghost.mount = ''
+        ghost.stale = True
+
+        db.session.add_all([active, ghost])
+        db.session.commit()
+
+        response = client.get('/api/v1/setup/status')
+        data = response.json()
+        assert data['setup_steps']['drives'] == '1 detected'
+
+    def test_drives_count_includes_legacy_null_stale(self, client):
+        """Legacy rows pre-dating the stale column have stale=NULL.
+
+        Those should be counted as attached, not silently dropped, since
+        stale was added later and existing drives never had it written.
+        """
+        from arm.database import db
+        from arm.models.system_drives import SystemDrives
+
+        legacy = SystemDrives()
+        legacy.name = 'Legacy'
+        legacy.mount = '/dev/sr1'
+        legacy.stale = None
+
+        db.session.add(legacy)
+        db.session.commit()
+
+        response = client.get('/api/v1/setup/status')
+        data = response.json()
+        assert data['setup_steps']['drives'] == '1 detected'
+
     def test_first_run_false_after_complete(self, client):
         """After completing setup, first_run should be False."""
         client.post('/api/v1/setup/complete')
