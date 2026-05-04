@@ -1,5 +1,12 @@
 # Changelog
 
+## [17.5.2](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.1...v17.5.2) (2026-05-04)
+
+
+### Bug Fixes
+
+* **setup:** exclude stale rows from drive_count ([7a97895](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7a978953e042bffa7d19db043b057c50f5add253))
+
 ## [17.5.1](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.0...v17.5.1) (2026-05-04)
 
 
