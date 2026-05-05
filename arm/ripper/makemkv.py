@@ -1221,7 +1221,7 @@ def _run_makemkv_info_capture(source: str, timeout: int = 120) -> str:
         source,
         "--minlength=0",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)  # NOSONAR python:S6350 - argv-list invocation, not shell=True; source pre-validated by regex
     return result.stdout
 
 

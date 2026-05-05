@@ -1,4 +1,4 @@
-"""API v1 — Folder import endpoints."""
+"""API v1 - Folder import endpoints."""
 import logging
 import threading
 from typing import Optional
@@ -7,32 +7,32 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from arm_contracts.enums import SkipReason
-
 import arm.config.config as cfg
+from arm.api.v1._import_helpers import apply_request_metadata_to_job
 from arm.database import db
 from arm.models.config import Config
 from arm.models.job import Job, JobState
 from arm.ripper.folder_scan import scan_folder, validate_ingress_path
+from arm.ripper.import_prescan import (
+    auto_disable_short_tracks,
+    prescan_and_wait as _prescan_and_wait,
+)
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["folder"])
 
-
-def auto_disable_short_tracks(job, minlength: int) -> int:
-    """Disable tracks below `minlength` seconds and tag them with skip_reason.
-
-    MakeMKV silently skips these during rip regardless of the checkbox state,
-    so disabling them prevents misleading UI. Returns the count disabled.
-    """
-    disabled_count = 0
-    for track in job.tracks:
-        if track.length is not None and track.length < minlength:
-            track.enabled = False
-            track.skip_reason = SkipReason.too_short.value
-            disabled_count += 1
-    return disabled_count
+# Re-exported for backward compatibility with existing tests that patch
+# `arm.api.v1.folder.auto_disable_short_tracks` and import
+# `arm.api.v1.folder._prescan_and_wait`. The canonical home for both is
+# `arm.ripper.import_prescan`.
+__all__ = [
+    "auto_disable_short_tracks",
+    "FolderScanRequest",
+    "FolderCreateRequest",
+    "scan_folder_endpoint",
+    "create_folder_job",
+]
 
 
 class FolderScanRequest(BaseModel):
@@ -117,24 +117,7 @@ def create_folder_job(req: FolderCreateRequest):
 
     # Create job
     job = Job.from_folder(req.source_path, req.disctype)
-    job.title = req.title
-    job.title_auto = req.title
-    if req.year:
-        job.year = req.year
-        job.year_auto = req.year
-    job.video_type = req.video_type
-    if req.imdb_id:
-        job.imdb_id = req.imdb_id
-    if req.poster_url:
-        job.poster_url = req.poster_url
-    job.multi_title = req.multi_title
-    if req.season is not None:
-        job.season = str(req.season)
-        job.season_manual = str(req.season)
-    if req.disc_number is not None:
-        job.disc_number = req.disc_number
-    if req.disc_total is not None:
-        job.disc_total = req.disc_total
+    apply_request_metadata_to_job(job, req)
     job.status = JobState.IDENTIFYING.value
 
     db.session.add(job)
@@ -147,7 +130,7 @@ def create_folder_job(req: FolderCreateRequest):
 
     log.info("Created folder import job %s for %s (prescanning)", job.job_id, req.source_path)
 
-    # Run prescan in background — populates tracks, then moves to MANUAL_WAIT
+    # Run prescan in background - populates tracks, then moves to MANUAL_PAUSED
     thread = threading.Thread(
         target=_prescan_and_wait, args=(job.job_id,), daemon=True
     )
@@ -160,67 +143,3 @@ def create_folder_job(req: FolderCreateRequest):
         "source_type": job.source_type,
         "source_path": job.source_path,
     }
-
-
-def _prescan_and_wait(job_id: int):
-    """Background: prescan tracks with MakeMKV, then move job to MANUAL_WAIT.
-
-    Runs in a daemon thread. Must clean up the scoped DB session on exit
-    to prevent connection pool exhaustion.
-    """
-    from arm.ripper.makemkv import prep_mkv, prescan_track_info
-
-    # Daemon thread - use higher commit retry timeout
-    db.session.commit_timeout = 90
-    try:
-        job = Job.query.get(job_id)
-        if not job:
-            log.error("Prescan: job %s not found", job_id)
-            return
-
-        # Set logfile and create file handler so prescan output is captured
-        from arm.ripper.logger import log_filename, create_file_handler
-        import logging as _logging
-        log_file = log_filename(job_id)
-        job.logfile = log_file
-        db.session.commit()
-        try:
-            _file_handler = create_file_handler(log_file)
-            _log_level = cfg.arm_config.get("LOGLEVEL", "INFO")
-            _file_handler.setLevel(_log_level)
-            _root = _logging.getLogger()
-            _root.addHandler(_file_handler)
-            _root.setLevel(_log_level)
-        except OSError:
-            _file_handler = None
-            log.warning("Could not create log file handler for %s", log_file)
-
-        try:
-            prep_mkv()
-            prescan_track_info(job)
-
-            minlength = int(cfg.arm_config.get("MINLENGTH", 120))
-            disabled_count = auto_disable_short_tracks(job, minlength)
-            if disabled_count:
-                log.info("Auto-disabled %d tracks shorter than %ds",
-                         disabled_count, minlength)
-
-            job.status = JobState.MANUAL_PAUSED.value
-            db.session.commit()
-            log.info("Prescan complete for job %s — %d tracks found, waiting for review",
-                     job_id, len(list(job.tracks)))
-        except Exception as exc:
-            log.error("Prescan failed for job %s: %s", job_id, exc)
-            try:
-                job.status = JobState.MANUAL_PAUSED.value
-                job.errors = f"Prescan failed: {exc}"
-                db.session.commit()
-            except Exception:
-                log.exception("Failed to update job %s status after prescan error", job_id)
-    finally:
-        # Clean up file handler
-        if '_file_handler' in dir() and _file_handler is not None:
-            _logging.getLogger().removeHandler(_file_handler)
-            _file_handler.close()
-        # Release the scoped session for this thread to prevent pool exhaustion
-        db.session.remove()
