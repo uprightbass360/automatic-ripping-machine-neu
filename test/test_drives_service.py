@@ -629,3 +629,33 @@ class TestCleanupStaleDrives:
         db.session.refresh(d)
         # Stale flag should be cleared for active drives
         assert d.stale is False
+
+    def test_skips_already_blanked_phantom(self, app_context, caplog):
+        """A stale row already blanked in a prior tick should be ignored silently.
+
+        Repro: hifi accumulated a SystemDrives row whose serial_id, mount,
+        and location were all empty (cleaned in an earlier cycle). Every
+        subsequent drives_update tick re-marked it stale and re-fired
+        `Drive '' on '' is not available.` indefinitely.
+        """
+        import logging as _logging
+        from arm.services.drives import _cleanup_stale_drives
+        from arm.models import SystemDrives
+        from arm.database import db
+
+        d = SystemDrives()
+        d.mount = ""
+        d.location = ""
+        d.stale = True
+        d.job_id_current = None  # not processing
+        db.session.add(d)
+        db.session.commit()
+
+        with caplog.at_level(_logging.WARNING, logger="arm.services.drives"):
+            count = _cleanup_stale_drives()
+        # Phantom is not counted as a freshly-cleaned drive.
+        assert count == 0
+        # And no warning is emitted for it.
+        assert not any(
+            "is not available" in rec.getMessage() for rec in caplog.records
+        )

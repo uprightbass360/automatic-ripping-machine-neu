@@ -261,6 +261,17 @@ def _cleanup_stale_drives():
     """Clear stale drives that have no active jobs. Returns count of unavailable drives."""
     stale_count = 0
     for stale_drive in SystemDrives.query.filter_by(stale=True).all():
+        # Already-blanked phantom rows (cleaned in a prior tick) still re-stale
+        # every cycle since drives_update marks every non-processing row stale.
+        # Skip them silently - the audit row is preserved but no log noise.
+        already_cleaned = (
+            not (stale_drive.serial_id or "").strip()
+            and not (stale_drive.mount or "").strip()
+            and not (stale_drive.location or "").strip()
+            and not stale_drive.processing
+        )
+        if already_cleaned:
+            continue
         log.warning("Drive '%s' on '%s' is not available.", stale_drive.serial_id, stale_drive.mount)
         if stale_drive.processing:
             log.warning(f"Drive '{stale_drive.mount}' has an active job and might be blocked.")
