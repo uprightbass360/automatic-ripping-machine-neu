@@ -216,6 +216,26 @@ def _compute_parent(resolved_str, roots):
     return None
 
 
+def _classify_entry(entry_path: str) -> tuple[str, bool]:
+    """Return (kind, importable) for a directory entry.
+
+    kind is one of:
+      - 'dir':   directory (importable iff it contains BDMV/ or VIDEO_TS/)
+      - 'iso':   .iso disc image (always importable)
+      - 'other': any other file (never importable)
+
+    The Import wizard uses these flags to render folders + ISOs in one
+    mixed listing and grey out non-importable entries.
+    """
+    if os.path.isdir(entry_path):
+        has_bdmv = os.path.isdir(os.path.join(entry_path, "BDMV"))
+        has_video_ts = os.path.isdir(os.path.join(entry_path, "VIDEO_TS"))
+        return ("dir", has_bdmv or has_video_ts)
+    if entry_path.lower().endswith(".iso"):
+        return ("iso", True)
+    return ("other", False)
+
+
 def _build_entry(item, st, shallow=False):
     """Build a directory entry dict from a Path and its stat result.
 
@@ -228,6 +248,7 @@ def _build_entry(item, st, shallow=False):
         size = 0 if shallow else _dir_size(item)
     else:
         size = st.st_size
+    kind, importable = _classify_entry(str(item))
     return {
         'name': item.name,
         'type': 'directory' if is_dir else 'file',
@@ -238,6 +259,8 @@ def _build_entry(item, st, shallow=False):
         'permissions': _format_permissions(st.st_mode),
         'owner': owner,
         'group': group,
+        'kind': kind,
+        'importable': importable,
     }
 
 
