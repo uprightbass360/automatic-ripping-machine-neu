@@ -72,15 +72,15 @@ def scan_iso_endpoint(req: IsoScanRequest):
         )
     try:
         validate_iso_path(req.path, ingress_path)
-    except FileNotFoundError as exc:
+    except FileNotFoundError:
         return JSONResponse(
-            {"success": False, "error": str(exc)},
+            {"success": False, "error": "ISO file not found"},
             status_code=400,
         )
-    except ValueError as exc:
+    except ValueError:
         return JSONResponse(
-            {"success": False, "error": str(exc)},
-            status_code=400,
+            {"success": False, "error": "Invalid ISO path or extension"},
+            status_code=422,
         )
 
     meta = extract_metadata(req.path)
@@ -111,12 +111,12 @@ def create_iso_job(req: IsoCreateRequest):
         validate_iso_path(req.source_path, ingress_path)
     except FileNotFoundError:
         return JSONResponse(
-            {"success": False, "error": "ISO file not found"},
+            {"success": False, "error": "Source ISO not found"},
             status_code=400,
         )
     except ValueError:
         return JSONResponse(
-            {"success": False, "error": "Path is outside the configured ingress directory or not an ISO"},
+            {"success": False, "error": "Path is outside the configured ingress directory or has invalid extension"},
             status_code=400,
         )
 

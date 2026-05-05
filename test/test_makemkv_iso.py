@@ -1,4 +1,77 @@
 """Tests for ISO-related helpers in arm/ripper/makemkv.py."""
+import pytest
+
+
+class TestRunMakemkvInfoCaptureValidation:
+    """The internal helper validates `source` matches ^iso:[^\\x00\\n]+$
+    before passing it to subprocess.run.
+
+    Defense-in-depth: the call uses argv-list form so shell metacharacters
+    are not interpreted, but the regex also breaks the CodeQL taint
+    dataflow for py/command-line-injection.
+    """
+
+    def test_accepts_valid_iso_path(self, monkeypatch):
+        from arm.ripper import makemkv
+
+        captured = {}
+
+        class FakeResult:
+            stdout = "TCOUNT:0\n"
+
+        def fake_run(cmd, **kw):
+            captured["cmd"] = cmd
+            return FakeResult()
+
+        monkeypatch.setattr(makemkv.subprocess, "run", fake_run)
+        out = makemkv._run_makemkv_info_capture("iso:/tmp/Movie.iso")
+        assert out == "TCOUNT:0\n"
+        assert "iso:/tmp/Movie.iso" in captured["cmd"]
+
+    def test_rejects_empty_iso_prefix(self, monkeypatch):
+        from arm.ripper import makemkv
+
+        # Should not even reach subprocess.run
+        called = {"hit": False}
+
+        def fake_run(*a, **kw):
+            called["hit"] = True
+            raise AssertionError("subprocess.run should not be invoked")
+
+        monkeypatch.setattr(makemkv.subprocess, "run", fake_run)
+        with pytest.raises(ValueError, match="Invalid source spec"):
+            makemkv._run_makemkv_info_capture("iso:")
+        assert called["hit"] is False
+
+    def test_rejects_non_iso_scheme(self, monkeypatch):
+        from arm.ripper import makemkv
+
+        def fake_run(*a, **kw):
+            raise AssertionError("subprocess.run should not be invoked")
+
+        monkeypatch.setattr(makemkv.subprocess, "run", fake_run)
+        with pytest.raises(ValueError, match="Invalid source spec"):
+            makemkv._run_makemkv_info_capture("dev:/foo")
+
+    def test_rejects_newline_in_source(self, monkeypatch):
+        from arm.ripper import makemkv
+
+        def fake_run(*a, **kw):
+            raise AssertionError("subprocess.run should not be invoked")
+
+        monkeypatch.setattr(makemkv.subprocess, "run", fake_run)
+        with pytest.raises(ValueError, match="Invalid source spec"):
+            makemkv._run_makemkv_info_capture("iso:/foo\nrm -rf")
+
+    def test_rejects_null_byte_in_source(self, monkeypatch):
+        from arm.ripper import makemkv
+
+        def fake_run(*a, **kw):
+            raise AssertionError("subprocess.run should not be invoked")
+
+        monkeypatch.setattr(makemkv.subprocess, "run", fake_run)
+        with pytest.raises(ValueError, match="Invalid source spec"):
+            makemkv._run_makemkv_info_capture("iso:/foo\x00bar")
 
 
 class TestPrescanIsoDiscType:
