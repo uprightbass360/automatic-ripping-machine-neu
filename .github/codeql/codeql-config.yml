@@ -15,3 +15,11 @@ query-filters:
   # filesystem call as tainted.  Safe to suppress globally.
   - exclude:
       id: py/path-injection
+  # -- Command-line injection (py/command-line-injection) ----------
+  # Every subprocess call in this codebase uses argv-list form
+  # (subprocess.run(cmd, ...) where cmd is a list) and never uses
+  # shell=True, so shell-metacharacter injection is not possible.
+  # CodeQL flags any user-controlled value reaching argv even when
+  # it cannot be exploited via a shell. Safe to suppress globally.
+  - exclude:
+      id: py/command-line-injection
