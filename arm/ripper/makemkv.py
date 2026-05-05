@@ -1204,7 +1204,14 @@ def _run_makemkv_info_capture(source: str, timeout: int = 120) -> str:
 
     Wrapped in a thin helper so tests can monkeypatch it without involving
     the real makemkvcon binary or subprocess.
+
+    The `source` arg is validated against `^iso:[^\\x00\\n]+$` before being
+    passed to subprocess.run. The call uses argv-list form (not shell=True)
+    so shell metacharacters are not interpreted, but the regex breaks the
+    CodeQL taint dataflow and adds defense-in-depth against future refactors.
     """
+    if not re.match(r"^iso:[^\x00\n]+$", source):
+        raise ValueError("Invalid source spec for makemkv info")
     cmd = [
         shutil.which("makemkvcon") or "makemkvcon",
         "--robot",

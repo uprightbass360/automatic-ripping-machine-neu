@@ -59,7 +59,9 @@ class TestIsoScanEndpoint:
         client = TestClient(app)
 
         resp = client.post("/api/v1/jobs/iso/scan", json={"path": str(evil)})
-        assert resp.status_code == 400
+        assert resp.status_code == 422
+        # Constant string - no leakage of underlying path / exc message
+        assert resp.json()["error"] == "Invalid ISO path or extension"
 
     @patch("arm.api.v1.iso.cfg")
     def test_scan_rejects_non_iso_extension(self, mock_cfg, tmp_path):
@@ -74,7 +76,8 @@ class TestIsoScanEndpoint:
         client = TestClient(app)
 
         resp = client.post("/api/v1/jobs/iso/scan", json={"path": str(notiso)})
-        assert resp.status_code == 400
+        assert resp.status_code == 422
+        assert resp.json()["error"] == "Invalid ISO path or extension"
 
     @patch("arm.api.v1.iso.cfg")
     def test_scan_missing_iso_returns_400(self, mock_cfg, tmp_path):
@@ -91,6 +94,8 @@ class TestIsoScanEndpoint:
             json={"path": str(ingress / "absent.iso")},
         )
         assert resp.status_code == 400
+        # Constant string - no leakage of underlying filesystem path
+        assert resp.json()["error"] == "ISO file not found"
 
 
 class TestIsoCreateEndpoint:
@@ -174,6 +179,10 @@ class TestIsoCreateEndpoint:
             "disctype": "bluray",
         })
         assert resp.status_code == 400
+        # Constant string - no leakage of resolved path / exc message
+        assert resp.json()["error"] == (
+            "Path is outside the configured ingress directory or has invalid extension"
+        )
 
     @patch("arm.api.v1.iso.db")
     @patch("arm.api.v1.iso.Job")
