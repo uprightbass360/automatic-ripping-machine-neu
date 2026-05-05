@@ -211,6 +211,22 @@ class Job(db.Model):
             job.video_type = cfg.arm_config['VIDEOTYPE']
         return job
 
+    @classmethod
+    def from_iso(cls, source_path: str, disctype: str):
+        """Create a Job from an ISO file path, bypassing udev/drive detection."""
+        job = cls(
+            devpath=None,
+            _skip_hardware=True,
+        )
+        job.source_type = SourceType.iso.value
+        job.source_path = source_path
+        job.disctype = disctype
+        job.start_time = dt.now()
+        job.is_iso = True
+        if cfg.arm_config.get('VIDEOTYPE', 'auto') != "auto":
+            job.video_type = cfg.arm_config['VIDEOTYPE']
+        return job
+
     def __str__(self):
         """Returns a string of the object"""
 
