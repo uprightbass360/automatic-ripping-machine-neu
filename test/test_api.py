@@ -1982,6 +1982,35 @@ class TestApiJobStart:
         assert response.status_code == 200
         assert response.json()["success"] is True
 
+    def test_start_waiting_folder_job_spawns_folder_thread(self, client, sample_job, app_context):
+        from arm.ripper.utils import database_updater
+        database_updater(
+            {"status": "manual_paused", "source_type": "folder", "source_path": "/tmp/x"},
+            sample_job,
+        )
+        with unittest.mock.patch("arm.api.v1.jobs.threading.Thread") as mock_thread:
+            response = client.post(f'/api/v1/jobs/{sample_job.job_id}/start')
+        assert response.status_code == 200
+        assert response.json()["status"] == "video_ripping"
+        # Verify it dispatched to the folder helper, not the ISO helper.
+        from arm.api.v1 import jobs as jobs_module
+        kwargs = mock_thread.call_args.kwargs
+        assert kwargs["target"] is jobs_module._rip_folder_by_id
+
+    def test_start_waiting_iso_job_spawns_iso_thread(self, client, sample_job, app_context):
+        from arm.ripper.utils import database_updater
+        database_updater(
+            {"status": "manual_paused", "source_type": "iso", "source_path": "/tmp/x.iso"},
+            sample_job,
+        )
+        with unittest.mock.patch("arm.api.v1.jobs.threading.Thread") as mock_thread:
+            response = client.post(f'/api/v1/jobs/{sample_job.job_id}/start')
+        assert response.status_code == 200
+        assert response.json()["status"] == "video_ripping"
+        from arm.api.v1 import jobs as jobs_module
+        kwargs = mock_thread.call_args.kwargs
+        assert kwargs["target"] is jobs_module._rip_iso_by_id
+
 
 class TestApiJobCancel:
     """Test POST /api/v1/jobs/<id>/cancel endpoint."""

@@ -35,6 +35,7 @@ from arm.models.job import Job, JobState
 from arm.models.track import Track
 from arm.models.notifications import Notifications
 from arm.ripper.folder_ripper import rip_folder
+from arm.ripper.iso_ripper import rip_iso
 from arm.services import jobs as svc_jobs
 from arm.services import files as svc_files
 from arm.services import progress_reader
@@ -54,6 +55,20 @@ def _rip_folder_by_id(job_id: int):
             logging.error("rip_folder thread: job %s not found", job_id)
             return
         rip_folder(job)
+    finally:
+        db.session.remove()
+
+
+def _rip_iso_by_id(job_id: int):
+    """Re-query job by ID in the thread's own session, then run rip_iso."""
+    import logging
+    db.session.commit_timeout = 90
+    try:
+        job = Job.query.get(job_id)
+        if not job:
+            logging.error("rip_iso thread: job %s not found", job_id)
+            return
+        rip_iso(job)
     finally:
         db.session.remove()
 
@@ -316,14 +331,19 @@ def start_waiting_job(job_id: int):
     if job.status != JobState.MANUAL_PAUSED.value:
         return JSONResponse({"success": False, "error": _NOT_WAITING}, status_code=409)
 
-    if job.source_type == SourceType.folder.value:
-        # Folder jobs: launch rip_folder in a background thread.
-        # Pass job_id, not the ORM object — the thread has its own session
-        # scope and the original object would be detached.
+    if job.source_type in (SourceType.folder.value, SourceType.iso.value):
+        # Import jobs (folder + ISO) have no running ripper thread - the
+        # prescan ran synchronously and parked the job in MANUAL_PAUSED.
+        # Spawn a fresh thread to drive the rip phase. Pass job_id, not
+        # the ORM object — the thread has its own session scope and the
+        # original object would be detached.
         job.status = JobState.VIDEO_RIPPING.value
         db.session.commit()
         job_id = job.job_id
-        thread = threading.Thread(target=_rip_folder_by_id, args=(job_id,), daemon=True)
+        target = (
+            _rip_iso_by_id if job.source_type == SourceType.iso.value else _rip_folder_by_id
+        )
+        thread = threading.Thread(target=target, args=(job_id,), daemon=True)
         thread.start()
         return {"success": True, "job_id": job_id, "status": job.status}
 
