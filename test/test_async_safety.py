@@ -162,6 +162,57 @@ class TestRipFolderSessionCleanup:
 
 
 # =====================================================================
+# _rip_iso_by_id - session cleanup (parallel to folder helper)
+# =====================================================================
+
+
+class TestRipIsoSessionCleanup:
+    """Test that _rip_iso_by_id cleans up the DB session."""
+
+    def test_session_removed_on_success(self, app_context, sample_job):
+        """db.session.remove() called after successful rip."""
+        from arm.api.v1.jobs import _rip_iso_by_id
+
+        with unittest.mock.patch("arm.api.v1.jobs.rip_iso") as mock_rip, \
+             unittest.mock.patch("arm.api.v1.jobs.db") as mock_db:
+            mock_db.session.remove = unittest.mock.MagicMock()
+            mock_job = unittest.mock.MagicMock()
+            with unittest.mock.patch("arm.api.v1.jobs.Job") as MockJob:
+                MockJob.query.get.return_value = mock_job
+                _rip_iso_by_id(1)
+
+            mock_rip.assert_called_once_with(mock_job)
+            mock_db.session.remove.assert_called_once()
+
+    def test_session_removed_on_exception(self, app_context):
+        """db.session.remove() called even when rip_iso raises."""
+        from arm.api.v1.jobs import _rip_iso_by_id
+
+        with unittest.mock.patch("arm.api.v1.jobs.rip_iso", side_effect=RuntimeError("boom")), \
+             unittest.mock.patch("arm.api.v1.jobs.db") as mock_db:
+            mock_db.session.remove = unittest.mock.MagicMock()
+            mock_job = unittest.mock.MagicMock()
+            with unittest.mock.patch("arm.api.v1.jobs.Job") as MockJob:
+                MockJob.query.get.return_value = mock_job
+                with pytest.raises(RuntimeError, match="boom"):
+                    _rip_iso_by_id(1)
+
+            mock_db.session.remove.assert_called_once()
+
+    def test_session_removed_when_job_not_found(self, app_context):
+        """db.session.remove() called even when job is not found."""
+        from arm.api.v1.jobs import _rip_iso_by_id
+
+        with unittest.mock.patch("arm.api.v1.jobs.db") as mock_db:
+            mock_db.session.remove = unittest.mock.MagicMock()
+            with unittest.mock.patch("arm.api.v1.jobs.Job") as MockJob:
+                MockJob.query.get.return_value = None
+                _rip_iso_by_id(999)
+
+            mock_db.session.remove.assert_called_once()
+
+
+# =====================================================================
 # _with_session_cleanup - executor thread session safety
 # =====================================================================
 
