@@ -321,6 +321,27 @@ class TestPrescanFolderGuard:
 
         job = MagicMock()
         job.is_folder_import = True
+        job.is_iso_import = False
+        job.job_id = 99
+
+        mock_track_cls = MagicMock()
+        mock_track_cls.query.filter_by.return_value.delete.return_value = 0
+
+        with patch("arm.ripper.makemkv.prescan_resolve_mdisc") as mock_mdisc, \
+             patch("arm.ripper.makemkv.prescan_disc_info", return_value=iter([])), \
+             patch("arm.ripper.makemkv.TrackInfoProcessor"), \
+             patch("arm.models.track.Track", mock_track_cls), \
+             patch("arm.ripper.makemkv.db"):
+            from arm.ripper.makemkv import prescan_track_info
+            prescan_track_info(job)
+            mock_mdisc.assert_not_called()
+
+    def test_prescan_skips_mdisc_for_iso_job(self):
+        from unittest.mock import MagicMock, patch
+
+        job = MagicMock()
+        job.is_folder_import = False
+        job.is_iso_import = True
         job.job_id = 99
 
         mock_track_cls = MagicMock()
@@ -340,6 +361,7 @@ class TestPrescanFolderGuard:
 
         job = MagicMock()
         job.is_folder_import = False
+        job.is_iso_import = False
         job.job_id = 99
 
         mock_track_cls = MagicMock()
