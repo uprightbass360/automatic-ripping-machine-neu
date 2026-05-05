@@ -297,3 +297,44 @@ class TestRipFolder:
             "reconcile",
             "post_rip_handoff",
         ]
+
+    @patch("arm.ripper.folder_ripper.db")
+    @patch("arm.ripper.folder_ripper._reconcile_filenames")
+    @patch("arm.ripper.makemkv.run")
+    @patch("arm.ripper.folder_ripper.prescan_track_info")
+    @patch("arm.ripper.folder_ripper.prep_mkv")
+    def test_deselected_track_files_are_removed(
+        self, mock_prep, mock_prescan, mock_run,
+        mock_reconcile, mock_db, tmp_path
+    ):
+        """Output files for tracks with process=False are deleted post-rip.
+
+        MakeMKV's `all` mode rips every title above its minlength filter.
+        The user (or auto-disable) may set process=False on tracks they
+        don't want; without this filter those files would still rsync to
+        media + reach the transcoder. Repro on hifi 17.6.0-rc job 200:
+        user selected only track 0 in review; rip produced 28 mkv files.
+        """
+        from arm.ripper.folder_ripper import rip_folder
+
+        rawpath = tmp_path / "raw" / "Test Movie"
+        rawpath.mkdir(parents=True)
+        kept = rawpath / "kept.mkv"
+        dropped = rawpath / "dropped.mkv"
+        kept.write_bytes(b"keep me")
+        dropped.write_bytes(b"discard me")
+
+        job = self._make_job(tmp_path)
+        kept_track = MagicMock(track_number="0", filename="kept.mkv", process=True)
+        dropped_track = MagicMock(track_number="1", filename="dropped.mkv", process=False)
+        job.tracks = [kept_track, dropped_track]
+        mock_run.return_value = iter([])
+
+        with patch("arm.ripper.folder_ripper.setup_rawpath", return_value=str(rawpath)), \
+             patch("arm.ripper.folder_ripper.cfg") as mock_cfg, \
+             patch("arm.ripper.arm_ripper._post_rip_handoff"):
+            mock_cfg.arm_config = {"TRANSCODER_URL": ""}
+            rip_folder(job)
+
+        assert kept.exists(), "kept track file should not be deleted"
+        assert not dropped.exists(), "deselected track file should be removed"

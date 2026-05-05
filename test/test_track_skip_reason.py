@@ -165,8 +165,13 @@ def test_all_tracks_path_marks_long_tracks_as_process_true(app_context, sample_j
 
 
 def test_folder_prescan_auto_disable_sets_too_short(app_context, sample_job):
-    """The folder-import prescan auto-disable should set both enabled=False
-    AND skip_reason='too_short' on tracks below MINLENGTH."""
+    """The folder-import prescan auto-disable should set process=False,
+    enabled=False AND skip_reason='too_short' on tracks below MINLENGTH.
+
+    process=False is the rip-time gate honored by kick_off_import_rip's
+    deselection filter; without it short tracks were ripped despite the
+    auto-filter (observed during 17.6.0-rc ISO smoke on hifi).
+    """
     from arm.models.track import Track
     from arm.api.v1.folder import auto_disable_short_tracks
 
@@ -183,9 +188,12 @@ def test_folder_prescan_auto_disable_sets_too_short(app_context, sample_job):
     rows = {t.track_number: t for t in db.session.query(Track).filter_by(job_id=sample_job.job_id)}
     assert rows["0"].enabled is True
     assert rows["0"].skip_reason is None
+    # process is left at its default (None or True) for the kept track
     assert rows["1"].enabled is False
+    assert rows["1"].process is False
     assert rows["1"].skip_reason == "too_short"
     assert rows["2"].enabled is False
+    assert rows["2"].process is False
     assert rows["2"].skip_reason == "too_short"
 
 
