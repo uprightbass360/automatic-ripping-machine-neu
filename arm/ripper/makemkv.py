@@ -1164,6 +1164,60 @@ def prescan_track_info(job, timeout=300, cache_mb=1, enum_timeout=60):
     processor._add_track()
 
 
+def prescan_iso_disc_type(iso_path: str, timeout: int = 120) -> dict:
+    """Run a quick MakeMKV info pass on an ISO to extract disc metadata.
+
+    Used by /api/v1/jobs/iso/scan to identify ISOs before creating a job.
+    Parses CINFO/TCOUNT lines from `makemkvcon --robot info iso:{path}` and
+    returns disc_type ("bluray4k" / "bluray" / "dvd" / "unknown"),
+    stream_count, and volume_id.
+    """
+    source = f"iso:{iso_path}"
+    output = _run_makemkv_info_capture(source, timeout=timeout)
+
+    disc_type = "unknown"
+    stream_count = 0
+    volume_id = None
+    for line in output.splitlines():
+        if line.startswith("TCOUNT:"):
+            try:
+                stream_count = int(line.split(":", 1)[1].strip())
+            except (ValueError, IndexError):
+                pass
+        elif line.startswith("CINFO:1,"):
+            value = line.split(",", 2)[-1].strip().strip('"')
+            upper = value.upper()
+            if "UHD" in upper:
+                disc_type = "bluray4k"
+            elif "BLU" in upper:
+                disc_type = "bluray"
+            elif "DVD" in upper:
+                disc_type = "dvd"
+        elif line.startswith("CINFO:32,"):
+            volume_id = line.split(",", 2)[-1].strip().strip('"') or None
+
+    return {"disc_type": disc_type, "stream_count": stream_count, "volume_id": volume_id}
+
+
+def _run_makemkv_info_capture(source: str, timeout: int = 120) -> str:
+    """Run `makemkvcon --robot info <source>` and return stdout as a string.
+
+    Wrapped in a thin helper so tests can monkeypatch it without involving
+    the real makemkvcon binary or subprocess.
+    """
+    cmd = [
+        shutil.which("makemkvcon") or "makemkvcon",
+        "--robot",
+        "--messages=-stdout",
+        "info",
+        "--cache=1",
+        source,
+        "--minlength=0",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return result.stdout
+
+
 def _resolve_mdisc(job):
     """Ensure job.drive.mdisc is populated, scanning drives if needed."""
     if job.drive is not None and job.drive.mdisc is not None:
