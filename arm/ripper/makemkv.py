@@ -1151,8 +1151,10 @@ def prescan_track_info(job, timeout=300, cache_mb=1, enum_timeout=60):
     db.session.flush()
 
     # Resolve disc index for later rip phase (best-effort, non-critical)
-    # Skip for folder imports - no physical drive to resolve
-    if not getattr(job, 'is_folder_import', False):
+    # Skip for folder + ISO imports - no physical drive to resolve, and
+    # disc:9999 enumeration would warn "did not return drive for None"
+    # then waste ~10s on a second makemkvcon info pass.
+    if not getattr(job, 'is_folder_import', False) and not getattr(job, 'is_iso_import', False):
         try:
             prescan_resolve_mdisc(job, timeout=enum_timeout)
         except Exception as exc:
