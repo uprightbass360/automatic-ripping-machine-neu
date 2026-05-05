@@ -216,6 +216,53 @@ class TestListDirectory:
         with pytest.raises(ValueError):
             file_browser.list_directory("/etc")
 
+    def test_entries_have_kind_and_importable(self, media_tree):
+        """Directory listings tag entries with kind ('dir' | 'iso' | 'other')
+        and importable bool so the Import wizard can render folders + ISOs
+        in one mixed listing.
+
+        Importable rules:
+          - dir: True iff entry contains BDMV/ or VIDEO_TS/
+          - iso: always True
+          - other: always False
+        """
+        # ISO file
+        (media_tree['raw'] / "Movie.iso").write_bytes(b"\x00")
+        # Importable folder (has BDMV/)
+        bd = media_tree['raw'] / "BD_FOLDER"
+        bd.mkdir()
+        (bd / "BDMV").mkdir()
+        # Importable folder (has VIDEO_TS/)
+        dvd = media_tree['raw'] / "DVD_FOLDER"
+        dvd.mkdir()
+        (dvd / "VIDEO_TS").mkdir()
+        # Non-importable folder (plain)
+        (media_tree['raw'] / "PlainDir").mkdir()
+        # Non-importable file
+        (media_tree['raw'] / "notes.txt").write_text("hi")
+
+        listing = file_browser.list_directory(media_tree['roots']['raw'])
+        by_name = {e['name']: e for e in listing['entries']}
+
+        assert by_name["Movie.iso"]["kind"] == "iso"
+        assert by_name["Movie.iso"]["importable"] is True
+
+        assert by_name["BD_FOLDER"]["kind"] == "dir"
+        assert by_name["BD_FOLDER"]["importable"] is True
+
+        assert by_name["DVD_FOLDER"]["kind"] == "dir"
+        assert by_name["DVD_FOLDER"]["importable"] is True
+
+        assert by_name["PlainDir"]["kind"] == "dir"
+        assert by_name["PlainDir"]["importable"] is False
+
+        assert by_name["notes.txt"]["kind"] == "other"
+        assert by_name["notes.txt"]["importable"] is False
+
+        # Existing pre-fixture directory has no BDMV/VIDEO_TS -> kind=dir, importable=False
+        assert by_name["Serial Mom (1994)"]["kind"] == "dir"
+        assert by_name["Serial Mom (1994)"]["importable"] is False
+
 
 # ---------------------------------------------------------------------------
 # rename_item
