@@ -245,3 +245,55 @@ class TestRipFolder:
 
         # The handler added during rip should be removed in the finally block
         assert len(root_logger.handlers) <= handlers_before
+
+    @patch("arm.ripper.folder_ripper.db")
+    @patch("arm.ripper.folder_ripper._reconcile_filenames")
+    @patch("arm.ripper.makemkv.run")
+    @patch("arm.ripper.folder_ripper.prescan_track_info")
+    @patch("arm.ripper.folder_ripper.prep_mkv")
+    def test_orchestration_call_sequence(
+        self, mock_prep, mock_prescan, mock_run,
+        mock_reconcile, mock_db, tmp_path
+    ):
+        """Characterization test: lock the rip_folder orchestration call order.
+
+        Records the ordering of the post-Job-creation orchestration helpers so a
+        future refactor that extracts kick_off_import_rip(job) cannot accidentally
+        reorder calls. Order under test: prep_mkv -> setup_rawpath -> prescan_track_info
+        -> makemkv run -> _reconcile_filenames -> _post_rip_handoff.
+        """
+        from arm.ripper.folder_ripper import rip_folder
+
+        rawpath = tmp_path / "raw" / "Test Movie"
+        rawpath.mkdir(parents=True)
+
+        job = self._make_job(tmp_path)
+        mock_run.return_value = iter([])
+
+        calls = []
+        mock_prep.side_effect = lambda *a, **kw: calls.append("prep_mkv")
+        mock_prescan.side_effect = lambda *a, **kw: calls.append("prescan")
+        mock_run.side_effect = lambda *a, **kw: (calls.append("makemkv_run"), iter([]))[1]
+        mock_reconcile.side_effect = lambda *a, **kw: calls.append("reconcile")
+
+        def fake_setup(path):
+            calls.append("setup_rawpath")
+            return str(rawpath)
+
+        def fake_handoff(j):
+            calls.append("post_rip_handoff")
+
+        with patch("arm.ripper.folder_ripper.setup_rawpath", side_effect=fake_setup), \
+             patch("arm.ripper.folder_ripper.cfg") as mock_cfg, \
+             patch("arm.ripper.arm_ripper._post_rip_handoff", side_effect=fake_handoff):
+            mock_cfg.arm_config = {"TRANSCODER_URL": ""}
+            rip_folder(job)
+
+        assert calls == [
+            "prep_mkv",
+            "setup_rawpath",
+            "prescan",
+            "makemkv_run",
+            "reconcile",
+            "post_rip_handoff",
+        ]

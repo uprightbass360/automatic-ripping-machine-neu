@@ -112,6 +112,47 @@ def rip_folder(job):
       7. Notify transcoder if configured
       8. Set status to TRANSCODE_WAITING on success, FAILURE on error
       9. No eject step (no physical drive)
+
+    Folder-specific prelude (source-folder validation + disc-type detection)
+    runs first; the post-validation orchestration is delegated to the shared
+    `kick_off_import_rip` helper so ISO imports can reuse the same flow.
+    """
+    # Folder-specific prelude: validate the source path looks like a disc
+    # folder before we touch the log handler or DB. Raised exceptions are
+    # caught and translated to JobState.FAILURE inside kick_off_import_rip's
+    # error handler, so we mirror the same try/except shape here.
+    try:
+        source = job.source_path
+        if not source or not os.path.isdir(source):
+            raise FileNotFoundError(f"Source folder does not exist: {source}")
+
+        from arm.ripper.folder_scan import detect_disc_type
+        detect_disc_type(source)
+    except Exception as exc:
+        log.error("Folder import prelude failed for job %s: %s",
+                  getattr(job, "job_id", "?"), exc)
+        try:
+            job.status = JobState.FAILURE.value
+            job.errors = str(exc)
+            db.session.commit()
+        except Exception:
+            log.exception("Failed to update job status to FAILURE")
+        raise
+
+    kick_off_import_rip(job)
+
+
+def kick_off_import_rip(job):
+    """Shared entry point for folder + ISO imports.
+
+    Assumes the Job is already persisted with `source_type` and `source_path`
+    set, and that any source-type-specific validation (e.g. folder structure
+    detection, ISO path sanitisation) has already run. Sets up the per-job
+    log handler, runs prep_mkv, creates rawpath, runs prescan, kicks off the
+    "all"-mode rip, reconciles filenames, marks tracks ripped, and hands off
+    to the transcoder.
+
+    On exception, sets the Job to FAILURE before re-raising.
     """
     file_handler = None
     try:
@@ -126,21 +167,13 @@ def rip_folder(job):
         file_handler.setLevel(log_level)
         root_logger.addHandler(file_handler)
         root_logger.setLevel(log_level)
-        log.info("Starting folder import rip for job %s: %s", job.job_id, job.source_path)
+        log.info("Starting import rip for job %s: %s", job.job_id, job.source_path)
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(
             job_id=job.job_id,
-            source_type=SourceType.folder.value,
+            source_type=getattr(job, "source_type", SourceType.folder.value),
             source_path=job.source_path,
         )
-
-        # 1. Validate source folder
-        source = job.source_path
-        if not source or not os.path.isdir(source):
-            raise FileNotFoundError(f"Source folder does not exist: {source}")
-
-        from arm.ripper.folder_scan import detect_disc_type
-        detect_disc_type(source)
 
         # 2. Set status and prepare MakeMKV
         job.status = JobState.VIDEO_RIPPING.value
@@ -160,8 +193,8 @@ def rip_folder(job):
         else:
             prescan_track_info(job)
 
-        # 5. Rip — always use "all" mode for folder imports.
-        # MakeMKV's per-track numbering from file: sources doesn't match
+        # 5. Rip — always use "all" mode for folder/ISO imports.
+        # MakeMKV's per-track numbering from file:/iso: sources doesn't match
         # the prescan track numbers, so single-track extraction fails.
         import collections
         import shlex
@@ -175,7 +208,7 @@ def rip_folder(job):
             "all",
             rawpath,
         ]
-        log.info("Ripping all tracks from folder source: %s", job.source_path)
+        log.info("Ripping all tracks from import source: %s", job.source_path)
         collections.deque(run(cmd, OutputType.MSG), maxlen=0)
 
         # 6. Build deterministic title map from prescan track data.
@@ -207,10 +240,10 @@ def rip_folder(job):
         # 7. Notify transcoder or finalize locally
         from arm.ripper.arm_ripper import _post_rip_handoff
         _post_rip_handoff(job)
-        log.info("Folder import rip complete for job %s", job.job_id)
+        log.info("Import rip complete for job %s", job.job_id)
 
     except Exception as exc:
-        log.error("Folder import rip failed for job %s: %s", getattr(job, "job_id", "?"), exc)
+        log.error("Import rip failed for job %s: %s", getattr(job, "job_id", "?"), exc)
         try:
             job.status = JobState.FAILURE.value
             job.errors = str(exc)
