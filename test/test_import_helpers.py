@@ -119,8 +119,8 @@ class TestAutoDisableShortTracks:
     def test_disables_tracks_below_minlength(self):
         from arm.ripper.import_prescan import auto_disable_short_tracks
 
-        short = MagicMock(length=30, enabled=True)
-        long_ = MagicMock(length=3000, enabled=True)
+        short = MagicMock(length=30, enabled=True, process=True)
+        long_ = MagicMock(length=3000, enabled=True, process=True)
         job = MagicMock()
         job.tracks = [short, long_]
 
@@ -128,7 +128,11 @@ class TestAutoDisableShortTracks:
 
         assert count == 1
         assert short.enabled is False
+        # process must also flip to False so kick_off_import_rip's
+        # post-rip deselection filter discards the output file.
+        assert short.process is False
         assert long_.enabled is True
+        assert long_.process is True
 
     def test_skips_tracks_with_none_length(self):
         from arm.ripper.import_prescan import auto_disable_short_tracks

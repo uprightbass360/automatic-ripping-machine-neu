@@ -27,13 +27,15 @@ log = logging.getLogger(__name__)
 def auto_disable_short_tracks(job, minlength: int) -> int:
     """Disable tracks below `minlength` seconds and tag with skip_reason.
 
-    MakeMKV silently skips short tracks during rip regardless of the
-    checkbox state, so disabling them keeps the UI honest. Returns the
-    count disabled.
+    Sets both process=False (the rip-time gate) and enabled=False
+    (the UI-checkbox state), and tags skip_reason=too_short so the
+    review widget renders the row as filtered. Returns the count
+    disabled.
     """
     disabled_count = 0
     for track in job.tracks:
         if track.length is not None and track.length < minlength:
+            track.process = False
             track.enabled = False
             track.skip_reason = SkipReason.too_short.value
             disabled_count += 1
