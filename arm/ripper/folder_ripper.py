@@ -142,6 +142,35 @@ def rip_folder(job):
     kick_off_import_rip(job)
 
 
+def _remove_deselected_track_files(job, rawpath):
+    """Delete output files for tracks where process=False.
+
+    MakeMKV's `all` mode rips every title above its minlength threshold;
+    the user's per-track process=False choice in review must still win.
+    Reconciliation runs first so each output file is matched to a track
+    row, making process==False the authoritative discard signal.
+    """
+    if not os.path.isdir(rawpath):
+        return
+    for track in job.tracks:
+        if track.process is not False or not track.filename:
+            continue
+        fpath = os.path.join(rawpath, track.filename)
+        if not os.path.isfile(fpath):
+            continue
+        try:
+            os.remove(fpath)
+            log.info(
+                "Removed deselected track #%s output: %s",
+                track.track_number, track.filename,
+            )
+        except OSError as exc:
+            log.warning(
+                "Failed to remove deselected track #%s file %s: %s",
+                track.track_number, fpath, exc,
+            )
+
+
 def kick_off_import_rip(job):
     """Shared entry point for folder + ISO imports.
 
@@ -224,27 +253,8 @@ def kick_off_import_rip(job):
         # 7. Reconcile filenames using deterministic title_map.
         _reconcile_filenames(job, rawpath, title_map=title_map)
 
-        # Drop output files for tracks the user (or auto-filter) deselected.
-        # MakeMKV's `all` mode rips every title above its minlength threshold;
-        # the user's per-track process=False choice in review must still win.
-        # Reconciliation runs first so each output file is now matched to a
-        # track row, making "process==False" the authoritative discard signal.
-        if os.path.isdir(rawpath):
-            for track in job.tracks:
-                if track.process is False and track.filename:
-                    fpath = os.path.join(rawpath, track.filename)
-                    if os.path.isfile(fpath):
-                        try:
-                            os.remove(fpath)
-                            log.info(
-                                "Removed deselected track #%s output: %s",
-                                track.track_number, track.filename,
-                            )
-                        except OSError as exc:
-                            log.warning(
-                                "Failed to remove deselected track #%s file %s: %s",
-                                track.track_number, fpath, exc,
-                            )
+        # Drop output files the user (or auto-filter) deselected.
+        _remove_deselected_track_files(job, rawpath)
 
         # Mark tracks as ripped only if their file actually exists on disk
         # (after reconciliation + deselection filter so filenames are correct).
