@@ -254,8 +254,8 @@ class TestFolderCreate:
 class TestPrescanAndWait:
     """Test _prescan_and_wait background function."""
 
-    @patch("arm.api.v1.folder.db")
-    @patch("arm.api.v1.folder.Job")
+    @patch("arm.ripper.import_prescan.db")
+    @patch("arm.ripper.import_prescan.Job")
     def test_prescan_success(self, mock_job_cls, mock_db):
         """Job transitions from IDENTIFYING to MANUAL_PAUSED on success."""
         from arm.api.v1.folder import _prescan_and_wait
@@ -277,8 +277,8 @@ class TestPrescanAndWait:
         assert mock_job.status == "manual_paused"
         mock_db.session.commit.assert_called()
 
-    @patch("arm.api.v1.folder.db")
-    @patch("arm.api.v1.folder.Job")
+    @patch("arm.ripper.import_prescan.db")
+    @patch("arm.ripper.import_prescan.Job")
     def test_prescan_auto_disables_short_tracks(self, mock_job_cls, mock_db):
         """Tracks shorter than MINLENGTH are auto-disabled after prescan."""
         from arm.api.v1.folder import _prescan_and_wait
@@ -299,8 +299,8 @@ class TestPrescanAndWait:
         assert short_extra.enabled is False, "22s track should be auto-disabled"
         assert medium_extra.enabled is False, "49s track should be auto-disabled (< 120s default)"
 
-    @patch("arm.api.v1.folder.db")
-    @patch("arm.api.v1.folder.Job")
+    @patch("arm.ripper.import_prescan.db")
+    @patch("arm.ripper.import_prescan.Job")
     def test_prescan_failure_still_transitions(self, mock_job_cls, mock_db):
         """On failure, job gets error message and still transitions to MANUAL_PAUSED."""
         from arm.api.v1.folder import _prescan_and_wait
@@ -321,8 +321,8 @@ class TestPrescanAndWait:
         assert "MakeMKV crashed" in mock_job.errors
         mock_db.session.commit.assert_called()
 
-    @patch("arm.api.v1.folder.db")
-    @patch("arm.api.v1.folder.Job")
+    @patch("arm.ripper.import_prescan.db")
+    @patch("arm.ripper.import_prescan.Job")
     def test_prescan_job_not_found(self, mock_job_cls, mock_db):
         """When job is not found, logs error and returns gracefully."""
         from arm.api.v1.folder import _prescan_and_wait
@@ -337,8 +337,8 @@ class TestPrescanAndWait:
         # Session must still be cleaned up
         mock_db.session.remove.assert_called_once()
 
-    @patch("arm.api.v1.folder.db")
-    @patch("arm.api.v1.folder.Job")
+    @patch("arm.ripper.import_prescan.db")
+    @patch("arm.ripper.import_prescan.Job")
     def test_prescan_session_cleaned_on_commit_failure(self, mock_job_cls, mock_db):
         """Session is cleaned up even when the error-path commit fails."""
         from arm.api.v1.folder import _prescan_and_wait
