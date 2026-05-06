@@ -221,6 +221,16 @@ INGRESS_PATH: ""
 # For Plex see https://support.plex.tv/hc/en-us/articles/200220677
 EXTRAS_SUB: "extras"
 
+# Output organization subdirs under COMPLETED_PATH and TRANSCODE_PATH.
+# Each value may contain '/' for nested dirs (e.g. "Movies/0.Rips").
+# Operators using the transcoder should set MOVIES_SUBDIR / TV_SUBDIR /
+# AUDIO_SUBDIR consistently in their .env so both services land files in
+# the same library tree.
+MOVIES_SUBDIR: "movies"
+TV_SUBDIR: "tv"
+AUDIO_SUBDIR: "music"
+UNIDENTIFIED_SUBDIR: "unidentified"
+
 # Path to installation of ARM
 INSTALLPATH: "/opt/arm/"
 
