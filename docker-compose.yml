@@ -43,6 +43,7 @@ services:
       - ${ARM_MUSIC_PATH}:/home/arm/music
       - ${ARM_LOGS_PATH}:/home/arm/logs
       - ${ARM_MEDIA_PATH}:/home/arm/media
+      - ${ARM_COMPLETED_PATH:-${ARM_MEDIA_PATH}/completed}:/home/arm/media/completed
       - ${ARM_SCRATCH_PATH:-/home/arm/media}:/home/arm/scratch
       - ${ARM_INGRESS_PATH:-/home/arm/media/ingress}:/home/arm/media/ingress:ro
       - ${ARM_CONFIG_PATH}:/etc/arm/config
@@ -140,7 +141,7 @@ services:
       - ARM_CALLBACK_URL=${ARM_CALLBACK_URL:-http://arm-rippers:8080}
     volumes:
       - ${ARM_MEDIA_PATH}/raw:/data/raw:rw
-      - ${ARM_MEDIA_PATH}/completed:/data/completed:rw
+      - ${ARM_COMPLETED_PATH:-${ARM_MEDIA_PATH}/completed}:/data/completed:rw
       - ${TRANSCODER_WORK_PATH:-./work}:/data/work:rw
       - transcoder-db:/data/db:rw
       - transcoder-logs:/data/logs:rw
