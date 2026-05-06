@@ -260,3 +260,55 @@ class TestJobGuid:
         assert job.guid is not None
         parsed = uuid.UUID(job.guid)
         assert parsed.version == 4
+
+
+class TestTypeSubfolderConfigurable:
+    """type_subfolder reads MOVIES_SUBDIR/TV_SUBDIR/AUDIO_SUBDIR/UNIDENTIFIED_SUBDIR
+    from arm.yaml and falls back to legacy defaults when unset.
+
+    These tests monkeypatch cfg.arm_config to override individual keys; the
+    monkeypatch fixture reverses the change at teardown so other tests are
+    unaffected.
+    """
+
+    def test_movies_custom(self, sample_job, monkeypatch):
+        import arm.config.config as cfg
+        monkeypatch.setitem(cfg.arm_config, "MOVIES_SUBDIR", "Movies/0.Rips")
+        sample_job.video_type = "movie"
+        assert sample_job.type_subfolder == "Movies/0.Rips"
+
+    def test_tv_custom(self, sample_job, monkeypatch):
+        import arm.config.config as cfg
+        monkeypatch.setitem(cfg.arm_config, "TV_SUBDIR", "TV/0.Rips")
+        sample_job.video_type = "series"
+        assert sample_job.type_subfolder == "TV/0.Rips"
+
+    def test_audio_custom(self, sample_job, monkeypatch):
+        import arm.config.config as cfg
+        monkeypatch.setitem(cfg.arm_config, "AUDIO_SUBDIR", "Music/0.Rips")
+        sample_job.video_type = "music"
+        assert sample_job.type_subfolder == "Music/0.Rips"
+
+    def test_unidentified_custom(self, sample_job, monkeypatch):
+        import arm.config.config as cfg
+        monkeypatch.setitem(cfg.arm_config, "UNIDENTIFIED_SUBDIR", "0.Inbox")
+        sample_job.video_type = "unknown"
+        assert sample_job.type_subfolder == "0.Inbox"
+
+    def test_build_final_path_uses_custom_movies_subdir(self, sample_job, monkeypatch):
+        import arm.config.config as cfg
+        monkeypatch.setitem(cfg.arm_config, "MOVIES_SUBDIR", "Movies/0.Rips")
+        sample_job.video_type = "movie"
+        # sample_job already has title="SERIAL_MOM", year="1994" from the fixture.
+        # Path prefix matches the existing TestBuildPaths assertions (the
+        # sample_job fixture patches sample_job.config.COMPLETED_PATH to
+        # "/home/arm/media/completed", overriding test_arm.yaml).
+        assert sample_job.build_final_path() == \
+            "/home/arm/media/completed/Movies/0.Rips/SERIAL_MOM (1994)"
+
+    def test_build_transcode_path_uses_custom_tv_subdir(self, sample_job, monkeypatch):
+        import arm.config.config as cfg
+        monkeypatch.setitem(cfg.arm_config, "TV_SUBDIR", "TV/0.Rips")
+        sample_job.video_type = "series"
+        assert sample_job.build_transcode_path() == \
+            "/home/arm/media/transcode/TV/0.Rips/SERIAL_MOM (1994)"
