@@ -442,14 +442,22 @@ class Job(db.Model):
 
     @property
     def type_subfolder(self):
-        """Map video_type to filesystem subfolder: movies/tv/music/unidentified."""
+        """Map video_type to filesystem subfolder.
+
+        Reads MOVIES_SUBDIR / TV_SUBDIR / AUDIO_SUBDIR / UNIDENTIFIED_SUBDIR
+        from arm.yaml so ARM honors the same library-tree organization the
+        transcoder uses. Falls back to legacy hardcoded defaults if
+        arm_config is unavailable (test-isolation safety net).
+        """
+        import arm.config.config as cfg
+        config_dict = getattr(cfg, 'arm_config', {}) or {}
         if self.video_type == "movie":
-            return "movies"
+            return config_dict.get("MOVIES_SUBDIR", "movies")
         elif self.video_type == "series":
-            return "tv"
+            return config_dict.get("TV_SUBDIR", "tv")
         elif self.video_type == "music":
-            return "music"
-        return "unidentified"
+            return config_dict.get("AUDIO_SUBDIR", "music")
+        return config_dict.get("UNIDENTIFIED_SUBDIR", "unidentified")
 
     def _pattern_fields_available(self):
         """Check if the structured fields needed for pattern rendering are populated.
