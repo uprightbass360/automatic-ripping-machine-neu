@@ -63,7 +63,16 @@ Three layers, last one wins:
    | `ARM_TRANSCODER_WEBHOOK_SECRET` | `TRANSCODER_WEBHOOK_SECRET` |
    | `ARM_LOCAL_RAW_PATH` | `LOCAL_RAW_PATH` |
    | `ARM_SHARED_RAW_PATH` | `SHARED_RAW_PATH` |
+   | `MOVIES_SUBDIR` | `MOVIES_SUBDIR` |
+   | `TV_SUBDIR` | `TV_SUBDIR` |
+   | `AUDIO_SUBDIR` | `AUDIO_SUBDIR` |
+   | `UNIDENTIFIED_SUBDIR` | `UNIDENTIFIED_SUBDIR` |
    | `ARM_TRANSCODER_ENABLED=false` | force-clears `TRANSCODER_URL` + `TRANSCODER_WEBHOOK_SECRET` |
+
+   The four `*_SUBDIR` env vars match their yaml-key names (no `ARM_`
+   prefix) because they're shared with the transcoder service, which
+   uses the same env names. One env var per concept, both services
+   honor it.
 
 A few env vars are read directly by Python (no yaml hop):
 
@@ -229,7 +238,7 @@ and consumed throughout ripper code.
 | `ABCDE_CONFIG_FILE` | `/etc/arm/config/abcde.conf` | abcde config |
 | `EXTRAS_SUB` | `extras` | Movie extras subdir name |
 | `LOCAL_RAW_PATH` / `SHARED_RAW_PATH` | `""` / `""` | Scratch staging - see [section 8](#8-arm-scratch-staging-local_raw---shared_raw) |
-| `MOVIES_SUBDIR` / `TV_SUBDIR` / `AUDIO_SUBDIR` | `movies` / `tv` / `audio` | Subdirs under `COMPLETED_PATH` |
+| `MOVIES_SUBDIR` / `TV_SUBDIR` / `AUDIO_SUBDIR` / `UNIDENTIFIED_SUBDIR` | `movies` / `tv` / `music` / `unidentified` | Per-video-type subdirs under `COMPLETED_PATH` and `TRANSCODE_PATH`. Honored by both ARM ripper (via `Job.type_subfolder`) and transcoder. Slashes allowed for nested layouts. |
 
 #### 5.2 Host -> container mounts
 
@@ -509,8 +518,11 @@ from sibling source repos.
 | Concept | Container | Host (default) |
 |---|---|---|
 | Raw MakeMKV output | `/home/arm/media/raw/` | `${ARM_MEDIA_PATH}/raw/` |
-| Final transcoded files | `/home/arm/media/completed/` | `${ARM_MEDIA_PATH}/completed/` |
-| Music CDs | `/home/arm/music/` | `${ARM_MUSIC_PATH}` |
+| Final transcoded files (root) | `/home/arm/media/completed/` | `${ARM_COMPLETED_PATH:-${ARM_MEDIA_PATH}/completed}` |
+| Movie output | `/home/arm/media/completed/${MOVIES_SUBDIR}/<title>/` | `${ARM_COMPLETED_PATH:-${ARM_MEDIA_PATH}/completed}/${MOVIES_SUBDIR}/<title>/` |
+| TV output | `/home/arm/media/completed/${TV_SUBDIR}/<show>/Season N/` | `${ARM_COMPLETED_PATH:-${ARM_MEDIA_PATH}/completed}/${TV_SUBDIR}/<show>/...` |
+| Audio CD output | `/home/arm/media/completed/${AUDIO_SUBDIR}/<artist>/<album>/` | `${ARM_COMPLETED_PATH:-${ARM_MEDIA_PATH}/completed}/${AUDIO_SUBDIR}/...` |
+| Music CDs (raw rip target) | `/home/arm/music/` | `${ARM_MUSIC_PATH}` |
 | ARM SQLite | `/home/arm/db/arm.db` | named volume `arm-db` |
 | Transcoder SQLite | `/data/db/transcoder.db` | named volume `transcoder-db` |
 | ARM logs | `/home/arm/logs/` | `${ARM_LOGS_PATH}` |
@@ -537,6 +549,7 @@ from sibling source repos.
 | Scratch staging | env (`ARM_LOCAL_RAW_PATH` + `ARM_SHARED_RAW_PATH`) | Edit `.env`, restart ripper |
 | GPU vendor | image tag (`TRANSCODER_VERSION=latest-nvidia` etc.) | Switch tag, `docker compose up -d --force-recreate arm-transcoder` |
 | Transcoder presets / file handling / concurrency | DB (preferred) or env defaults | UI Settings page (writes via `PATCH /config`); env only sets the boot default |
+| Library subdir layout (movies/tv/audio dirs) | `arm.yaml` (via env) | Edit `.env` (`MOVIES_SUBDIR=Movies/0.Rips` etc.), restart ripper. Entrypoint rewrites `arm.yaml`; both ARM and transcoder honor the same value. |
 | Per-job transcode overrides | DB column `job.transcode_overrides` | UI disc-review panel; one-shot, attaches to outbound webhook only |
 | Database URL | env `ARM_DATABASE_URL` -> yaml `DATABASE_URL` -> default sqlite | Either env or yaml; Phase 3 PR-A landed 2026-05-03 |
 | UI themes / image cache paths | env (`ARM_UI_THEMES_PATH`, `ARM_UI_IMAGE_CACHE_PATH`) | Edit compose, restart UI |
@@ -557,6 +570,8 @@ from sibling source repos.
 | `ARM_TRANSCODER_URL` | ripper entrypoint -> yaml | Webhook target |
 | `ARM_TRANSCODER_WEBHOOK_SECRET` | ripper entrypoint -> yaml | Shared secret |
 | `ARM_LOCAL_RAW_PATH`, `ARM_SHARED_RAW_PATH` | ripper entrypoint -> yaml | Scratch staging |
+| `MOVIES_SUBDIR`, `TV_SUBDIR`, `AUDIO_SUBDIR`, `UNIDENTIFIED_SUBDIR` | ripper entrypoint -> yaml; transcoder Settings | Library subdir layout - shared between services |
+| `ARM_COMPLETED_PATH` | compose volume layer | Optional host-path override; binds to `/home/arm/media/completed` (ripper) and `/data/completed` (transcoder) |
 | `ARM_MEDIA_PATH`, `ARM_CONFIG_PATH`, `ARM_LOGS_PATH`, `ARM_MUSIC_PATH` | preflight.py fallback + compose volume layer | Passed twice on purpose |
 | `ARM_SCRATCH_PATH`, `ARM_INGRESS_PATH`, `ARM_MAKEMKV_PATH` | compose volume layer | Optional host-path overrides |
 | `WEBHOOK_SECRET` | transcoder Settings | Inbound auth check |
