@@ -185,6 +185,10 @@ else
 fi
 apply_yaml_override LOCAL_RAW_PATH ARM_LOCAL_RAW_PATH
 apply_yaml_override SHARED_RAW_PATH ARM_SHARED_RAW_PATH
+apply_yaml_override MOVIES_SUBDIR MOVIES_SUBDIR
+apply_yaml_override TV_SUBDIR TV_SUBDIR
+apply_yaml_override AUDIO_SUBDIR AUDIO_SUBDIR
+apply_yaml_override UNIDENTIFIED_SUBDIR UNIDENTIFIED_SUBDIR
 # sed -i may reset file ownership to root — restore arm ownership
 chown arm:arm "$ARM_YAML" 2>/dev/null || true
 
