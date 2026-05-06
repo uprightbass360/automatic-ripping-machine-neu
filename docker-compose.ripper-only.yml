@@ -32,6 +32,12 @@ services:
       - ARM_TRANSCODER_ENABLED=false
       - ARM_LOCAL_RAW_PATH=${ARM_LOCAL_RAW_PATH:-}
       - ARM_SHARED_RAW_PATH=${ARM_SHARED_RAW_PATH:-}
+      # Output organization subdirs - entrypoint rewrites arm.yaml so
+      # finalize_output (the ripper-only completion path) honors them.
+      - MOVIES_SUBDIR=${MOVIES_SUBDIR:-movies}
+      - TV_SUBDIR=${TV_SUBDIR:-tv}
+      - AUDIO_SUBDIR=${AUDIO_SUBDIR:-music}
+      - UNIDENTIFIED_SUBDIR=${UNIDENTIFIED_SUBDIR:-unidentified}
       - ARM_MEDIA_PATH=${ARM_MEDIA_PATH}
       - ARM_CONFIG_PATH=${ARM_CONFIG_PATH}
       - ARM_LOGS_PATH=${ARM_LOGS_PATH}
