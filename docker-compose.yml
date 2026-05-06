@@ -34,6 +34,12 @@ services:
       # Local SSD scratch for ripping (moved to shared storage after rip)
       - ARM_LOCAL_RAW_PATH=${ARM_LOCAL_RAW_PATH:-}
       - ARM_SHARED_RAW_PATH=${ARM_SHARED_RAW_PATH:-}
+      # Output organization subdirs (also passed to transcoder; entrypoint
+      # rewrites arm.yaml at boot so ARM honors them too).
+      - MOVIES_SUBDIR=${MOVIES_SUBDIR:-movies}
+      - TV_SUBDIR=${TV_SUBDIR:-tv}
+      - AUDIO_SUBDIR=${AUDIO_SUBDIR:-music}
+      - UNIDENTIFIED_SUBDIR=${UNIDENTIFIED_SUBDIR:-unidentified}
       # Host path mapping for preflight health checks
       - ARM_MEDIA_PATH=${ARM_MEDIA_PATH}
       - ARM_CONFIG_PATH=${ARM_CONFIG_PATH}
