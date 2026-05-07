@@ -211,10 +211,7 @@ def _build_webhook_payload(title, body, job, raw_basename):
         # WebhookPayload requires job_id, so we hand-build the dict here -
         # the typed model is only meaningful for the job-bound transcode
         # webhook the transcoder actually receives.
-        payload = {"title": title, "body": body, "type": WebhookEventType.info.value}
-        if raw_basename:
-            payload["path"] = raw_basename
-        return payload
+        return {"title": title, "body": body, "type": WebhookEventType.info.value}
 
     config_dict = cfg.arm_config if hasattr(cfg, 'arm_config') else None
     # Route through _parse_transcode_overrides so corrupt/legacy rows are
@@ -224,9 +221,38 @@ def _build_webhook_payload(title, body, job, raw_basename):
     from arm.api.v1.jobs import _parse_transcode_overrides
     overrides_dict = _parse_transcode_overrides(job.transcode_overrides)
 
-    # Pre-rendered names from ARM's naming engine. render_folder may contain
-    # '/' for nested dirs (e.g. "Title/Season 01") - it already sanitizes
-    # each segment, so don't strip slashes here.
+    # Resolve the raw share root. SHARED_RAW_PATH wins when local+shared
+    # scratch staging is configured; otherwise fall back to RAW_PATH.
+    raw_root = (config_dict or {}).get('SHARED_RAW_PATH') or (config_dict or {}).get('RAW_PATH') or ''
+
+    # input_path: job.raw_path relative to the raw share root. Falls
+    # back to raw_basename when raw_path / raw_root aren't set, which
+    # keeps notification-only style payloads (no real job dir) working.
+    input_path = None
+    if job.raw_path and raw_root:
+        try:
+            rel = os.path.relpath(str(job.raw_path), str(raw_root))
+            # relpath returns a string starting with '..' when raw_path is
+            # outside raw_root; that fails the contract validator. Treat
+            # as missing input rather than raising.
+            if not rel.startswith('..'):
+                input_path = rel
+        except ValueError:
+            input_path = None
+    if input_path is None and raw_basename:
+        # No raw_root or relpath escaped: ship the basename as a
+        # last-resort relative path. Rare; transcoder will fail
+        # _wait_for_stable if the dir doesn't exist under raw_path.
+        input_path = raw_basename
+
+    # output_path: job.type_subfolder joined with rendered folder name.
+    # render_folder returns the leaf with sanitized segments and may
+    # contain '/' for nested dirs ('Title/Season 01').
+    type_sub = job.type_subfolder if hasattr(job, 'type_subfolder') else 'unidentified'
+    rendered_folder = render_folder(job, config_dict)
+    output_path = os.path.join(type_sub, rendered_folder) if rendered_folder else type_sub
+
+    # Pre-rendered per-track names from ARM's naming engine.
     rendered = render_all_tracks(job, config_dict)
     rendered_map = {r["track_number"]: r for r in rendered}
     tracks_meta = []
@@ -241,14 +267,34 @@ def _build_webhook_payload(title, body, job, raw_basename):
         # sanitizes custom_filename but raw pattern output needs it here.
         rendered_title = r.get("rendered_title", '')
         track_title_name = clean_for_filename(rendered_title) if rendered_title else ''
+
+        # Per-track output_path: pick the type subdir from THIS track's
+        # video_type (multi-title discs can mix movie + series tracks),
+        # then join with the track's rendered folder. Mirrors
+        # Job.type_subfolder's lookup.
+        track_video_type = str(track.video_type or job.video_type or '')
+        if track_video_type == 'movie':
+            track_type_sub = (config_dict or {}).get('MOVIES_SUBDIR', 'movies')
+        elif track_video_type == 'series':
+            track_type_sub = (config_dict or {}).get('TV_SUBDIR', 'tv')
+        elif track_video_type == 'music':
+            track_type_sub = (config_dict or {}).get('AUDIO_SUBDIR', 'music')
+        else:
+            track_type_sub = (config_dict or {}).get('UNIDENTIFIED_SUBDIR', 'unidentified')
+        track_rendered_folder = r.get("rendered_folder", '')
+        track_output_path = (
+            os.path.join(track_type_sub, track_rendered_folder)
+            if track_rendered_folder else track_type_sub
+        )
+
         tracks_meta.append(WebhookTrackMeta(
             track_number=str(track.track_number or ''),
             title=str(title_str),
             year=str(track.year or job.year or ''),
-            video_type=str(track.video_type or job.video_type or ''),
+            video_type=track_video_type,
             filename=str(track.filename or ''),
             has_custom_title=bool(track.title) or bool(getattr(track, 'custom_filename', None)),
-            folder_name=r.get("rendered_folder", ''),
+            output_path=track_output_path,
             title_name=track_title_name,
             episode_number=str(getattr(track, 'episode_number', '') or ''),
             episode_name=str(getattr(track, 'episode_name', '') or ''),
@@ -258,14 +304,14 @@ def _build_webhook_payload(title, body, job, raw_basename):
         title=title,
         body=body,
         type=WebhookEventType.info,
-        path=raw_basename or None,
+        input_path=input_path,
+        output_path=output_path,
         job_id=str(job.job_id),  # WebhookPayload coerces str -> int.
         video_type=str(job.video_type or ''),
         year=str(job.year or ''),
         disctype=str(job.disctype or ''),
         status=str(job.status or ''),
         poster_url=str(job.poster_url or ''),
-        folder_name=render_folder(job, config_dict),
         title_name=clean_for_filename(render_title(job, config_dict)),
         config_overrides=overrides_dict,  # Pydantic coerces dict -> TranscodeJobConfig.
         multi_title=True if getattr(job, 'multi_title', False) else None,

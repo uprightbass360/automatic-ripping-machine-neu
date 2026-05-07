@@ -65,7 +65,16 @@ class TestBuildWebhookPayload:
         payload = _build_webhook_payload("Rip done", "body text", sample_job, "SERIAL_MOM")
         assert payload["title"] == "Rip done"
         assert payload["body"] == "body text"
-        assert payload["path"] == "SERIAL_MOM"
+        # input_path falls back to raw_basename when job.raw_path is unset
+        # (sample_job sets raw_path=None) — keeps notification-style
+        # payloads working until a real ripper run populates raw_path.
+        assert payload["input_path"] == "SERIAL_MOM"
+        # output_path = type_subfolder + rendered folder. sample_job is a
+        # movie with title SERIAL_MOM and year 1994.
+        assert payload["output_path"].startswith("movies")
+        # Legacy fields are gone.
+        assert "path" not in payload
+        assert "folder_name" not in payload
         # arm_contracts.WebhookPayload coerces job_id to int on the wire
         # (contract decision; transcoder receiver accepts the int form).
         assert payload["job_id"] == sample_job.job_id
@@ -88,10 +97,12 @@ class TestBuildWebhookPayload:
         # Tracks are always included — ARM controls naming
         assert "tracks" in payload
         assert len(payload["tracks"]) == 3
-        # Each track has title_name from naming engine
+        # Each track has title_name from naming engine + output_path
+        # (the per-track output dir relative to completed_path).
         for t_meta in payload["tracks"]:
             assert "title_name" in t_meta
-            assert "folder_name" in t_meta
+            assert "output_path" in t_meta
+            assert "folder_name" not in t_meta  # field removed in v3.0.0
             assert "filename" in t_meta
 
     def test_multi_title_with_custom_titles(self, app_context, job_with_tracks):
@@ -154,22 +165,29 @@ class TestBuildWebhookPayload:
         assert payload["config_overrides"]["overrides"]["shared"]["video_quality"] == 22
 
     def test_job_is_none(self):
-        """When job is None, payload has only basic fields."""
+        """When job is None, payload has only basic fields. Notification-
+        only payloads carry no path info (nothing to transcode)."""
         from arm.ripper.utils import _build_webhook_payload
 
         payload = _build_webhook_payload("Test", "body", None, "some_path")
         assert payload["title"] == "Test"
         assert payload["body"] == "body"
-        assert payload["path"] == "some_path"
+        # Legacy 'path' field is gone in contracts v3.0.0; the
+        # notification-only branch carries no path keys at all.
+        assert "path" not in payload
+        assert "input_path" not in payload
+        assert "output_path" not in payload
         assert "job_id" not in payload
         assert "tracks" not in payload
 
     def test_no_raw_basename(self, app_context, sample_job):
-        """When raw_basename is empty, no path key in payload."""
+        """When raw_basename is empty AND raw_path is None, input_path
+        is omitted from the payload."""
         from arm.ripper.utils import _build_webhook_payload
 
         payload = _build_webhook_payload("Test", "body", sample_job, "")
         assert "path" not in payload
+        assert "input_path" not in payload
 
     def test_episode_name_preferred_over_track_title(self, app_context, job_with_tracks):
         """Webhook title field prefers episode_name over track.title (stale auto-match fix)."""
@@ -219,6 +237,84 @@ class TestBuildWebhookPayload:
 
         payload = _build_webhook_payload("Rip done", "body", job, "raw_dir")
         assert payload["tracks"][0]["title"] == "My Title"
+
+    def test_input_path_resolves_relative_to_raw_root(self, app_context, sample_job, monkeypatch):
+        """input_path is job.raw_path made relative to RAW_PATH (or
+        SHARED_RAW_PATH when local-shared scratch staging is configured)."""
+        from arm.ripper.utils import _build_webhook_payload
+        import arm.config.config as cfg
+
+        monkeypatch.setattr(cfg, "arm_config", {
+            "RAW_PATH": "/home/arm/media/raw/",
+            "MOVIES_SUBDIR": "Movies/0.Rips",
+            "TV_SUBDIR": "TV/0.Rips",
+            "AUDIO_SUBDIR": "music",
+            "UNIDENTIFIED_SUBDIR": "unidentified",
+        })
+        sample_job.raw_path = "/home/arm/media/raw/movies/Foo_xyz"
+        db.session.commit()
+
+        payload = _build_webhook_payload("Rip done", "body", sample_job, "Foo_xyz")
+
+        assert payload["input_path"] == "movies/Foo_xyz"
+
+    def test_output_path_uses_type_subfolder_for_movies(self, app_context, sample_job, monkeypatch):
+        """output_path = job.type_subfolder / render_folder(job, cfg)."""
+        from arm.ripper.utils import _build_webhook_payload
+        import arm.config.config as cfg
+
+        monkeypatch.setattr(cfg, "arm_config", {
+            "RAW_PATH": "/home/arm/media/raw/",
+            "MOVIES_SUBDIR": "Movies/0.Rips",
+            "TV_SUBDIR": "TV/0.Rips",
+            "AUDIO_SUBDIR": "music",
+            "UNIDENTIFIED_SUBDIR": "unidentified",
+        })
+        # sample_job is a movie titled SERIAL_MOM, year 1994.
+        sample_job.raw_path = "/home/arm/media/raw/movies/SERIAL_MOM_xyz"
+        db.session.commit()
+
+        payload = _build_webhook_payload("Rip done", "body", sample_job, "SERIAL_MOM_xyz")
+
+        assert payload["output_path"].startswith("Movies/0.Rips/")
+
+    def test_legacy_fields_not_in_payload(self, app_context, sample_job):
+        """folder_name and path no longer ship on the wire (contracts v3.0.0)."""
+        from arm.ripper.utils import _build_webhook_payload
+
+        payload = _build_webhook_payload("Rip done", "body", sample_job, "raw_dir")
+
+        assert "folder_name" not in payload
+        assert "path" not in payload
+        # Per-track too.
+        if "tracks" in payload:
+            for t in payload["tracks"]:
+                assert "folder_name" not in t
+
+    def test_track_output_path_uses_track_video_type_subdir(self, app_context, job_with_tracks, monkeypatch):
+        """Per-track output_path picks the subdir from the track's
+        video_type, supporting mixed multi-title discs."""
+        from arm.ripper.utils import _build_webhook_payload
+        import arm.config.config as cfg
+
+        monkeypatch.setattr(cfg, "arm_config", {
+            "RAW_PATH": "/home/arm/media/raw/",
+            "MOVIES_SUBDIR": "Movies/0.Rips",
+            "TV_SUBDIR": "TV/0.Rips",
+            "AUDIO_SUBDIR": "music",
+            "UNIDENTIFIED_SUBDIR": "unidentified",
+        })
+        job, tracks = job_with_tracks
+        tracks[0].video_type = "movie"
+        tracks[1].video_type = "series"
+        db.session.commit()
+        db.session.refresh(job)
+
+        payload = _build_webhook_payload("Rip done", "body", job, "raw_dir")
+
+        # Track 0 (movie) -> Movies subdir; Track 1 (series) -> TV subdir.
+        assert payload["tracks"][0]["output_path"].startswith("Movies/0.Rips")
+        assert payload["tracks"][1]["output_path"].startswith("TV/0.Rips")
 
 
 # ── transcode_callback tests ─────────────────────────────────────────────
