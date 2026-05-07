@@ -31,10 +31,11 @@ which knob wins.
   - [11. Ripper-only](#11-ripper-only)
   - [12. Remote transcoder](#12-remote-transcoder)
   - [13. Dev overlay](#13-dev-overlay)
+  - [14. NFS-readiness overlay](#14-nfs-readiness-overlay)
 - [Part E: Skim tables](#part-e-skim-tables)
-  - [14. Where does X live?](#14-where-does-x-live)
-  - [15. Where do I change X?](#15-where-do-i-change-x)
-  - [16. Env var quick index](#16-env-var-quick-index)
+  - [15. Where does X live?](#15-where-does-x-live)
+  - [16. Where do I change X?](#16-where-do-i-change-x)
+  - [17. Env var quick index](#17-env-var-quick-index)
 
 ---
 
@@ -509,11 +510,38 @@ from sibling source repos.
 > `components/contracts` re-mount, `import arm_contracts` fails inside the
 > dev transcoder container.
 
+### 14. NFS-readiness overlay
+
+`docker-compose.nfs.yml` (opt-in overlay). Apply on top of any primary
+compose for NFS-backed deployments where docker may start before NFS is
+mounted.
+
+```bash
+docker compose -f docker-compose.yml                    -f docker-compose.nfs.yml up -d
+docker compose -f docker-compose.remote-transcoder.yml  -f docker-compose.nfs.yml up -d
+docker compose -f docker-compose.ripper-only.yml        -f docker-compose.nfs.yml up -d
+```
+
+**What it does**: adds an `arm-nfs-check` init container that fails
+fast if the sentinel file `${ARM_MEDIA_PATH}/.arm-nfs-heartbeat` is
+not visible. `arm-rippers` `depends_on` it, so it won't start (and
+won't silently fossilize binds to local disk) if NFS isn't mounted.
+
+**One-time setup**: on the NFS server, `touch
+<share-path>/.arm-nfs-heartbeat`.
+
+**Why this matters**: when `_netdev` in `/etc/fstab` doesn't gate
+docker's start order, a host reboot can leave docker running with
+binds captured against the empty local-disk shadow of an unmounted NFS
+path. Rips land on local disk, the remote transcoder never sees them,
+jobs fail with "Source path does not exist". The overlay turns this
+silent failure into a loud refusal-to-start.
+
 ---
 
 ## Part E: Skim tables
 
-### 14. Where does X live?
+### 15. Where does X live?
 
 | Concept | Container | Host (default) |
 |---|---|---|
@@ -525,7 +553,7 @@ from sibling source repos.
 | Music CDs (raw rip target) | `/home/arm/music/` | `${ARM_MUSIC_PATH}` |
 | ARM SQLite | `/home/arm/db/arm.db` | named volume `arm-db` |
 | Transcoder SQLite | `/data/db/transcoder.db` | named volume `transcoder-db` |
-| ARM logs | `/home/arm/logs/` | `${ARM_LOGS_PATH}` |
+| ARM logs | `/home/arm/logs/` | `${ARM_LOGS_PATH}` (recommend local; avoid NFS for in-progress rip log writes) |
 | Transcoder logs | `/data/logs/` | named volume `transcoder-logs` |
 | ARM config (`arm.yaml`, `apprise.yaml`, `abcde.conf`) | `/etc/arm/config/` | `${ARM_CONFIG_PATH}` |
 | MakeMKV settings + keydb | `/home/arm/.MakeMKV/` | named volume `makemkv-settings` (or `${ARM_MAKEMKV_PATH}`) |
@@ -538,7 +566,7 @@ from sibling source repos.
 | MakeMKV heartbeat / faulthandler | `/home/arm/logs/progress/` + `faulthandler.log` | `${ARM_LOGS_PATH}/...` |
 | abcde tmp config | `/tmp/abcde_custom_*.conf` | (ephemeral, container tmpfs) |
 
-### 15. Where do I change X?
+### 16. Where do I change X?
 
 | Setting | Source of truth | How to change |
 |---|---|---|
@@ -555,11 +583,12 @@ from sibling source repos.
 | UI themes / image cache paths | env (`ARM_UI_THEMES_PATH`, `ARM_UI_IMAGE_CACHE_PATH`) | Edit compose, restart UI |
 | UI -> transcoder credentials | env (`ARM_UI_TRANSCODER_API_KEY`, `ARM_UI_TRANSCODER_WEBHOOK_SECRET`) | Edit `.env`, **restart UI** (loaded once - rotation needs a restart) |
 
-### 16. Env var quick index
+### 17. Env var quick index
 
 | Env var | Read by | Notes |
 |---|---|---|
 | `ARM_VERSION`, `UI_VERSION`, `TRANSCODER_VERSION` | docker-compose only | Image tag pinning |
+| `TRANSCODER_HOST`, `TRANSCODER_PORT` | `docker-compose.remote-transcoder.yml` | Construct `ARM_TRANSCODER_URL` and `ARM_UI_TRANSCODER_URL` for split deployments |
 | `ARM_UID`, `ARM_GID` | ripper entrypoint, `file_browser.py`, init containers | UID/GID alignment |
 | `TRANSCODER_UID`, `TRANSCODER_GID` | transcoder entrypoint | Should match `ARM_UID`/`ARM_GID` |
 | `TZ` | All three entrypoints (symlinks `/etc/localtime`) | Also re-baked into tzdata |
