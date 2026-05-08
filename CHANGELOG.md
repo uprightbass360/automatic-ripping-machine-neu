@@ -1,5 +1,42 @@
 # Changelog
 
+## [18.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.4...v18.0.0) (2026-05-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **routing:** webhook output_path for unidentified video discs flips from MOVIES_SUBDIR/<title> to UNIDENTIFIED_SUBDIR/<title>. Operators with rips already landed under Movies/ from 18.0.0-rc need to relocate them manually if desired.
+* webhook payloads no longer include folder_name or path; consumers must read input_path/output_path. This commit pairs with the contracts v3.0.0 submodule bump (auto-bump 37d3fd4) and requires arm-transcoder >= the matching breaking release on the same deploy window.
+* contracts has breaking commits in this bump. Review the commit list above and verify consumer code still compiles before merging. release-please will cut a major consumer release when this PR lands.
+
+### Features
+
+* bump components/contracts to 37d3fd4 ([0dc39fd](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0dc39fda3531fd41c3f2c0c834690e113531a668))
+* **compose:** add opt-in NFS-readiness overlay ([0e5daf9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0e5daf91c410a4a772479b976b072c3cc8c9fb06))
+* **compose:** ARM_COMPLETED_PATH bind + configuration reference doc ([f6c49bb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f6c49bb0a964fde764e48bd9a6135dd0fbdd9c8e))
+* **compose:** pass MOVIES_SUBDIR/TV_SUBDIR/AUDIO_SUBDIR/UNIDENTIFIED_SUBDIR to ripper ([d3a0e40](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d3a0e402932a7fb1f5fbfd4888821f398a9ed89a))
+* **compose:** pass type_subfolder env vars in ripper-only compose ([3271104](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3271104a718813dfc5e03539f86d66577bc08f01))
+* **compose:** remote-transcoder parity with [#339](https://github.com/uprightbass360/automatic-ripping-machine-neu/issues/339) ([7de4c67](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7de4c6778f9f698c0be2011b09dc76d829cb55f6))
+* **config:** add MOVIES_SUBDIR/TV_SUBDIR/AUDIO_SUBDIR/UNIDENTIFIED_SUBDIR yaml keys ([3883843](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3883843adc206fd342dffd9b8d2145e02a1d05b4))
+* **entrypoint:** flow MOVIES_SUBDIR/TV_SUBDIR/AUDIO_SUBDIR/UNIDENTIFIED_SUBDIR env to arm.yaml ([497c9ee](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/497c9eedcc658a8cd8548ddfdb60d0e48c456c56))
+* **file_browser:** tag entries with kind and importable flags ([a55f301](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a55f3012f6f2568c8b662ecfe17da952aceb1761))
+* **iso-import:** /api/v1/jobs/iso/{scan,create} endpoints + ripper ([bfbc38f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bfbc38f8e506e496a7968a12b34d1d5e369c61c1))
+* **iso-import:** SourceType.iso plumbing in Job model + migration ([6840047](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/68400473e5068af5b1423610fa173866140ac5de))
+* **job-model:** type_subfolder reads from arm.yaml ([c12385d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c12385d1229bf9d52df512b8b60f2d0c43eeb470))
+* switch webhook to input_path/output_path ([df2b559](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/df2b55936a577300bf2d784c28d9bd0a10a602a2))
+
+
+### Bug Fixes
+
+* **drives:** silence repeating warning for already-cleaned phantom rows ([5f5ebc8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5f5ebc8c27dfde8299c9f70431a19a070e540849))
+* **import:** honor track.process=False on folder + ISO rips ([03497eb](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/03497eb2176abf425fbf3367e15414695b570642))
+* **iso:** address CodeQL findings on iso scan endpoints ([c734db3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c734db3a0ca292ba0404062bb55647ebb0175836))
+* **iso:** spawn rip thread when starting ISO job from review ([23691c8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/23691c82ba57945dd38cd0c4acfdb1e45c22ee21))
+* **prescan:** skip mdisc resolution for ISO imports ([fc42719](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fc427190e65dffeb3e80c112565c18c946f90985))
+* **routing:** per-track output_path defaults to MOVIES_SUBDIR for video discs ([c5efdaf](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c5efdaf0343515439c90b35d1b602e5a2ebab440))
+* **routing:** unidentified DVD/Blu-ray/UHD rips default to MOVIES_SUBDIR ([723a7f6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/723a7f6d717abb4959a1dfc79e05795e6ef4eddb))
+* **routing:** unidentified video discs route to UNIDENTIFIED_SUBDIR ([f8651c6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f8651c685b28ca62af84408edc534e5bcbc6c63a))
+
 ## [17.5.4](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.3...v17.5.4) (2026-05-04)
 
 
