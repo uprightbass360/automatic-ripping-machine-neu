@@ -75,6 +75,49 @@ JOB_STATUS_TRANSCODING = {
 }
 
 
+# Disctypes that we treat as video discs when routing to the completed
+# library. Anything not in this set (audio CDs without metadata, data
+# discs, mixed-content, blank disctype) lands in UNIDENTIFIED_SUBDIR
+# for operator triage.
+VIDEO_DISCTYPES = ("dvd", "bluray", "uhd")
+
+
+def resolve_type_subfolder(video_type, disctype):
+    """Pick the completed-library subfolder for a (video_type, disctype) pair.
+
+    Reads MOVIES_SUBDIR / TV_SUBDIR / AUDIO_SUBDIR / UNIDENTIFIED_SUBDIR
+    from arm.yaml so ARM honors the same library-tree organization the
+    transcoder uses. Falls back to legacy hardcoded defaults if
+    arm_config is unavailable (test-isolation safety net).
+
+    When video_type isn't a confirmed enum value (most commonly
+    ``"unknown"`` for DVDs/Blu-rays/UHDs that didn't get an OMDB match
+    before the rip started), fall back to MOVIES_SUBDIR for video
+    discs. Most unidentified video discs are movies; routing them to
+    ``unidentified/`` makes the operator triage every test rip.
+    ``unidentified/`` stays for genuinely unclassifiable content
+    (audio CDs without metadata, data discs).
+
+    Used by :py:attr:`Job.type_subfolder` for the job-level path AND by
+    the webhook builder (``arm.ripper.utils._build_webhook_payload``)
+    for per-track ``WebhookTrackMeta.output_path`` resolution.
+    """
+    import arm.config.config as cfg
+    config_dict = getattr(cfg, 'arm_config', {}) or {}
+    if video_type == "movie":
+        return config_dict.get("MOVIES_SUBDIR", "movies")
+    elif video_type == "series":
+        return config_dict.get("TV_SUBDIR", "tv")
+    elif video_type == "music":
+        return config_dict.get("AUDIO_SUBDIR", "music")
+    # Video disc without a confirmed type - default to MOVIES_SUBDIR.
+    # Audio CDs go through "music" via ripping/abcde, so they reach
+    # this branch only via the AUDIO_SUBDIR clause above.
+    if disctype in VIDEO_DISCTYPES:
+        return config_dict.get("MOVIES_SUBDIR", "movies")
+    return config_dict.get("UNIDENTIFIED_SUBDIR", "unidentified")
+
+
 class Job(db.Model):
     """
     Job Class hold most of the details for each job
@@ -442,35 +485,14 @@ class Job(db.Model):
 
     @property
     def type_subfolder(self):
-        """Map video_type to filesystem subfolder.
+        """Map this job's video_type+disctype to filesystem subfolder.
 
-        Reads MOVIES_SUBDIR / TV_SUBDIR / AUDIO_SUBDIR / UNIDENTIFIED_SUBDIR
-        from arm.yaml so ARM honors the same library-tree organization the
-        transcoder uses. Falls back to legacy hardcoded defaults if
-        arm_config is unavailable (test-isolation safety net).
-
-        When video_type isn't a confirmed enum value (most commonly
-        ``"unknown"`` for DVDs/Blu-rays/UHDs that didn't get an OMDB
-        match before the rip started), fall back to MOVIES_SUBDIR for
-        video discs. Most unidentified video discs are movies; routing
-        them to ``unidentified/`` makes the operator triage every test
-        rip. ``unidentified/`` stays for genuinely unclassifiable
-        content (audio CDs without metadata, data discs).
+        Delegates to :func:`resolve_type_subfolder` so the per-track
+        webhook routing in ``_build_webhook_payload`` can apply the same
+        rules (movie/series/music routing + video-disc fallback to
+        MOVIES_SUBDIR).
         """
-        import arm.config.config as cfg
-        config_dict = getattr(cfg, 'arm_config', {}) or {}
-        if self.video_type == "movie":
-            return config_dict.get("MOVIES_SUBDIR", "movies")
-        elif self.video_type == "series":
-            return config_dict.get("TV_SUBDIR", "tv")
-        elif self.video_type == "music":
-            return config_dict.get("AUDIO_SUBDIR", "music")
-        # Video disc without a confirmed type - default to MOVIES_SUBDIR.
-        # Audio CDs go through "music" via ripping/abcde, so they reach
-        # this branch only via the AUDIO_SUBDIR clause above.
-        if self.disctype in ("dvd", "bluray", "uhd"):
-            return config_dict.get("MOVIES_SUBDIR", "movies")
-        return config_dict.get("UNIDENTIFIED_SUBDIR", "unidentified")
+        return resolve_type_subfolder(self.video_type, self.disctype)
 
     def _pattern_fields_available(self):
         """Check if the structured fields needed for pattern rendering are populated.
