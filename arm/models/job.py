@@ -448,6 +448,14 @@ class Job(db.Model):
         from arm.yaml so ARM honors the same library-tree organization the
         transcoder uses. Falls back to legacy hardcoded defaults if
         arm_config is unavailable (test-isolation safety net).
+
+        When video_type isn't a confirmed enum value (most commonly
+        ``"unknown"`` for DVDs/Blu-rays/UHDs that didn't get an OMDB
+        match before the rip started), fall back to MOVIES_SUBDIR for
+        video discs. Most unidentified video discs are movies; routing
+        them to ``unidentified/`` makes the operator triage every test
+        rip. ``unidentified/`` stays for genuinely unclassifiable
+        content (audio CDs without metadata, data discs).
         """
         import arm.config.config as cfg
         config_dict = getattr(cfg, 'arm_config', {}) or {}
@@ -457,6 +465,11 @@ class Job(db.Model):
             return config_dict.get("TV_SUBDIR", "tv")
         elif self.video_type == "music":
             return config_dict.get("AUDIO_SUBDIR", "music")
+        # Video disc without a confirmed type - default to MOVIES_SUBDIR.
+        # Audio CDs go through "music" via ripping/abcde, so they reach
+        # this branch only via the AUDIO_SUBDIR clause above.
+        if self.disctype in ("dvd", "bluray", "uhd"):
+            return config_dict.get("MOVIES_SUBDIR", "movies")
         return config_dict.get("UNIDENTIFIED_SUBDIR", "unidentified")
 
     def _pattern_fields_available(self):
