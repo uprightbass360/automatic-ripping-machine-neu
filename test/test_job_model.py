@@ -36,8 +36,34 @@ class TestTypeSubfolder:
         sample_job.video_type = "music"
         assert sample_job.type_subfolder == "music"
 
-    def test_unknown(self, sample_job):
+    def test_unknown_video_disc_defaults_to_movies(self, sample_job):
+        """An unidentified DVD/Blu-ray/UHD routes to MOVIES_SUBDIR. Most
+        unidentified video discs are movies; reserving 'unidentified/'
+        for them would force operator triage on every test rip."""
         sample_job.video_type = "unknown"
+        sample_job.disctype = "bluray"
+        assert sample_job.type_subfolder == "movies"
+
+    def test_unknown_dvd_defaults_to_movies(self, sample_job):
+        sample_job.video_type = "unknown"
+        sample_job.disctype = "dvd"
+        assert sample_job.type_subfolder == "movies"
+
+    def test_unknown_uhd_defaults_to_movies(self, sample_job):
+        sample_job.video_type = "unknown"
+        sample_job.disctype = "uhd"
+        assert sample_job.type_subfolder == "movies"
+
+    def test_unknown_non_video_disc_stays_unidentified(self, sample_job):
+        """Truly unclassifiable content (data discs, mixed media, no
+        disctype set) lands in unidentified/ for operator triage."""
+        sample_job.video_type = "unknown"
+        sample_job.disctype = "data"
+        assert sample_job.type_subfolder == "unidentified"
+
+    def test_unknown_blank_disctype_stays_unidentified(self, sample_job):
+        sample_job.video_type = "unknown"
+        sample_job.disctype = ""
         assert sample_job.type_subfolder == "unidentified"
 
 
@@ -290,9 +316,11 @@ class TestTypeSubfolderConfigurable:
         assert sample_job.type_subfolder == "Music/0.Rips"
 
     def test_unidentified_custom(self, sample_job, monkeypatch):
+        """Truly-unidentifiable rips (no video disctype) honor UNIDENTIFIED_SUBDIR."""
         import arm.config.config as cfg
         monkeypatch.setitem(cfg.arm_config, "UNIDENTIFIED_SUBDIR", "0.Inbox")
         sample_job.video_type = "unknown"
+        sample_job.disctype = "data"  # not dvd/bluray/uhd
         assert sample_job.type_subfolder == "0.Inbox"
 
     def test_build_final_path_uses_custom_movies_subdir(self, sample_job, monkeypatch):
