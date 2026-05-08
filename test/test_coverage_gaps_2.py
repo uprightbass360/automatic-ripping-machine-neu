@@ -316,13 +316,14 @@ class TestBuildWebhookPayload:
         assert payload["tracks"][0]["output_path"].startswith("Movies/0.Rips")
         assert payload["tracks"][1]["output_path"].startswith("TV/0.Rips")
 
-    def test_track_output_path_unknown_video_disc_defaults_to_movies(
+    def test_track_output_path_unknown_video_disc_lands_in_unidentified(
         self, app_context, job_with_tracks, monkeypatch,
     ):
         """An unidentified DVD/Blu-ray/UHD with no per-track video_type
-        routes each track to MOVIES_SUBDIR, not UNIDENTIFIED_SUBDIR.
-        Mirrors Job.type_subfolder's video-disc fallback so multi-title
-        discs don't get split between Movies/ and unidentified/."""
+        routes each track to UNIDENTIFIED_SUBDIR. The operator picks up
+        the rip from the triage bucket, fills in metadata, and re-imports
+        - presuming Movies on the wire misroutes series box-sets and
+        hides misclassification under the Movies tree."""
         from arm.ripper.utils import _build_webhook_payload
         import arm.config.config as cfg
 
@@ -345,21 +346,18 @@ class TestBuildWebhookPayload:
 
         payload = _build_webhook_payload("Rip done", "body", job, "raw_dir")
 
-        # Job-level output_path uses MOVIES_SUBDIR (already covered by
-        # Job.type_subfolder tests but assert here for end-to-end clarity).
-        assert payload["output_path"].startswith("Movies/0.Rips")
-        # Per-track output_paths must use the same fallback.
+        assert payload["output_path"].startswith("unidentified")
         for t in payload["tracks"]:
-            assert t["output_path"].startswith("Movies/0.Rips"), (
+            assert t["output_path"].startswith("unidentified"), (
                 f"track output_path={t['output_path']} should default to "
-                "Movies/0.Rips for unidentified video discs"
+                "unidentified for unclassified video discs"
             )
 
-    def test_track_output_path_unknown_audio_disc_stays_unidentified(
+    def test_track_output_path_unknown_data_disc_stays_unidentified(
         self, app_context, job_with_tracks, monkeypatch,
     ):
-        """Tracks on a non-video disc with unknown video_type stay in
-        UNIDENTIFIED_SUBDIR (no Movies fallback for data/CD/etc)."""
+        """Tracks on a data disc with unknown video_type stay in
+        UNIDENTIFIED_SUBDIR (same fallback as video discs)."""
         from arm.ripper.utils import _build_webhook_payload
         import arm.config.config as cfg
 
@@ -372,7 +370,7 @@ class TestBuildWebhookPayload:
         })
         job, tracks = job_with_tracks
         job.video_type = "unknown"
-        job.disctype = "data"  # not dvd/bluray/uhd
+        job.disctype = "data"
         for t in tracks:
             t.video_type = None
         db.session.commit()

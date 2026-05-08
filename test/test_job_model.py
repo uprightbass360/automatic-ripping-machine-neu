@@ -36,27 +36,27 @@ class TestTypeSubfolder:
         sample_job.video_type = "music"
         assert sample_job.type_subfolder == "music"
 
-    def test_unknown_video_disc_defaults_to_movies(self, sample_job):
-        """An unidentified DVD/Blu-ray/UHD routes to MOVIES_SUBDIR. Most
-        unidentified video discs are movies; reserving 'unidentified/'
-        for them would force operator triage on every test rip."""
+    def test_unknown_video_disc_lands_in_unidentified(self, sample_job):
+        """An unidentified DVD/Blu-ray/UHD routes to UNIDENTIFIED_SUBDIR.
+        The operator picks up the rip from the triage bucket, fills in
+        metadata, and re-imports; presuming 'movie' on the wire
+        misrouted series box-sets and hid misclassification under the
+        Movies tree."""
         sample_job.video_type = "unknown"
         sample_job.disctype = "bluray"
-        assert sample_job.type_subfolder == "movies"
+        assert sample_job.type_subfolder == "unidentified"
 
-    def test_unknown_dvd_defaults_to_movies(self, sample_job):
+    def test_unknown_dvd_lands_in_unidentified(self, sample_job):
         sample_job.video_type = "unknown"
         sample_job.disctype = "dvd"
-        assert sample_job.type_subfolder == "movies"
+        assert sample_job.type_subfolder == "unidentified"
 
-    def test_unknown_uhd_defaults_to_movies(self, sample_job):
+    def test_unknown_uhd_lands_in_unidentified(self, sample_job):
         sample_job.video_type = "unknown"
         sample_job.disctype = "uhd"
-        assert sample_job.type_subfolder == "movies"
+        assert sample_job.type_subfolder == "unidentified"
 
-    def test_unknown_non_video_disc_stays_unidentified(self, sample_job):
-        """Truly unclassifiable content (data discs, mixed media, no
-        disctype set) lands in unidentified/ for operator triage."""
+    def test_unknown_data_disc_stays_unidentified(self, sample_job):
         sample_job.video_type = "unknown"
         sample_job.disctype = "data"
         assert sample_job.type_subfolder == "unidentified"
