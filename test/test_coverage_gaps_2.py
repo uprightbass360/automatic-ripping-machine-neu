@@ -316,6 +316,73 @@ class TestBuildWebhookPayload:
         assert payload["tracks"][0]["output_path"].startswith("Movies/0.Rips")
         assert payload["tracks"][1]["output_path"].startswith("TV/0.Rips")
 
+    def test_track_output_path_unknown_video_disc_defaults_to_movies(
+        self, app_context, job_with_tracks, monkeypatch,
+    ):
+        """An unidentified DVD/Blu-ray/UHD with no per-track video_type
+        routes each track to MOVIES_SUBDIR, not UNIDENTIFIED_SUBDIR.
+        Mirrors Job.type_subfolder's video-disc fallback so multi-title
+        discs don't get split between Movies/ and unidentified/."""
+        from arm.ripper.utils import _build_webhook_payload
+        import arm.config.config as cfg
+
+        monkeypatch.setattr(cfg, "arm_config", {
+            "RAW_PATH": "/home/arm/media/raw/",
+            "MOVIES_SUBDIR": "Movies/0.Rips",
+            "TV_SUBDIR": "TV/0.Rips",
+            "AUDIO_SUBDIR": "music",
+            "UNIDENTIFIED_SUBDIR": "unidentified",
+        })
+        job, tracks = job_with_tracks
+        # Simulate hifi job 213: DVD, no OMDB match, video_type stayed
+        # 'unknown' on both job and tracks.
+        job.video_type = "unknown"
+        job.disctype = "dvd"
+        for t in tracks:
+            t.video_type = None
+        db.session.commit()
+        db.session.refresh(job)
+
+        payload = _build_webhook_payload("Rip done", "body", job, "raw_dir")
+
+        # Job-level output_path uses MOVIES_SUBDIR (already covered by
+        # Job.type_subfolder tests but assert here for end-to-end clarity).
+        assert payload["output_path"].startswith("Movies/0.Rips")
+        # Per-track output_paths must use the same fallback.
+        for t in payload["tracks"]:
+            assert t["output_path"].startswith("Movies/0.Rips"), (
+                f"track output_path={t['output_path']} should default to "
+                "Movies/0.Rips for unidentified video discs"
+            )
+
+    def test_track_output_path_unknown_audio_disc_stays_unidentified(
+        self, app_context, job_with_tracks, monkeypatch,
+    ):
+        """Tracks on a non-video disc with unknown video_type stay in
+        UNIDENTIFIED_SUBDIR (no Movies fallback for data/CD/etc)."""
+        from arm.ripper.utils import _build_webhook_payload
+        import arm.config.config as cfg
+
+        monkeypatch.setattr(cfg, "arm_config", {
+            "RAW_PATH": "/home/arm/media/raw/",
+            "MOVIES_SUBDIR": "Movies/0.Rips",
+            "TV_SUBDIR": "TV/0.Rips",
+            "AUDIO_SUBDIR": "music",
+            "UNIDENTIFIED_SUBDIR": "unidentified",
+        })
+        job, tracks = job_with_tracks
+        job.video_type = "unknown"
+        job.disctype = "data"  # not dvd/bluray/uhd
+        for t in tracks:
+            t.video_type = None
+        db.session.commit()
+        db.session.refresh(job)
+
+        payload = _build_webhook_payload("Rip done", "body", job, "raw_dir")
+
+        for t in payload["tracks"]:
+            assert t["output_path"].startswith("unidentified")
+
 
 # ── transcode_callback tests ─────────────────────────────────────────────
 

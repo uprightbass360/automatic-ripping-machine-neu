@@ -270,17 +270,12 @@ def _build_webhook_payload(title, body, job, raw_basename):
 
         # Per-track output_path: pick the type subdir from THIS track's
         # video_type (multi-title discs can mix movie + series tracks),
-        # then join with the track's rendered folder. Mirrors
-        # Job.type_subfolder's lookup.
+        # then join with the track's rendered folder. Shares the
+        # job-level resolver so unidentified video discs default to
+        # MOVIES_SUBDIR for both top-level and per-track paths.
+        from arm.models.job import resolve_type_subfolder
         track_video_type = str(track.video_type or job.video_type or '')
-        if track_video_type == 'movie':
-            track_type_sub = (config_dict or {}).get('MOVIES_SUBDIR', 'movies')
-        elif track_video_type == 'series':
-            track_type_sub = (config_dict or {}).get('TV_SUBDIR', 'tv')
-        elif track_video_type == 'music':
-            track_type_sub = (config_dict or {}).get('AUDIO_SUBDIR', 'music')
-        else:
-            track_type_sub = (config_dict or {}).get('UNIDENTIFIED_SUBDIR', 'unidentified')
+        track_type_sub = resolve_type_subfolder(track_video_type, job.disctype)
         track_rendered_folder = r.get("rendered_folder", '')
         track_output_path = (
             os.path.join(track_type_sub, track_rendered_folder)
