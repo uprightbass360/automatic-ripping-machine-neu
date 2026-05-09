@@ -3,8 +3,7 @@ import logging
 import threading
 from typing import Optional
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 import arm.config.config as cfg
@@ -30,6 +29,8 @@ __all__ = [
     "auto_disable_short_tracks",
     "FolderScanRequest",
     "FolderCreateRequest",
+    "FolderScanResult",
+    "FolderJobCreated",
     "scan_folder_endpoint",
     "create_folder_job",
 ]
@@ -53,53 +54,62 @@ class FolderCreateRequest(BaseModel):
     disc_total: Optional[int] = None
 
 
-@router.post("/jobs/folder/scan")
+class FolderScanResult(BaseModel):
+    """Folder scan response.
+
+    Mirrors the maintenance + jobs endpoints' invariant: HTTP status
+    carries the success/failure signal, the body carries the data.
+    Callers reading legacy `success`/`error` keys: failure paths now
+    return a FastAPI error envelope (`{"detail": "..."}`) with the
+    appropriate 4xx status code.
+    """
+    disc_type: str
+    label: Optional[str] = None
+    title_suggestion: Optional[str] = None
+    year_suggestion: Optional[str] = None
+    folder_size_bytes: int = 0
+    stream_count: int = 0
+    disc_number: Optional[int] = None
+    disc_total: Optional[int] = None
+    season: Optional[int] = None
+
+
+class FolderJobCreated(BaseModel):
+    """Folder import job creation response."""
+    job_id: int
+    status: str
+    source_type: str
+    source_path: str
+
+
+@router.post("/jobs/folder/scan", response_model=FolderScanResult)
 def scan_folder_endpoint(req: FolderScanRequest):
     """Scan a folder and return disc type and metadata. No job created."""
     ingress_path = cfg.arm_config.get("INGRESS_PATH", "")
     if not ingress_path:
-        return JSONResponse(
-            {"success": False, "error": "INGRESS_PATH not configured"},
-            status_code=400,
-        )
+        raise HTTPException(status_code=400, detail="INGRESS_PATH not configured")
     try:
-        result = scan_folder(req.path, ingress_path)
+        return scan_folder(req.path, ingress_path)
     except FileNotFoundError:
-        return JSONResponse(
-            {"success": False, "error": "Folder not found or path is not accessible"},
-            status_code=400,
-        )
+        raise HTTPException(status_code=400, detail="Folder not found or path is not accessible")
     except ValueError:
-        return JSONResponse(
-            {"success": False, "error": "Not a valid disc folder (no BDMV or VIDEO_TS structure found)"},
-            status_code=422,
-        )
-    return {"success": True, **result}
+        raise HTTPException(status_code=422, detail="Not a valid disc folder (no BDMV or VIDEO_TS structure found)")
 
 
-@router.post("/jobs/folder", status_code=201)
+@router.post("/jobs/folder", status_code=201, response_model=FolderJobCreated)
 def create_folder_job(req: FolderCreateRequest):
     """Create a folder import job in review state."""
     ingress_path = cfg.arm_config.get("INGRESS_PATH", "")
     if not ingress_path:
-        return JSONResponse(
-            {"success": False, "error": "INGRESS_PATH not configured"},
-            status_code=400,
-        )
+        raise HTTPException(status_code=400, detail="INGRESS_PATH not configured")
 
     # Validate path is under ingress root
     try:
         validate_ingress_path(req.source_path, ingress_path)
     except FileNotFoundError:
-        return JSONResponse(
-            {"success": False, "error": "Source folder not found"},
-            status_code=400,
-        )
+        raise HTTPException(status_code=400, detail="Source folder not found")
     except ValueError:
-        return JSONResponse(
-            {"success": False, "error": "Path is outside the configured ingress directory"},
-            status_code=400,
-        )
+        raise HTTPException(status_code=400, detail="Path is outside the configured ingress directory")
 
     # Check for duplicate active job with same source_path
     existing = Job.query.filter(
@@ -107,12 +117,9 @@ def create_folder_job(req: FolderCreateRequest):
         ~Job.finished,
     ).first()
     if existing:
-        return JSONResponse(
-            {
-                "success": False,
-                "error": f"Active job already exists for this path (job_id={existing.job_id})",
-            },
+        raise HTTPException(
             status_code=409,
+            detail=f"Active job already exists for this path (job_id={existing.job_id})",
         )
 
     # Create job
@@ -137,7 +144,6 @@ def create_folder_job(req: FolderCreateRequest):
     thread.start()
 
     return {
-        "success": True,
         "job_id": job.job_id,
         "status": job.status,
         "source_type": job.source_type,
