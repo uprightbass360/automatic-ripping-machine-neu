@@ -272,9 +272,6 @@ def get_paths():
     return results
 
 
-from arm.ripper.makemkv import prep_mkv
-
-
 @router.post('/system/ripping-enabled')
 def set_ripping_enabled(body: dict):
     """Toggle global ripping pause."""
@@ -294,37 +291,28 @@ def set_ripping_enabled(body: dict):
     }
 
 
-@router.post('/system/makemkv-key-check')
-def check_makemkv_key():
-    """Run prep_mkv() to validate/update the MakeMKV key."""
-    from arm.ripper.makemkv import UpdateKeyRunTimeError, UpdateKeyErrorCodes
+@router.post('/system/makemkv-key-check', deprecated=True)
+async def check_makemkv_key():
+    """Validate/update the MakeMKV key.
 
-    message = "MakeMKV key is valid"
-    try:
-        prep_mkv()
-    except UpdateKeyRunTimeError as exc:
-        code = UpdateKeyErrorCodes(exc.returncode)
-        messages = {
-            UpdateKeyErrorCodes.URL_ERROR: (
-                "Could not reach forum.makemkv.com — set MAKEMKV_PERMA_KEY "
-                "in arm.yaml to use a purchased key"
-            ),
-            UpdateKeyErrorCodes.PARSE_ERROR: "MakeMKV settings file is corrupt",
-            UpdateKeyErrorCodes.INTERNAL_ERROR: "Key update script produced invalid output",
-            UpdateKeyErrorCodes.INVALID_MAKEMKV_SERIAL: (
-                "Invalid MakeMKV serial key format — should match M-XXXX-..."
-            ),
-        }
-        message = messages.get(code, f"Key update failed (error {code.name})")
+    .. deprecated::
+        Use ``GET /api/v1/metadata/test-key?provider=makemkv`` instead.
+        This endpoint is retained as an alias for one release window so
+        existing arm-ui versions keep working.
 
-    state = AppState.get()
+    Returns the legacy ``{key_valid, checked_at, message}`` shape; the
+    unified endpoint returns the cross-provider
+    ``{success, message, provider, checked_at}`` shape.
+    """
+    from arm.services.metadata import test_configured_key
+
+    result = await test_configured_key(override_provider="makemkv")
+    # Translate to the legacy shape so existing consumers don't break
+    # mid-deploy. The unified endpoint is the new path.
     return {
-        "key_valid": state.makemkv_key_valid,
-        "checked_at": (
-            state.makemkv_key_checked_at.isoformat()
-            if state.makemkv_key_checked_at else None
-        ),
-        "message": message,
+        "key_valid": result["success"],
+        "checked_at": result["checked_at"],
+        "message": result["message"],
     }
 
 
