@@ -338,3 +338,61 @@ class TestRipFolder:
 
         assert kept.exists(), "kept track file should not be deleted"
         assert not dropped.exists(), "deselected track file should be removed"
+
+    @patch("arm.ripper.folder_ripper.db")
+    @patch("arm.ripper.folder_ripper._reconcile_filenames")
+    @patch("arm.ripper.makemkv.run")
+    @patch("arm.ripper.folder_ripper.prescan_track_info")
+    @patch("arm.ripper.folder_ripper.prep_mkv")
+    def test_deselected_filename_collision_with_kept_track(
+        self, mock_prep, mock_prescan, mock_run,
+        mock_reconcile, mock_db, tmp_path
+    ):
+        """Deselect-delete must skip filenames that a kept track now claims.
+
+        Repro on hifi 18.1.0-rc job 220 ("Annihilation" 4K BD import):
+        prescan seeded 70 tracks with sequential filenames _t00..._t69.
+        Auto-disable flipped 68 short tracks to process=False (including
+        track #0 with stale filename 'Annihilation_t00.mkv'). MakeMKV's
+        'all' rip produced 2 output files which got renamed by
+        reconciliation (kept track #3 -> '_t00.mkv'). The deselect-delete
+        loop then deleted '_t00.mkv' off disk because deselected track #0
+        still pointed at that filename - destroying the kept rip output
+        and 413-ing the transcoder handoff.
+        """
+        from arm.ripper.folder_ripper import rip_folder
+
+        rawpath = tmp_path / "raw" / "Test Movie"
+        rawpath.mkdir(parents=True)
+        # Only the renamed kept-track file exists on disk after MakeMKV +
+        # reconciliation. The deselected track row's stale filename
+        # collides with this exact path.
+        kept_after_rename = rawpath / "Annihilation_t00.mkv"
+        kept_after_rename.write_bytes(b"the actual rip output")
+
+        job = self._make_job(tmp_path)
+        # Kept track was renamed by reconciliation: '_t03.mkv' -> '_t00.mkv'.
+        kept_track = MagicMock(
+            track_number="3", filename="Annihilation_t00.mkv",
+            process=True, length=8000,
+        )
+        # Deselected track still has its prescan filename, which now
+        # collides with the kept track's renamed filename.
+        deselected_with_collision = MagicMock(
+            track_number="0", filename="Annihilation_t00.mkv",
+            process=False, length=7,
+        )
+        job.tracks = [kept_track, deselected_with_collision]
+        mock_run.return_value = iter([])
+
+        with patch("arm.ripper.folder_ripper.setup_rawpath", return_value=str(rawpath)), \
+             patch("arm.ripper.folder_ripper.cfg") as mock_cfg, \
+             patch("arm.ripper.arm_ripper._post_rip_handoff"):
+            mock_cfg.arm_config = {"TRANSCODER_URL": ""}
+            rip_folder(job)
+
+        assert kept_after_rename.exists(), (
+            "kept track's renamed output must NOT be deleted by the "
+            "deselect-delete loop just because a deselected track row "
+            "still points at the same filename"
+        )
