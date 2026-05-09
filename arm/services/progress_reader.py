@@ -155,3 +155,66 @@ def get_music_progress(logfile: str | None, total_tracks: int) -> dict[str, Any]
         result["progress"] = round(completed / total * 100, 1)
 
     return result
+
+
+def get_copy_progress(
+    job_id: int,
+    stage: str | None = None,
+) -> dict[str, Any]:
+    """Tail-read the copy-progress side-file for a job.
+
+    Side-file format (one line per event):
+        stage,progress_pct,files_transferred,current_file
+
+    Args:
+        job_id: Numeric job identifier.
+        stage: If provided, return the latest entry for that stage only.
+               If None, return the latest entry across all stages.
+
+    Returns:
+        ``{progress: float|None, stage: str|None, files_transferred: int|None,
+        current_file: str|None}``. Returns the no-data shape when the file
+        does not exist or contains no valid entries.
+
+    Fail-soft: garbage lines are skipped without raising. Symmetric to
+    get_rip_progress and get_music_progress in this module.
+    """
+    result: dict[str, Any] = {
+        "progress": None, "stage": None,
+        "files_transferred": None, "current_file": None,
+    }
+    path = _safe_log_path("progress", f"{job_id}.copy.log")
+    if path is None or not path.is_file():
+        return result
+    try:
+        with open(path, "r", errors="replace") as f:
+            content = f.read()
+    except OSError:
+        return result
+
+    latest: dict[str, Any] | None = None
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(",", 3)
+        if len(parts) != 4:
+            continue
+        line_stage, pct_str, files_str, current_file = parts
+        if stage is not None and line_stage != stage:
+            continue
+        try:
+            pct = float(pct_str)
+        except ValueError:
+            continue
+        try:
+            files = int(files_str) if files_str else None
+        except ValueError:
+            files = None
+        latest = {
+            "progress": pct,
+            "stage": line_stage,
+            "files_transferred": files,
+            "current_file": current_file or None,
+        }
+    return latest if latest is not None else result
