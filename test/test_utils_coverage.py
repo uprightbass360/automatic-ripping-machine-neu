@@ -192,9 +192,22 @@ class TestMoveToSharedStorage:
         os.makedirs(src)
         (tmp_path / "local" / "movie" / "file.mkv").write_bytes(b"data")
 
-        cfg = {'LOCAL_RAW_PATH': local_raw, 'SHARED_RAW_PATH': shared_raw}
-        mock_result = unittest.mock.MagicMock(returncode=1, stderr="rsync: NFS write failed")
-        with unittest.mock.patch("arm.ripper.utils.subprocess.run", return_value=mock_result):
+        cfg = {
+            'LOCAL_RAW_PATH': local_raw,
+            'SHARED_RAW_PATH': shared_raw,
+            'LOGPATH': str(tmp_path),
+        }
+
+        # New helper streams via subprocess.Popen; simulate exit 23 (partial).
+        mock_proc = unittest.mock.MagicMock()
+        mock_proc.stdout = unittest.mock.MagicMock()
+        mock_proc.stdout.read.side_effect = ["", ""]  # no progress output
+        mock_proc.stderr = unittest.mock.MagicMock()
+        mock_proc.stderr.read.return_value = "rsync: NFS write failed"
+        mock_proc.returncode = 23
+        mock_proc.wait.return_value = None
+
+        with unittest.mock.patch("arm.ripper.rsync_helper.subprocess.Popen", return_value=mock_proc):
             with pytest.raises(OSError, match="rsync failed"):
                 _move_to_shared_storage(cfg, "movie")
 

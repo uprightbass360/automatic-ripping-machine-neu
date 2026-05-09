@@ -141,10 +141,8 @@ def bash_notify(cfg, title, body, job=None):
 def _move_to_shared_storage(cfg, raw_basename, job=None):
     """Move raw directory from local scratch to shared storage if configured.
 
-    Uses rsync subprocess instead of shutil.copy2 so the NFS I/O happens in
-    a child process that can be abandoned if it stalls.  This prevents the
-    ARM API from becoming unresponsive during large file copies (shutil.copy2
-    in a thread causes kernel D-state that blocks statvfs on the same mount).
+    Delegates to run_rsync_with_side_file so progress is streamed to the
+    {LOGPATH}/progress/{job_id}.copy.log file consumed by progress_reader.
     """
     local_raw = cfg.get('LOCAL_RAW_PATH', '')
     shared_raw = cfg.get('SHARED_RAW_PATH', '')
@@ -152,41 +150,24 @@ def _move_to_shared_storage(cfg, raw_basename, job=None):
         return
     src = os.path.join(local_raw, raw_basename)
     dst = os.path.join(shared_raw, raw_basename)
-    if os.path.isdir(src):
-        try:
-            if job:
-                database_updater({'status': JobState.COPYING.value}, job)
-            os.makedirs(dst, exist_ok=True)
+    if not os.path.isdir(src):
+        return
 
-            # Use rsync to copy files - runs as a subprocess so NFS D-state
-            # doesn't block our process threads.  --remove-source-files deletes
-            # each source file after successful transfer (verified by rsync).
-            # Trailing slash on src ensures contents are merged into dst.
-            cmd = [
-                "rsync", "-a", "--remove-source-files",
-                "--info=name1,progress2",
-                src + "/",
-                dst + "/",
-            ]
-            logging.info(f"rsync {src}/ -> {dst}/")
-            result = subprocess.run(cmd, capture_output=True, text=True)
+    if job:
+        database_updater({'status': JobState.COPYING.value}, job)
+    os.makedirs(dst, exist_ok=True)
 
-            if result.returncode != 0:
-                logging.error(f"rsync failed (exit {result.returncode}): {result.stderr}")
-                raise OSError(f"rsync failed: {result.stderr[:200]}")
-
-            # Log individual transfer lines at DEBUG to avoid flooding
-            # the structured log with progress data
-            lines = [l.strip() for l in result.stdout.strip().splitlines() if l.strip()]
-            for line in lines:
-                logging.debug(f"rsync: {line}")
-
-            # rsync --remove-source-files removes files but leaves empty dirs
-            shutil.rmtree(src, ignore_errors=True)
-            logging.info(f"rsync complete: {src} -> {dst} ({len(lines)} files transferred)")
-        except OSError as e:
-            logging.error(f"Failed to move {src} -> {dst}: {e}")
-            raise
+    from arm.ripper.rsync_helper import run_rsync_with_side_file
+    try:
+        run_rsync_with_side_file(
+            src, dst,
+            job_id=getattr(job, 'job_id', 0),
+            stage="scratch-to-media",
+            remove_source=True,
+        )
+    except OSError as e:
+        logging.error(f"Failed to move {src} -> {dst}: {e}")
+        raise
 
 
 def _build_webhook_payload(title, body, job, raw_basename):
