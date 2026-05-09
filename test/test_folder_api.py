@@ -44,7 +44,9 @@ class TestFolderScan:
         resp = client.post("/api/v1/jobs/folder/scan", json={"path": "/ingress/movie"})
         assert resp.status_code == 200
         data = resp.json()
-        assert data["success"] is True
+        # Wire shape: HTTP status carries success/failure; body is the
+        # FolderScanResult model. No `success` envelope as of v18.
+        assert "success" not in data
         assert data["disc_type"] == "bluray"
         mock_scan.assert_called_once_with("/ingress/movie", "/ingress")
 
@@ -58,7 +60,7 @@ class TestFolderScan:
 
         resp = client.post("/api/v1/jobs/folder/scan", json={"path": "/some/path"})
         assert resp.status_code == 400
-        assert "INGRESS_PATH" in resp.json()["error"]
+        assert "INGRESS_PATH" in resp.json()["detail"]
 
     @patch("arm.api.v1.folder.cfg")
     @patch("arm.api.v1.folder.scan_folder", side_effect=FileNotFoundError("Path does not exist"))
@@ -119,7 +121,8 @@ class TestFolderCreate:
         })
         assert resp.status_code == 201
         data = resp.json()
-        assert data["success"] is True
+        # Wire shape: 201 carries success; no `success` envelope as of v18.
+        assert "success" not in data
         assert data["job_id"] == 42
         assert data["source_type"] == "folder"
         assert data["status"] == "identifying"
@@ -185,7 +188,7 @@ class TestFolderCreate:
             "disctype": "bluray",
         })
         assert resp.status_code == 409
-        assert "Active job already exists" in resp.json()["error"]
+        assert "Active job already exists" in resp.json()["detail"]
 
     @patch("arm.api.v1.folder.validate_ingress_path", side_effect=FileNotFoundError("not found"))
     @patch("arm.api.v1.folder.cfg")
@@ -204,7 +207,7 @@ class TestFolderCreate:
             "disctype": "bluray",
         })
         assert resp.status_code == 400
-        assert "Source folder not found" in resp.json()["error"]
+        assert "Source folder not found" in resp.json()["detail"]
 
     @patch("arm.api.v1.folder.threading")
     @patch("arm.api.v1.folder.db")
@@ -241,7 +244,7 @@ class TestFolderCreate:
         })
         assert resp.status_code == 201
         data = resp.json()
-        assert data["success"] is True
+        assert "success" not in data
         assert data["job_id"] == 55
         # Verify season fields
         assert mock_job.season == "1"
