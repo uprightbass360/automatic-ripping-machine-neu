@@ -64,9 +64,16 @@ async def get_music_detail(release_id: str):
 @router.get("/test-key")
 async def test_metadata_key(
     key: str | None = Query(None, description="API key to test (uses saved config if omitted)"),
-    provider: str | None = Query(None, description="Provider to test against: omdb or tmdb (uses saved config if omitted)"),
+    provider: str | None = Query(None, description="Provider to test: omdb, tmdb, tvdb, or makemkv (uses METADATA_PROVIDER from arm.yaml if omitted)"),
 ):
-    """Test a metadata API key by making a real API call."""
+    """Test an external-service API key by making a real upstream call.
+
+    Unified endpoint covering OMDB, TMDB, TVDB, and MakeMKV; returns
+    ``{success, message, provider, checked_at}``. ``checked_at`` is
+    ``None`` for the metadata providers (no caching) and the AppState
+    timestamp for makemkv. The legacy ``POST /system/makemkv-key-check``
+    is retained as a deprecated alias.
+    """
     return await test_configured_key(override_key=key, override_provider=provider)
 
 

@@ -111,23 +111,101 @@ async def _test_omdb_key(key: str) -> dict[str, str]:
 
 
 async def test_configured_key(override_key: str | None = None, override_provider: str | None = None) -> dict[str, Any]:
-    """Test a metadata API key. Uses overrides if given, else the saved config."""
+    """Test a metadata / external-service API key.
+
+    Supports four providers via the unified
+    ``{success, message, provider, checked_at}`` shape:
+
+    - ``omdb`` / ``tmdb`` - hits the upstream search API once
+    - ``tvdb`` - delegates to ``arm.services.tvdb.validate_tvdb_key`` (login round-trip)
+    - ``makemkv`` - runs ``prep_mkv()`` synchronously via the executor
+
+    ``checked_at`` is ``None`` for the metadata providers (no caching);
+    for ``makemkv`` it carries the AppState timestamp, mirroring the
+    legacy ``/system/makemkv-key-check`` shape so the Settings panel can
+    surface "last validated at" without an extra round-trip.
+    """
     keys = _get_keys()
-    provider = override_provider or keys["provider"]
+    provider = (override_provider or keys["provider"]).lower()
+
+    if provider == "tvdb":
+        return await _test_tvdb_provider(override_key)
+    if provider == "makemkv":
+        return await _test_makemkv_provider()
+
+    # OMDB / TMDB path
     key = override_key or (keys["tmdb_key"] if provider == "tmdb" else keys["omdb_key"])
     if not key or not key.strip():
-        return {"success": False, "message": f"No API key configured for {provider.upper()}", "provider": provider}
+        return {
+            "success": False,
+            "message": f"No API key configured for {provider.upper()}",
+            "provider": provider,
+            "checked_at": None,
+        }
     try:
         result = await (_test_tmdb_key(key.strip()) if provider == "tmdb" else _test_omdb_key(key.strip()))
         result["provider"] = provider
+        result["checked_at"] = None
         return result
     except httpx.TimeoutException:
-        return {"success": False, "message": "Request timed out \u2014 check network connectivity", "provider": provider}
+        return {"success": False, "message": "Request timed out - check network connectivity", "provider": provider, "checked_at": None}
     except httpx.ConnectError:
-        return {"success": False, "message": "Cannot connect to API \u2014 check network/DNS", "provider": provider}
+        return {"success": False, "message": "Cannot connect to API - check network/DNS", "provider": provider, "checked_at": None}
     except Exception as exc:
         log.warning("Metadata key test failed: %s", exc)
-        return {"success": False, "message": f"Test failed: {type(exc).__name__}", "provider": provider}
+        return {"success": False, "message": f"Test failed: {type(exc).__name__}", "provider": provider, "checked_at": None}
+
+
+async def _test_tvdb_provider(override_key: str | None) -> dict[str, Any]:
+    """Validate TVDB key via login round-trip; reuses arm.services.tvdb."""
+    from arm.services.tvdb import validate_tvdb_key
+    key = override_key or cfg.arm_config.get("TVDB_API_KEY") or ""
+    result = await validate_tvdb_key(key)
+    result["provider"] = "tvdb"
+    result["checked_at"] = None
+    return result
+
+
+async def _test_makemkv_provider() -> dict[str, Any]:
+    """Run prep_mkv() in the default executor; mirrors /system/makemkv-key-check.
+
+    Same translation table for UpdateKeyErrorCodes as the legacy
+    /system/makemkv-key-check route, plus the AppState ``checked_at``
+    timestamp so the consolidated endpoint can replace the old one.
+    """
+    import asyncio
+    from arm.models.app_state import AppState
+    from arm.ripper.makemkv import UpdateKeyErrorCodes, UpdateKeyRunTimeError, prep_mkv
+
+    message = "MakeMKV key is valid"
+    try:
+        # prep_mkv() is sync + can fork; run via executor to avoid
+        # blocking the event loop (per feedback_preflight_event_loop_blocking).
+        await asyncio.get_running_loop().run_in_executor(None, prep_mkv)
+    except UpdateKeyRunTimeError as exc:
+        code = UpdateKeyErrorCodes(exc.returncode)
+        messages = {
+            UpdateKeyErrorCodes.URL_ERROR: (
+                "Could not reach forum.makemkv.com - set MAKEMKV_PERMA_KEY "
+                "in arm.yaml to use a purchased key"
+            ),
+            UpdateKeyErrorCodes.PARSE_ERROR: "MakeMKV settings file is corrupt",
+            UpdateKeyErrorCodes.INTERNAL_ERROR: "Key update script produced invalid output",
+            UpdateKeyErrorCodes.INVALID_MAKEMKV_SERIAL: (
+                "Invalid MakeMKV serial key format - should match M-XXXX-..."
+            ),
+        }
+        message = messages.get(code, f"Key update failed (error {code.name})")
+
+    # AppState.makemkv_key_valid is the canonical truth - prep_mkv()
+    # writes to it on success/failure regardless of whether it raised.
+    state = AppState.get()
+    return {
+        "success": bool(state.makemkv_key_valid),
+        "message": message,
+        "provider": "makemkv",
+        "checked_at": state.makemkv_key_checked_at.isoformat() if state.makemkv_key_checked_at else None,
+    }
 
 
 async def search(query: str, year: str | None = None, page: int = 1) -> list[dict[str, Any]]:

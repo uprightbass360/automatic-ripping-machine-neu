@@ -1245,6 +1245,90 @@ class TestConfiguredKey:
         assert result["success"] is False
         assert "invalid response" in result["message"].lower()
 
+    # --- TVDB branch ---
+
+    @unittest.mock.patch.dict('arm.config.config.arm_config', {
+        'METADATA_PROVIDER': 'omdb', 'TVDB_API_KEY': 'tvdb_secret',
+    })
+    def test_tvdb_provider_delegates_to_validate_tvdb_key(self):
+        """provider=tvdb override calls arm.services.tvdb.validate_tvdb_key."""
+        from arm.services.metadata import test_configured_key
+        with unittest.mock.patch(
+            'arm.services.tvdb.validate_tvdb_key',
+            new=unittest.mock.AsyncMock(return_value={"success": True, "message": "TVDB API key is valid"}),
+        ) as mock_validate:
+            result = _run(test_configured_key(override_provider='tvdb'))
+        mock_validate.assert_awaited_once_with('tvdb_secret')
+        assert result == {
+            "success": True,
+            "message": "TVDB API key is valid",
+            "provider": "tvdb",
+            "checked_at": None,
+        }
+
+    @unittest.mock.patch.dict('arm.config.config.arm_config', {
+        'METADATA_PROVIDER': 'omdb', 'TVDB_API_KEY': '',
+    })
+    def test_tvdb_uses_override_key(self):
+        """override_key wins over saved TVDB_API_KEY."""
+        from arm.services.metadata import test_configured_key
+        with unittest.mock.patch(
+            'arm.services.tvdb.validate_tvdb_key',
+            new=unittest.mock.AsyncMock(return_value={"success": False, "message": "Invalid TVDB API key"}),
+        ) as mock_validate:
+            result = _run(test_configured_key(override_key='user-supplied', override_provider='tvdb'))
+        mock_validate.assert_awaited_once_with('user-supplied')
+        assert result["provider"] == "tvdb"
+        assert result["success"] is False
+
+    # --- MakeMKV branch ---
+
+    def test_makemkv_provider_success(self):
+        """prep_mkv() returning normally + state.makemkv_key_valid=True is success."""
+        from arm.services.metadata import test_configured_key
+        from datetime import datetime, timezone
+
+        mock_state = unittest.mock.MagicMock()
+        mock_state.makemkv_key_valid = True
+        mock_state.makemkv_key_checked_at = datetime(2026, 5, 9, 12, 0, 0, tzinfo=timezone.utc)
+
+        with (
+            unittest.mock.patch('arm.ripper.makemkv.prep_mkv') as mock_prep,
+            unittest.mock.patch('arm.models.app_state.AppState.get', return_value=mock_state),
+        ):
+            mock_prep.return_value = None
+            result = _run(test_configured_key(override_provider='makemkv'))
+
+        assert result["success"] is True
+        assert result["provider"] == "makemkv"
+        assert result["message"] == "MakeMKV key is valid"
+        assert result["checked_at"] is not None
+
+    def test_makemkv_provider_runtime_error(self):
+        """UpdateKeyRunTimeError translates to a friendly message and success=False."""
+        from arm.services.metadata import test_configured_key
+        from arm.ripper.makemkv import UpdateKeyRunTimeError, UpdateKeyErrorCodes
+
+        mock_state = unittest.mock.MagicMock()
+        mock_state.makemkv_key_valid = False
+        mock_state.makemkv_key_checked_at = None
+
+        with (
+            unittest.mock.patch('arm.ripper.makemkv.prep_mkv') as mock_prep,
+            unittest.mock.patch('arm.models.app_state.AppState.get', return_value=mock_state),
+        ):
+            mock_prep.side_effect = UpdateKeyRunTimeError(
+                UpdateKeyErrorCodes.URL_ERROR.value,
+                ["bash", "/opt/arm/scripts/update_key.sh"],
+                output="",
+            )
+            result = _run(test_configured_key(override_provider='makemkv'))
+
+        assert result["success"] is False
+        assert result["provider"] == "makemkv"
+        assert "forum.makemkv.com" in result["message"]
+        assert result["checked_at"] is None
+
 
 # ---------------------------------------------------------------------------
 # _omdb_search — fallback ?t= auth error

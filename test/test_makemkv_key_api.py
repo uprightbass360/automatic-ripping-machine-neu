@@ -50,7 +50,7 @@ class TestMakemkvKeyCheck:
     """POST /api/v1/system/makemkv-key-check endpoint."""
 
     def test_success_returns_valid(self, client, app_state):
-        with unittest.mock.patch("arm.api.v1.system.prep_mkv") as mock_prep:
+        with unittest.mock.patch("arm.ripper.makemkv.prep_mkv") as mock_prep:
             mock_prep.return_value = None
             # Simulate what prep_mkv does internally
             app_state.makemkv_key_valid = True
@@ -66,7 +66,7 @@ class TestMakemkvKeyCheck:
     def test_failure_returns_invalid(self, client, app_state):
         from arm.ripper.makemkv import UpdateKeyRunTimeError
 
-        with unittest.mock.patch("arm.api.v1.system.prep_mkv") as mock_prep:
+        with unittest.mock.patch("arm.ripper.makemkv.prep_mkv") as mock_prep:
             mock_prep.side_effect = UpdateKeyRunTimeError(
                 40, ["bash", "/opt/arm/scripts/update_key.sh"], output=""
             )
