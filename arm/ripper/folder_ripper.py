@@ -149,11 +149,30 @@ def _remove_deselected_track_files(job, rawpath):
     the user's per-track process=False choice in review must still win.
     Reconciliation runs first so each output file is matched to a track
     row, making process==False the authoritative discard signal.
+
+    Filename collision guard: prescan seeds every track row with a
+    sequentially-numbered filename ('Annihilation_t00.mkv' .. '_t69.mkv').
+    After MakeMKV's 'all' rip and _reconcile_filenames, the kept tracks'
+    filenames are renumbered to match disk ('_t03.mkv' -> '_t00.mkv'),
+    but deselected tracks retain their stale prescan filenames. Without
+    the kept-filename guard those stale strings collide with the kept
+    files on disk and the rip output gets deleted out from under us.
     """
     if not os.path.isdir(rawpath):
         return
+    kept_filenames = {
+        t.filename for t in job.tracks
+        if t.process is not False and t.filename
+    }
     for track in job.tracks:
         if track.process is not False or not track.filename:
+            continue
+        if track.filename in kept_filenames:
+            log.debug(
+                "Skipping deselected track #%s filename %s: claimed by a "
+                "kept track after reconciliation",
+                track.track_number, track.filename,
+            )
             continue
         fpath = os.path.join(rawpath, track.filename)
         if not os.path.isfile(fpath):
