@@ -992,8 +992,8 @@ def get_job_track_counts(job_id: int):
 def get_job_progress_state(job_id: int):
     """Return the small bundle of job fields the UI's progress endpoint needs:
     track counts plus disctype / logfile / no_of_titles, plus realtime
-    MakeMKV PRGV progress and abcde music progress parsed from the
-    progress + log files. One round-trip instead of three.
+    MakeMKV PRGV progress, abcde music progress, and rsync copy progress
+    parsed from the progress + log files. One round-trip instead of three.
     """
     job = Job.query.get(job_id)
     if not job:
@@ -1002,6 +1002,7 @@ def get_job_progress_state(job_id: int):
 
     rip = progress_reader.get_rip_progress(job_id)
     music = progress_reader.get_music_progress(job.logfile, job.no_of_titles or 0)
+    copy = progress_reader.get_copy_progress(job_id)
 
     return JobProgressState(
         track_counts=TrackCounts(**counts),
@@ -1013,6 +1014,8 @@ def get_job_progress_state(job_id: int):
         tracks_ripped_realtime=rip["tracks_ripped"],
         music_progress=music["progress"],
         music_stage=music["stage"],
+        copy_progress=copy["progress"],
+        copy_stage=copy["stage"],
     ).model_dump(mode="json")
 
 
