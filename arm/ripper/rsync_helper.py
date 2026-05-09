@@ -15,6 +15,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -51,9 +52,12 @@ def run_rsync_sync(
                  a snippet of stderr.
 
     Behaviour:
-        Stdout is read line-by-line, splitting on both \\r and \\n. The
-        line-buffered iteration drains the pipe continuously, preventing
-        the 64KB-pipe-buffer-fills-and-rsync-blocks failure mode.
+        Stdout is read line-by-line; under text=True universal newlines
+        already translates rsync's \\r progress-overwrites to \\n, so the
+        helper splits on \\n. Stderr is drained concurrently in a daemon
+        thread so a verbose stderr (e.g. permission errors across many
+        files) cannot fill its 64KB pipe buffer and deadlock rsync while
+        we wait on stdout.
     """
     src_path = Path(src)
     if not src_path.exists():
@@ -84,31 +88,46 @@ def run_rsync_sync(
         stderr=subprocess.PIPE,
         bufsize=1,  # line-buffered
         text=True,
-        # universal_newlines=True splits on \r\n; we want \r preserved so
-        # we read raw and split ourselves.
     )
 
+    # Drain stderr concurrently so a verbose stderr (e.g. permission errors
+    # across many files) cannot fill the 64KB pipe buffer and deadlock the
+    # rsync subprocess waiting on stderr while we are waiting on stdout.
+    stderr_chunks: list[str] = []
+
+    def _drain_stderr() -> None:
+        assert proc.stderr is not None
+        try:
+            for chunk in proc.stderr:
+                stderr_chunks.append(chunk)
+        except Exception:
+            logger.debug("stderr drain raised", exc_info=True)
+
+    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+    stderr_thread.start()
+
     try:
-        # Read stdout in raw mode and split on either \r or \n. Iteration
-        # ends when the child closes stdout (i.e. when rsync exits).
         assert proc.stdout is not None
         buffer = ""
         while True:
             chunk = proc.stdout.read(1024)
             if not chunk:
-                # Flush any trailing partial line
                 if buffer:
                     _emit(buffer, tracker, on_progress)
                 break
             buffer += chunk
-            # Split on \r and \n; keep the trailing partial for next chunk
-            parts = buffer.replace("\r", "\n").split("\n")
+            # Split on \n only - text=True (universal_newlines) has already
+            # translated rsync's \r progress-overwrites to \n. The line-by-line
+            # consumption here drains the stdout pipe continuously, preventing
+            # the buffer-fills-and-rsync-blocks regression.
+            parts = buffer.split("\n")
             buffer = parts[-1]
             for line in parts[:-1]:
                 _emit(line, tracker, on_progress)
     finally:
         proc.wait()
-        stderr = proc.stderr.read() if proc.stderr else ""
+        stderr_thread.join(timeout=5.0)
+        stderr = "".join(stderr_chunks)
 
     if proc.returncode != 0:
         msg = f"rsync failed (exit {proc.returncode}): {stderr.strip()[:200]}"
