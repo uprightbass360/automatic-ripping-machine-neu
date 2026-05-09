@@ -109,10 +109,15 @@ class TestMakeMKVLogLevels:
 
 
 class TestRsyncLogLevels:
-    """Verify rsync progress uses DEBUG, summaries use INFO."""
+    """Verify rsync helper logs start/complete at INFO and does not flood
+    structured logs with per-line progress data (progress now goes to a
+    side-file consumed by progress_reader)."""
 
-    def test_rsync_progress_at_debug(self, tmp_path, caplog):
-        """Individual rsync transfer lines should be logged at DEBUG."""
+    def test_rsync_progress_not_at_info(self, tmp_path, caplog):
+        """Per-line progress samples must not land in the structured log -
+        they belong in the side-file. Helper emits two INFO messages
+        (start + complete); progress lines (containing 'MB/s') must not
+        appear at INFO."""
         from arm.ripper.utils import _move_to_shared_storage
 
         local_raw = tmp_path / "local"
@@ -126,30 +131,33 @@ class TestRsyncLogLevels:
         cfg = {
             "LOCAL_RAW_PATH": str(local_raw),
             "SHARED_RAW_PATH": str(shared_raw),
+            "LOGPATH": str(tmp_path),
         }
 
-        # Mock subprocess.run to simulate rsync output
-        mock_result = unittest.mock.MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "title.mkv\n  100,000 100%  50.00MB/s    0:00:00\n"
-        mock_result.stderr = ""
+        # Mock Popen to feed back rsync-shaped stdout including a progress line
+        mock_proc = unittest.mock.MagicMock()
+        # Two reads: payload then EOF.
+        mock_proc.stdout = unittest.mock.MagicMock()
+        mock_proc.stdout.read.side_effect = [
+            "title.mkv\n  100,000 100%  50.00MB/s    0:00:00\n",
+            "",
+        ]
+        mock_proc.stderr = unittest.mock.MagicMock()
+        mock_proc.stderr.read.return_value = ""
+        mock_proc.returncode = 0
+        mock_proc.wait.return_value = None
 
         with (
-            unittest.mock.patch("subprocess.run", return_value=mock_result),
+            unittest.mock.patch("arm.ripper.rsync_helper.subprocess.Popen", return_value=mock_proc),
             unittest.mock.patch("shutil.rmtree"),
             caplog.at_level(logging.DEBUG),
         ):
             _move_to_shared_storage(cfg, "test_movie")
 
-        debug_messages = [r.message for r in caplog.records if r.levelno == logging.DEBUG]
         info_messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
 
-        # Progress lines should be at DEBUG
-        rsync_debug = [m for m in debug_messages if "rsync:" in m]
-        assert len(rsync_debug) > 0, "rsync transfer lines should be at DEBUG"
-
-        # Progress lines should NOT be at INFO
-        rsync_info_progress = [m for m in info_messages if "rsync:" in m and "MB/s" in m]
+        # Per-line progress must not leak to INFO structured logs
+        rsync_info_progress = [m for m in info_messages if "MB/s" in m]
         assert not rsync_info_progress, (
             f"rsync progress should NOT be at INFO. Found: {rsync_info_progress}"
         )
@@ -169,15 +177,19 @@ class TestRsyncLogLevels:
         cfg = {
             "LOCAL_RAW_PATH": str(local_raw),
             "SHARED_RAW_PATH": str(shared_raw),
+            "LOGPATH": str(tmp_path),
         }
 
-        mock_result = unittest.mock.MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "title.mkv\n"
-        mock_result.stderr = ""
+        mock_proc = unittest.mock.MagicMock()
+        mock_proc.stdout = unittest.mock.MagicMock()
+        mock_proc.stdout.read.side_effect = ["title.mkv\n", ""]
+        mock_proc.stderr = unittest.mock.MagicMock()
+        mock_proc.stderr.read.return_value = ""
+        mock_proc.returncode = 0
+        mock_proc.wait.return_value = None
 
         with (
-            unittest.mock.patch("subprocess.run", return_value=mock_result),
+            unittest.mock.patch("arm.ripper.rsync_helper.subprocess.Popen", return_value=mock_proc),
             unittest.mock.patch("shutil.rmtree"),
             caplog.at_level(logging.DEBUG),
         ):
@@ -189,7 +201,8 @@ class TestRsyncLogLevels:
         assert any("rsync" in m and "->" in m for m in info_messages), (
             f"rsync start should be at INFO. Got: {info_messages}"
         )
-        # Completion with file count
-        assert any("rsync complete" in m and "transferred" in m for m in info_messages), (
-            f"rsync complete with file count should be at INFO. Got: {info_messages}"
+        # Completion (file-count suffix dropped after refactor; the helper
+        # logs 'rsync complete: src -> dst' and progress is in the side-file)
+        assert any("rsync complete" in m for m in info_messages), (
+            f"rsync complete should be at INFO. Got: {info_messages}"
         )

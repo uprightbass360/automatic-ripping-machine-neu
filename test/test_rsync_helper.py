@@ -87,3 +87,47 @@ def test_helper_writes_side_file(tmp_path, monkeypatch):
     parts = last.split(",")
     assert parts[0] == "scratch-to-media"
     assert float(parts[1]) == pytest.approx(100.0)
+
+
+def test_move_to_shared_storage_writes_side_file(tmp_path, monkeypatch):
+    """When _move_to_shared_storage runs, the same side-file is written
+    that run_rsync_with_side_file would have written. Proves the migration
+    didn't break the producer-side wiring."""
+    import arm.config.config as cfg
+    monkeypatch.setitem(cfg.arm_config, "LOGPATH", str(tmp_path))
+    (tmp_path / "progress").mkdir()
+
+    local_raw = tmp_path / "scratch"
+    shared_raw = tmp_path / "media"
+    local_raw.mkdir()
+    shared_raw.mkdir()
+
+    raw_basename = "abc123"
+    job_dir = local_raw / raw_basename
+    job_dir.mkdir()
+    (job_dir / "rip.mkv").write_bytes(os.urandom(2 * 1024 * 1024))
+
+    # Mock job
+    class FakeJob:
+        job_id = 99
+
+    job = FakeJob()
+    cfg_dict = {
+        "LOCAL_RAW_PATH": str(local_raw),
+        "SHARED_RAW_PATH": str(shared_raw),
+        "LOGPATH": str(tmp_path),
+    }
+
+    # Mock database_updater so we don't need a real DB session
+    monkeypatch.setattr(
+        "arm.ripper.utils.database_updater",
+        lambda *a, **kw: None,
+    )
+
+    from arm.ripper.utils import _move_to_shared_storage
+    _move_to_shared_storage(cfg_dict, raw_basename, job=job)
+
+    side_file = tmp_path / "progress" / "99.copy.log"
+    assert side_file.is_file(), "side-file should be written by _move_to_shared_storage"
+    content = side_file.read_text()
+    assert "scratch-to-media" in content
