@@ -48,7 +48,7 @@ A shared-contracts Python package (`components/contracts`) defines the typed enu
 
 **Auto-fetched MakeMKV community keydb.** Decryption keys updated at startup without manual intervention or reliance on third-party servers.
 
-**Folder import (rip pre-existing MKV files).** A parallel pipeline (`folder_ripper.py`) feeds pre-ripped MKVs through the same identification / metadata / track-status / transcoding flow as a disc rip - same job model, same UI, same naming - just without a physical drive. Lets you backfill a library or re-process discs ripped elsewhere without standing them up as a fresh disc job.
+**Folder import (rip from BDMV / VIDEO_TS folders).** A parallel pipeline (`folder_ripper.py`) accepts a folder containing a Blu-ray (`BDMV/`) or DVD (`VIDEO_TS/`) disc structure and feeds it through the same MakeMKV remux + identification / metadata / track-status / transcoding flow as a disc rip - same job model, same UI, same naming - just without a physical drive. Lets you backfill a library or re-process disc images saved as folders without standing them up as a fresh disc job. ISO files are handled by a separate ISO-import pipeline.
 
 **Music CD pipeline overhaul.** Full MusicBrainz disc-ID rewrite, `disc_number` tagging for multi-disc albums, automatic `.m3u` playlist generation per album folder, and a comprehensive abcde / cdparanoia / cd-discid output classifier so partial-success rips and silent I/O errors are caught instead of being marked complete.
 
