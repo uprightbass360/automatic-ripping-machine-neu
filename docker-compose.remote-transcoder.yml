@@ -44,7 +44,6 @@ services:
       - ARM_LOGS_PATH=${ARM_LOGS_PATH}
       - ARM_MUSIC_PATH=${ARM_MUSIC_PATH}
     volumes:
-      - /dev:/dev
       - ${ARM_MUSIC_PATH}:/home/arm/music
       - ${ARM_LOGS_PATH}:/home/arm/logs
       - ${ARM_MEDIA_PATH}:/home/arm/media
@@ -54,6 +53,9 @@ services:
       - ${ARM_CONFIG_PATH}:/etc/arm/config
       - arm-db:/home/arm/db
       - ${ARM_MAKEMKV_PATH:-makemkv-settings}:/home/arm/.MakeMKV
+      # Live /dev mount ensures USB optical drives remain visible after
+      # hot-plug, disconnect/reconnect, or device re-enumeration.
+      - /dev:/dev
     cpuset: ${ARM_CPUSET:-2,3,4,5,6,7}
     depends_on:
       arm-db-init:

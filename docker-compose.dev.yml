@@ -7,6 +7,12 @@
 #
 # Override paths: UI_SRC_PATH=../my-ui  TRANSCODER_SRC_PATH=../my-transcoder
 #
+# Compatible base files: docker-compose.yml only.
+# This overlay patches `arm-rippers`, `arm-ui`, AND `arm-transcoder`.
+# It is NOT compatible with docker-compose.ripper-only.yml (no
+# arm-transcoder service to override) or docker-compose.remote-transcoder.yml
+# (the transcoder runs on a remote host - dev-build it from its own repo).
+#
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 services:

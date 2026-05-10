@@ -1,8 +1,13 @@
 # Ripper-only: ARM + UI on a single machine, no transcoder.
-# ARM writes final named files directly via the v15.0.0 finalize_output path.
+# ARM writes final named files directly via finalize_output (the
+# ripper-only completion path triggered by ARM_TRANSCODER_ENABLED=false).
 # Copy .env.ripper-only.example to .env and adjust values before starting.
 #
 # Start: docker compose -f docker-compose.ripper-only.yml up -d --build
+#
+# Compatible overlays: docker-compose.nfs.yml only.
+# docker-compose.dev.yml and docker-compose.gpu.yml both patch the
+# arm-transcoder service which this file does not declare.
 
 services:
   # Fix ownership on the shared DB volume before ARM starts
