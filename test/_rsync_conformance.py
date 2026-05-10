@@ -19,6 +19,7 @@ a sync return. Conformance tests are execution-model-agnostic.
 """
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
 from typing import Protocol
@@ -75,7 +76,7 @@ def assert_streams_progress(adapter: HelperAdapter, tmp_path: Path) -> None:
         f"Never saw a mid-transfer event. All events: "
         f"{[e.progress_pct for e in events]}"
     )
-    assert events[-1].progress_pct == 100.0, (
+    assert math.isclose(events[-1].progress_pct, 100.0), (
         f"Final event was {events[-1].progress_pct}, expected 100.0. "
         f"This indicates a partial-line-at-EOF drop."
     )
