@@ -133,10 +133,10 @@ services:
       # File handling
       - DELETE_SOURCE=${DELETE_SOURCE:-true}
       - OUTPUT_EXTENSION=${OUTPUT_EXTENSION:-mkv}
-      # Organization
-      - MOVIES_SUBDIR=${MOVIES_SUBDIR:-movies}
-      - TV_SUBDIR=${TV_SUBDIR:-tv}
-      - AUDIO_SUBDIR=${AUDIO_SUBDIR:-audio}
+      # Output organization (MOVIES_SUBDIR / TV_SUBDIR / AUDIO_SUBDIR /
+      # UNIDENTIFIED_SUBDIR) is ARM-side only since v18.0.0 - the
+      # transcoder reads payload.output_path from the webhook and writes
+      # under ${COMPLETED_PATH}/<output_path> with no per-type routing.
       # Performance
       - MAX_CONCURRENT=${MAX_CONCURRENT:-1}
       - STABILIZE_SECONDS=${STABILIZE_SECONDS:-60}
