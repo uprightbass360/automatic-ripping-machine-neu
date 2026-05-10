@@ -1,5 +1,23 @@
 # Changelog
 
+## [18.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v18.0.0...v18.1.0) (2026-05-10)
+
+
+### Features
+
+* bump components/contracts to 307bef8 ([98958f7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/98958f7be9d06a875453b62596dfcaef7ad71aac))
+* **folder:** drop {success: true, ...} envelope from folder endpoints ([8a41fa8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8a41fa82b41428b76f28c4002e48e0a8d0d29c90))
+* **metadata:** unify key-test endpoints under /metadata/test-key ([c8673a2](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/c8673a2348e2da138ab42d53f3059da5f78d914a))
+* **progress:** /jobs/{id}/progress-state surfaces copy progress ([f5bc4a4](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f5bc4a48b82840315f4aee3dc198b9ca74c1a5ec))
+* **progress:** add get_copy_progress reader ([5806be3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/5806be378268b1c0e8b7d400de35de1947ca7ef7))
+* **rsync:** add run_rsync_sync helper with progress streaming ([981d172](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/981d1727399ac06c0845f4dee73717de3563d5da))
+
+
+### Bug Fixes
+
+* **import:** deselect-delete must skip filenames a kept track now claims ([ba36fd5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ba36fd50559f728030daaf1922ae7f4ef8d57192))
+* **rsync:** drain stderr concurrently to avoid pipe-buffer deadlock ([0ece454](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0ece4542f2d48eb796e5cc0e28f54ff702e89b7c))
+
 ## [18.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v17.5.4...v18.0.0) (2026-05-08)
 
 
