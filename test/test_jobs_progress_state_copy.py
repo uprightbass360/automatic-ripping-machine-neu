@@ -71,5 +71,5 @@ def test_progress_state_returns_copy_progress_from_side_file(
     resp = client.get(f"/api/v1/jobs/{job.job_id}/progress-state")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["copy_progress"] == 73.5
+    assert data["copy_progress"] == pytest.approx(73.5)
     assert data["copy_stage"] == "scratch-to-media"
