@@ -434,6 +434,18 @@ class Job(db.Model):
         for key, value in self.__dict__.items():
             if '_sa_instance_state' not in key:
                 return_dict[str(key)] = str(value)
+
+        # Project MediaMetadata into the legacy flat keys so list-shape
+        # consumers (arm-ui dashboard cards, joblist) see poster_url/artist/
+        # album after the Phase 2 column purge moved them into the blob.
+        # Only the three dropped columns need this; other metadata fields
+        # (year/imdb_id/video_type) remain real columns and authoritative.
+        meta = self.media_metadata
+        if meta is not None:
+            for legacy_field in ("poster_url", "artist", "album"):
+                value = getattr(meta, legacy_field, None)
+                if value not in (None, "", []):
+                    return_dict[legacy_field] = str(value)
         return return_dict
 
     def eject(self):

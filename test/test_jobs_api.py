@@ -516,8 +516,10 @@ def test_job_detail_track_includes_process_and_skip_reason(client, app_context, 
 def test_job_detail_projects_media_metadata_into_flat_fields(client, app_context, sample_job):
     """Regression: arm-ui disc review reads poster_url/artist/album at job top level.
 
-    After the Phase 2 column purge those fields live in the media_metadata blob;
-    the serializer projects them back out so the wire shape stays back-compat.
+    Only the three columns dropped in Phase 2 (poster_url/artist/album) live
+    in the media_metadata blob; the detail serializer projects them back out
+    so the wire shape stays back-compat. year/imdb_id/video_type remain real
+    columns and are not touched by the projection.
     """
     from arm_contracts import MediaMetadata
 
@@ -525,9 +527,6 @@ def test_job_detail_projects_media_metadata_into_flat_fields(client, app_context
         poster_url="https://example.com/poster.jpg",
         artist="Metronomy",
         album="Small World",
-        year="2022",
-        imdb_id="tt1234567",
-        video_type="movie",
     ))
     db.session.commit()
 
@@ -537,6 +536,49 @@ def test_job_detail_projects_media_metadata_into_flat_fields(client, app_context
     assert job["poster_url"] == "https://example.com/poster.jpg"
     assert job["artist"] == "Metronomy"
     assert job["album"] == "Small World"
-    assert job["year"] == "2022"
-    assert job["imdb_id"] == "tt1234567"
-    assert job["video_type"] == "movie"
+
+
+def test_job_list_projects_media_metadata_into_flat_fields(client, app_context, sample_job):
+    """Regression: dashboard cards + joblist read poster_url at job top level.
+
+    Job.get_d() is the list-shape serializer (used by /api/v1/jobs joblist
+    and active endpoints). After the Phase 2 column purge it must project
+    the three dropped fields out of media_metadata back into the flat keys.
+    """
+    from arm_contracts import MediaMetadata
+
+    sample_job.set_metadata_auto(MediaMetadata(
+        poster_url="https://example.com/poster2.jpg",
+        artist="Fatboy Slim",
+        album="You've Come a Long Way, Baby",
+    ))
+    db.session.commit()
+
+    d = sample_job.get_d()
+    assert d["poster_url"] == "https://example.com/poster2.jpg"
+    assert d["artist"] == "Fatboy Slim"
+    assert d["album"] == "You've Come a Long Way, Baby"
+
+
+def test_drives_with_jobs_projects_poster_url(client, app_context, sample_job, sample_drives):
+    """Regression: dashboard 'drive currently working on' badge reads poster_url.
+
+    _job_summary on /api/v1/drives/with-jobs projects MediaMetadata.poster_url
+    into the JobSummary wire shape after the column purge.
+    """
+    from arm_contracts import MediaMetadata
+    from arm.models.system_drives import SystemDrives
+
+    sample_job.set_metadata_auto(MediaMetadata(
+        poster_url="https://example.com/badge-poster.jpg",
+    ))
+    drive = SystemDrives.query.first()
+    drive.job_id_current = sample_job.job_id
+    db.session.commit()
+
+    response = client.get("/api/v1/drives/with-jobs")
+    assert response.status_code == 200
+    drives = response.json()["drives"]
+    matching = [d for d in drives if d.get("current_job") and d["current_job"].get("job_id") == sample_job.job_id]
+    assert matching, "expected at least one drive with current_job set to sample_job"
+    assert matching[0]["current_job"]["poster_url"] == "https://example.com/badge-poster.jpg"
