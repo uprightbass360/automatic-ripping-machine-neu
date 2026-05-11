@@ -193,6 +193,12 @@ class Job(db.Model):
     wait_start_time = db.Column(db.DateTime, nullable=True)
     title_pattern_override = db.Column(db.String(512), nullable=True)
     folder_pattern_override = db.Column(db.String(512), nullable=True)
+    # MediaMetadata storage. media_metadata_auto is written by provider
+    # adapters in arm/services/metadata.py. media_metadata_manual is
+    # written by the UI when an operator overrides any field. The
+    # `media_metadata` read property merges manual-over-auto field-by-field.
+    media_metadata_auto = db.Column(db.Text, nullable=True)
+    media_metadata_manual = db.Column(db.Text, nullable=True)
     tracks = db.relationship('Track', backref='job', lazy='dynamic')
     config = db.relationship('Config', uselist=False, backref="job")
     expected_titles = db.relationship(
@@ -228,6 +234,49 @@ class Job(db.Model):
         self.manual_pause = False
         self.manual_mode = False
         self.has_track_99 = False
+
+    @property
+    def media_metadata(self):
+        """Merged MediaMetadata: manual overrides auto field-by-field.
+
+        Empty / None / [] manual values fall through to auto. The merge
+        runs on every access; if profile shows it as hot, cache on the
+        instance.
+        """
+        from arm_contracts import MediaMetadata
+        auto_blob = self.media_metadata_auto
+        manual_blob = self.media_metadata_manual
+        auto = (
+            MediaMetadata.model_validate_json(auto_blob)
+            if auto_blob else MediaMetadata()
+        )
+        manual = (
+            MediaMetadata.model_validate_json(manual_blob)
+            if manual_blob else MediaMetadata()
+        )
+
+        merged_data = {}
+        for field_name in MediaMetadata.model_fields:
+            manual_value = getattr(manual, field_name)
+            auto_value = getattr(auto, field_name)
+            if manual_value is not None and manual_value != "" and manual_value != []:
+                merged_data[field_name] = manual_value
+            else:
+                merged_data[field_name] = auto_value
+        return MediaMetadata(**merged_data)
+
+    def set_metadata_auto(self, metadata):
+        """Persist a MediaMetadata instance to media_metadata_auto."""
+        self.media_metadata_auto = metadata.model_dump_json()
+
+    def set_metadata_manual(self, metadata):
+        """Persist a MediaMetadata instance to media_metadata_manual.
+
+        Pass a partial MediaMetadata - only fields the operator actually
+        overrode should be set; the merge logic in `media_metadata`
+        treats unset (None / empty) fields as fall-through.
+        """
+        self.media_metadata_manual = metadata.model_dump_json()
 
     @classmethod
     def from_folder(cls, source_path: str, disctype: str):
