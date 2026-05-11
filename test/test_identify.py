@@ -1244,7 +1244,7 @@ class TestMatcherIntegration:
     # -- Poster normalization --
 
     def test_poster_na_becomes_empty_string(self, app_context):
-        """OMDb 'N/A' poster stored as empty string on job."""
+        """OMDb 'N/A' poster results in no poster_url in media_metadata."""
         from arm.ripper.identify import update_job
 
         job = self._make_job(app_context, label="THE_MATRIX",
@@ -1253,11 +1253,11 @@ class TestMatcherIntegration:
             {'Title': 'The Matrix', 'Year': '1999',
              'imdbID': 'tt0133093', 'Type': 'movie', 'Poster': 'N/A'},
         ]})
-        assert job.poster_url == ''
-        assert job.poster_url_auto == ''
+        # No poster_url set means media_metadata.poster_url is None.
+        assert job.media_metadata.poster_url is None
 
     def test_poster_url_preserved(self, app_context):
-        """Real poster URL is stored as-is."""
+        """Real poster URL is stored in media_metadata_auto."""
         from arm.ripper.identify import update_job
 
         poster = f'{self.TMDB}/matrix.jpg'
@@ -1267,7 +1267,7 @@ class TestMatcherIntegration:
             {'Title': 'The Matrix', 'Year': '1999',
              'imdbID': 'tt0133093', 'Type': 'movie', 'Poster': poster},
         ]})
-        assert job.poster_url == poster
+        assert job.media_metadata.poster_url == poster
 
     # -- Title stored as-is from API (no sanitization) --
 

@@ -68,7 +68,10 @@ class TestApplyRequestMetadataToJob:
         apply_request_metadata_to_job(job, req)
 
         assert job.imdb_id == "tt1375666"
-        assert job.poster_url == "https://x/p.jpg"
+        # poster_url now goes through set_metadata_auto with a MediaMetadata.
+        job.set_metadata_auto.assert_called_once()
+        meta_arg = job.set_metadata_auto.call_args.args[0]
+        assert meta_arg.poster_url == "https://x/p.jpg"
 
     def test_skips_imdb_and_poster_when_absent(self):
         from arm.api.v1._import_helpers import apply_request_metadata_to_job
@@ -77,8 +80,12 @@ class TestApplyRequestMetadataToJob:
         req = self._req(imdb_id=None, poster_url=None)
         apply_request_metadata_to_job(job, req)
 
+        # SimpleNamespace doesn't auto-create attrs, so a successful skip
+        # leaves these unset (no AttributeError on hasattr).
         assert not hasattr(job, "imdb_id") or job.imdb_id is None
-        assert not hasattr(job, "poster_url") or job.poster_url is None
+        # poster_url no longer flows through a job attribute - it goes
+        # through set_metadata_auto, which isn't on a bare SimpleNamespace.
+        assert not hasattr(job, "set_metadata_auto")
 
     def test_applies_season_disc_number_disc_total(self):
         from arm.api.v1._import_helpers import apply_request_metadata_to_job

@@ -131,7 +131,11 @@ class TestFolderCreate:
         mock_threading.Thread.return_value.start.assert_called_once()
         # Verify optional fields were set on the job object
         assert mock_job.imdb_id == "tt1234567"
-        assert mock_job.poster_url == "https://example.com/poster.jpg"
+        # poster_url now lives in media_metadata_auto blob; verify the setter
+        # was called rather than the legacy attribute.
+        mock_job.set_metadata_auto.assert_called_once()
+        meta_arg = mock_job.set_metadata_auto.call_args.args[0]
+        assert meta_arg.poster_url == "https://example.com/poster.jpg"
 
     @patch("arm.api.v1.folder.cfg")
     def test_create_no_ingress_configured(self, mock_cfg):

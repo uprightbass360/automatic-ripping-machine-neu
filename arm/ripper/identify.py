@@ -660,8 +660,6 @@ def update_job(job, search_results):
         'video_type': best.type,
         'imdb_id_auto': best.imdb_id,
         'imdb_id': best.imdb_id,
-        'poster_url_auto': best.poster_url or '',
-        'poster_url': best.poster_url or '',
         'hasnicetitle': True,
     }
     # Persist disc number/season from label parsing (e.g. "Disc 2", "S01D03")
@@ -672,6 +670,14 @@ def update_job(job, search_results):
             args['season_auto'] = str(selection.label_info.season_number)
             args['season'] = str(selection.label_info.season_number)
     result = utils.database_updater(args, job)
+
+    # Persist editorial metadata (poster_url, plus future MediaMetadata
+    # fields) to the auto-blob. The legacy poster_url column was retired
+    # by the media_metadata_columns migration.
+    if best.poster_url:
+        from arm_contracts import MediaMetadata
+        job.set_metadata_auto(MediaMetadata(poster_url=best.poster_url))
+        db.session.commit()
 
     # Only write ExpectedTitle for movies. TV series matches are handled by the
     # TVDB-based path in A6, which writes one row per episode.

@@ -31,7 +31,8 @@ def apply_request_metadata_to_job(job: Any, req: Any) -> None:
     if req.imdb_id:
         job.imdb_id = req.imdb_id
     if req.poster_url:
-        job.poster_url = req.poster_url
+        from arm_contracts import MediaMetadata
+        job.set_metadata_auto(MediaMetadata(poster_url=req.poster_url))
     job.multi_title = req.multi_title
     if req.season is not None:
         job.season = str(req.season)
