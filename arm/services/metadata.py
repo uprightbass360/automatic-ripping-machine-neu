@@ -1,4 +1,4 @@
-"""Metadata services — async OMDb/TMDb/MusicBrainz/CRC64.
+"""Metadata services - async OMDb/TMDb/MusicBrainz/CRC64.
 
 Ported from the UI's clean httpx implementations. ARM is the single source
 of truth for all external metadata API calls. Reads keys from the in-memory
@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from datetime import date, datetime
+from typing import Any, Optional
 
 import httpx
 
 import arm.config.config as cfg
 from arm.services.runtime_parsing import parse_runtime
+from arm_contracts import MediaMetadata
+from arm_contracts.enums import VideoType
 
 log = logging.getLogger(__name__)
 
@@ -541,6 +544,105 @@ def _normalize_omdb(item: dict) -> dict[str, Any]:
         "poster_url": poster,
         "runtime_seconds": parse_runtime(item.get("Runtime")),
     }
+
+
+# ---------------------------------------------------------------------------
+# OMDb -> MediaMetadata adapter (post-MediaMetadata-contract migration)
+# ---------------------------------------------------------------------------
+
+_OMDB_NA = "N/A"
+
+
+def _csv_to_list(value: Optional[str]) -> list[str]:
+    """Parse a CSV-formatted string into a list of trimmed entries.
+
+    Handles OMDb's 'N/A' sentinel and missing values.
+    """
+    if not value or value == _OMDB_NA:
+        return []
+    return [s.strip() for s in value.split(",") if s.strip()]
+
+
+def _none_if_na(value: Optional[str]) -> Optional[str]:
+    """Convert OMDb's 'N/A' sentinel to None."""
+    if not value or value == _OMDB_NA:
+        return None
+    return value
+
+
+def _parse_omdb_released(value: Optional[str]) -> Optional[date]:
+    """OMDb 'Released' format is '23 Feb 2018' or 'N/A'."""
+    cleaned = _none_if_na(value)
+    if not cleaned:
+        return None
+    try:
+        return datetime.strptime(cleaned, "%d %b %Y").date()
+    except ValueError:
+        return None
+
+
+def _parse_omdb_rating(value: Optional[str]) -> Optional[float]:
+    """OMDb 'imdbRating' is a numeric string or 'N/A'."""
+    cleaned = _none_if_na(value)
+    if not cleaned:
+        return None
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _parse_omdb_year(value: Optional[str]) -> Optional[str]:
+    """OMDb 'Year' is '2018' for movies, '2008-2013' or '2008-' for series.
+
+    Returns the first 4-digit year, or None if unparseable.
+    """
+    cleaned = _none_if_na(value)
+    if not cleaned:
+        return None
+    # Year ranges use '-' (hyphen) or '–' (en-dash)
+    head = re.split(r"[-–]", cleaned, maxsplit=1)[0].strip()
+    if len(head) == 4 and head.isdigit():
+        return head
+    return None
+
+
+def _parse_omdb_type(value: Optional[str]) -> Optional[VideoType]:
+    """OMDb 'Type' is 'movie', 'series', or 'episode'. Map to our enum."""
+    cleaned = (value or "").lower()
+    if cleaned == "series":
+        return VideoType.series
+    if cleaned == "movie":
+        return VideoType.movie
+    return None
+
+
+def _normalize_omdb_to_metadata(omdb: dict) -> MediaMetadata:
+    """Convert an OMDb response dict into a MediaMetadata instance.
+
+    All provider quirks (CSV lists, '120 min' runtime, '23 Feb 2018'
+    released, 'N/A' sentinels, year ranges) are normalized here. The
+    pydantic validator then enforces the canonical types.
+    """
+    return MediaMetadata(
+        title=_none_if_na(omdb.get("Title")),
+        year=_parse_omdb_year(omdb.get("Year")),
+        video_type=_parse_omdb_type(omdb.get("Type")),
+        imdb_id=_none_if_na(omdb.get("imdbID")),
+        poster_url=_none_if_na(omdb.get("Poster")),
+        runtime_seconds=parse_runtime(omdb.get("Runtime")),
+        plot=_none_if_na(omdb.get("Plot")),
+        genres=_csv_to_list(omdb.get("Genre")),
+        directors=_csv_to_list(omdb.get("Director")),
+        writers=_csv_to_list(omdb.get("Writer")),
+        actors=_csv_to_list(omdb.get("Actors")),
+        mpaa_rating=_none_if_na(omdb.get("Rated")),
+        released_date=_parse_omdb_released(omdb.get("Released")),
+        language=(_csv_to_list(omdb.get("Language")) or [None])[0],
+        country=_none_if_na(omdb.get("Country")),
+        production_company=_none_if_na(omdb.get("Production")),
+        imdb_rating=_parse_omdb_rating(omdb.get("imdbRating")),
+    )
 
 
 async def _omdb_details(imdb_id: str, api_key: str) -> dict[str, Any] | None:

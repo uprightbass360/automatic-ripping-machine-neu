@@ -1499,3 +1499,100 @@ class TestLookupCrcEdgeCases:
             result = _run(lookup_crc("abc123"))
         assert result["found"] is True
         assert len(result["results"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# OMDb -> MediaMetadata normalization (Task 9)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_omdb_full_response_returns_media_metadata():
+    """Real-shape OMDb response normalizes to MediaMetadata."""
+    from datetime import date
+    from arm.services.metadata import _normalize_omdb_to_metadata
+    from arm_contracts import MediaMetadata
+    from arm_contracts.enums import VideoType
+
+    omdb = {
+        "Title": "Annihilation",
+        "Year": "2018",
+        "Type": "movie",
+        "imdbID": "tt2798920",
+        "Poster": "https://example.com/poster.jpg",
+        "Runtime": "115 min",
+        "Plot": "A biologist signs up...",
+        "Genre": "Drama, Sci-Fi, Adventure",
+        "Director": "Alex Garland",
+        "Writer": "Alex Garland, Jeff VanderMeer (novel)",
+        "Actors": "Natalie Portman, Jennifer Jason Leigh",
+        "Rated": "R",
+        "Released": "23 Feb 2018",
+        "Language": "English",
+        "Country": "USA, UK",
+        "Production": "Paramount Pictures",
+        "imdbRating": "6.8",
+        "Response": "True",
+    }
+    m = _normalize_omdb_to_metadata(omdb)
+    assert isinstance(m, MediaMetadata)
+    assert m.title == "Annihilation"
+    assert m.year == "2018"
+    assert m.video_type == VideoType.movie
+    assert m.imdb_id == "tt2798920"
+    assert m.poster_url == "https://example.com/poster.jpg"
+    assert m.runtime_seconds == 115 * 60
+    assert m.plot == "A biologist signs up..."
+    assert m.genres == ["Drama", "Sci-Fi", "Adventure"]
+    assert m.directors == ["Alex Garland"]
+    assert m.writers == ["Alex Garland", "Jeff VanderMeer (novel)"]
+    assert m.actors == ["Natalie Portman", "Jennifer Jason Leigh"]
+    assert m.mpaa_rating == "R"
+    assert m.released_date == date(2018, 2, 23)
+    assert m.language == "English"
+    assert m.country == "USA, UK"
+    assert m.production_company == "Paramount Pictures"
+    assert m.imdb_rating == pytest.approx(6.8)
+
+
+def test_normalize_omdb_handles_n_a_sentinel():
+    """OMDb's 'N/A' sentinel should not surface as the literal string."""
+    from arm.services.metadata import _normalize_omdb_to_metadata
+
+    omdb = {
+        "Title": "Old Movie",
+        "Year": "1950",
+        "Type": "movie",
+        "imdbID": "tt0042500",
+        "Poster": "N/A",
+        "Runtime": "N/A",
+        "Plot": "N/A",
+        "Genre": "N/A",
+        "Director": "N/A",
+        "imdbRating": "N/A",
+        "Response": "True",
+    }
+    m = _normalize_omdb_to_metadata(omdb)
+    assert m.poster_url is None
+    assert m.runtime_seconds is None
+    assert m.plot is None
+    assert m.genres == []
+    assert m.directors == []
+    assert m.imdb_rating is None
+
+
+def test_normalize_omdb_series_sets_video_type_series():
+    """OMDb Type 'series' maps to VideoType.series."""
+    from arm.services.metadata import _normalize_omdb_to_metadata
+    from arm_contracts.enums import VideoType
+
+    omdb = {
+        "Title": "Breaking Bad",
+        "Year": "2008-2013",
+        "Type": "series",
+        "imdbID": "tt0903747",
+        "Response": "True",
+    }
+    m = _normalize_omdb_to_metadata(omdb)
+    assert m.video_type == VideoType.series
+    # Year range '2008-2013' should yield first year 2008
+    assert m.year == "2008"
