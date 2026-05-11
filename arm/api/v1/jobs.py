@@ -1095,7 +1095,7 @@ def get_retranscode_info(job_id: int):
         "video_type": job.video_type or job.video_type_auto or "movie",
         "year": year,
         "disctype": job.disctype,
-        "poster_url": job.poster_url or job.poster_url_auto or "",
+        "poster_url": job.media_metadata.poster_url or "",
         "config_overrides": _parse_transcode_overrides(job.transcode_overrides),
     }
 

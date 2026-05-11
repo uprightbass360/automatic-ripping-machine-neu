@@ -287,7 +287,7 @@ def _build_webhook_payload(title, body, job, raw_basename):
         year=str(job.year or ''),
         disctype=str(job.disctype or ''),
         status=str(job.status or ''),
-        poster_url=str(job.poster_url or ''),
+        poster_url=str(job.media_metadata.poster_url or ''),
         title_name=clean_for_filename(render_title(job, config_dict)),
         config_overrides=overrides_dict,  # Pydantic coerces dict -> TranscodeJobConfig.
         multi_title=True if getattr(job, 'multi_title', False) else None,

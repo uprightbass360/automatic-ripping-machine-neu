@@ -207,37 +207,23 @@ class TestPatternEngineIntegration:
 
     def test_raw_path_unaffected_by_structured_fields(self, sample_job):
         """build_raw_path always uses GUID, never the pattern engine."""
+        from arm_contracts import MediaMetadata
         sample_job.video_type = "music"
-        sample_job.artist = "The Beatles"
-        sample_job.album = "Abbey Road"
+        sample_job.set_metadata_auto(MediaMetadata(
+            artist="The Beatles",
+            album="Abbey Road",
+        ))
         sample_job.title_auto = "Beatles Abbey Road"
         assert sample_job.build_raw_path() == f"/home/arm/media/raw/{sample_job.guid}"
 
 
 class TestStructuredFieldColumns:
-    """Test that the 12 new structured columns exist and are persisted."""
+    """Test the surviving structured columns (season/episode).
 
-    def test_artist_columns_persist(self, sample_job, app_context):
-        from arm.database import db
-        sample_job.artist = "Queen"
-        sample_job.artist_auto = "Queen"
-        sample_job.artist_manual = "Queen (band)"
-        db.session.commit()
-        db.session.refresh(sample_job)
-        assert sample_job.artist == "Queen"
-        assert sample_job.artist_auto == "Queen"
-        assert sample_job.artist_manual == "Queen (band)"
-
-    def test_album_columns_persist(self, sample_job, app_context):
-        from arm.database import db
-        sample_job.album = "Jazz"
-        sample_job.album_auto = "Jazz"
-        sample_job.album_manual = None
-        db.session.commit()
-        db.session.refresh(sample_job)
-        assert sample_job.album == "Jazz"
-        assert sample_job.album_auto == "Jazz"
-        assert sample_job.album_manual is None
+    artist/album/poster_url columns were retired by the
+    media_metadata_columns migration; their replacements live in the
+    media_metadata JSON blob and are covered by test_job_media_metadata.py.
+    """
 
     def test_season_episode_columns_persist(self, sample_job, app_context):
         from arm.database import db
@@ -253,11 +239,9 @@ class TestStructuredFieldColumns:
         assert sample_job.episode_manual == "13"
 
     def test_columns_nullable(self, sample_job, app_context):
-        """All structured fields default to None."""
+        """Surviving structured fields default to None."""
         from arm.database import db
         db.session.refresh(sample_job)
-        assert sample_job.artist is None
-        assert sample_job.album is None
         assert sample_job.season is None
         assert sample_job.episode is None
 
