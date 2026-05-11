@@ -821,6 +821,59 @@ def _normalize_tmdb_movie_to_metadata(tmdb: dict) -> MediaMetadata:
     )
 
 
+# ---------------------------------------------------------------------------
+# TVDB -> MediaMetadata adapter (post-MediaMetadata-contract migration)
+# ---------------------------------------------------------------------------
+
+
+def _tvdb_extract_network(network: Any) -> Optional[str]:
+    """TVDB returns network as either {'name': ...} or a plain string."""
+    if isinstance(network, dict):
+        return network.get("name") or None
+    if isinstance(network, str):
+        return network or None
+    return None
+
+
+def _tvdb_extract_genres(genres: Any) -> list[str]:
+    """TVDB returns genres as either [{'name': ...}, ...] or [str, ...]."""
+    if not genres:
+        return []
+    out: list[str] = []
+    for g in genres:
+        if isinstance(g, dict):
+            name = g.get("name")
+            if name:
+                out.append(name)
+        elif isinstance(g, str) and g:
+            out.append(g)
+    return out
+
+
+def _normalize_tvdb_to_metadata(
+    tvdb: dict, *, video_type: VideoType
+) -> MediaMetadata:
+    """Convert a TVDB series/movie response into MediaMetadata.
+
+    Caller passes the canonical `video_type` because TVDB uses separate
+    endpoints (`/series/{id}` vs `/movies/{id}`) with the same payload
+    shape.
+    """
+    return MediaMetadata(
+        title=tvdb.get("name") or None,
+        year=tvdb.get("year") or _tmdb_year_from_date(tvdb.get("firstAired")),
+        video_type=video_type,
+        poster_url=tvdb.get("image") or None,
+        plot=tvdb.get("overview") or None,
+        released_date=_tmdb_release_date(tvdb.get("firstAired")),
+        language=tvdb.get("originalLanguage") or None,
+        country=tvdb.get("country") or None,
+        network=_tvdb_extract_network(tvdb.get("network")),
+        genres=_tvdb_extract_genres(tvdb.get("genres")),
+        imdb_rating=tvdb.get("score"),
+    )
+
+
 async def _tmdb_get_imdb(
     tmdb_id: int, media_type: str, api_key: str
 ) -> str | None:
