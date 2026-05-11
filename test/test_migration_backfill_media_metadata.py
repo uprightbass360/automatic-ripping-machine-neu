@@ -46,8 +46,8 @@ def _insert(engine, job_id, imdb_id, blob=None):
     with engine.begin() as conn:
         conn.execute(
             sa.text(
-                "INSERT INTO job (job_id, imdb_id, imdb_id_auto, media_metadata_auto, guid) "
-                "VALUES (:jid, :imdb, :imdb, :blob, :guid)"
+                "INSERT INTO job (job_id, status, disctype, imdb_id, imdb_id_auto, media_metadata_auto, guid) "
+                "VALUES (:jid, 'success', 'dvd', :imdb, :imdb, :blob, :guid)"
             ),
             {"jid": job_id, "imdb": imdb_id, "blob": blob, "guid": f"g-{job_id}"},
         )
