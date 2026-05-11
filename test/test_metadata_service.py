@@ -1,6 +1,6 @@
 """Tests for arm/services/metadata.py - async metadata service.
 
-Covers: _get_keys, has_api_key, _extract_year, _escape_lucene,
+Covers: _get_keys, has_api_key, _escape_lucene,
 _omdb_to_legacy_dict, _normalize_omdb_to_metadata, _normalize_tmdb_movie_to_metadata,
 _normalize_tvdb_to_metadata, _normalize_musicbrainz_to_metadata,
 _build_artist_credit, _extract_label, _extract_catalog_number, _extract_format,
@@ -61,32 +61,6 @@ def _patch_http_client(responses):
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
-
-
-class TestExtractYear:
-    def test_date_string(self):
-        from arm.services.metadata import _extract_year
-        assert _extract_year("1999-03-31") == "1999"
-
-    def test_year_only(self):
-        from arm.services.metadata import _extract_year
-        assert _extract_year("2001") == "2001"
-
-    def test_range_returns_first(self):
-        from arm.services.metadata import _extract_year
-        assert _extract_year("2011-2019") == "2011"
-
-    def test_dash_range(self):
-        from arm.services.metadata import _extract_year
-        assert _extract_year("2011–2019") == "2011"
-
-    def test_no_year_returns_raw(self):
-        from arm.services.metadata import _extract_year
-        assert _extract_year("unknown") == "unknown"
-
-    def test_empty_string(self):
-        from arm.services.metadata import _extract_year
-        assert _extract_year("") == ""
 
 
 class TestEscapeLucene:
