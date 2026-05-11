@@ -728,6 +728,99 @@ async def _normalize_tmdb(
     }
 
 
+# ---------------------------------------------------------------------------
+# TMDb -> MediaMetadata adapter (post-MediaMetadata-contract migration)
+# ---------------------------------------------------------------------------
+
+
+def _tmdb_poster_url(poster_path: Optional[str]) -> Optional[str]:
+    if not poster_path:
+        return None
+    return f"{TMDB_POSTER_BASE}{poster_path}"
+
+
+def _tmdb_year_from_date(release_date: Optional[str]) -> Optional[str]:
+    if not release_date or len(release_date) < 4:
+        return None
+    head = release_date[:4]
+    return head if head.isdigit() else None
+
+
+def _tmdb_release_date(release_date: Optional[str]) -> Optional[date]:
+    if not release_date:
+        return None
+    try:
+        return datetime.strptime(release_date, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _tmdb_us_certification(release_dates: Optional[dict]) -> Optional[str]:
+    """Find the US certification in TMDb's nested release_dates structure."""
+    if not release_dates:
+        return None
+    for entry in release_dates.get("results", []) or []:
+        if entry.get("iso_3166_1") == "US":
+            for rd in entry.get("release_dates") or []:
+                cert = rd.get("certification")
+                if cert:
+                    return cert
+    return None
+
+
+def _tmdb_extract_credits(credits: Optional[dict], role: str) -> list[str]:
+    """Extract crew names matching a job (e.g. 'Director', 'Writer')."""
+    if not credits:
+        return []
+    return [
+        c.get("name", "")
+        for c in (credits.get("crew") or [])
+        if c.get("job") == role and c.get("name")
+    ]
+
+
+def _tmdb_extract_cast(credits: Optional[dict], top_n: int = 5) -> list[str]:
+    if not credits:
+        return []
+    cast_sorted = sorted(
+        credits.get("cast") or [],
+        key=lambda c: c.get("order", 999),
+    )
+    return [c.get("name", "") for c in cast_sorted[:top_n] if c.get("name")]
+
+
+def _normalize_tmdb_movie_to_metadata(tmdb: dict) -> MediaMetadata:
+    """Convert a TMDb /movie/{id} response into MediaMetadata.
+
+    Assumes the response was fetched with
+    `?append_to_response=credits,release_dates` so credits + certification
+    are inline.
+    """
+    runtime_min = tmdb.get("runtime")
+    return MediaMetadata(
+        title=tmdb.get("title") or None,
+        year=_tmdb_year_from_date(tmdb.get("release_date")),
+        video_type=VideoType.movie,
+        imdb_id=tmdb.get("imdb_id") or None,
+        poster_url=_tmdb_poster_url(tmdb.get("poster_path")),
+        runtime_seconds=runtime_min * 60 if runtime_min else None,
+        plot=tmdb.get("overview") or None,
+        tagline=tmdb.get("tagline") or None,
+        released_date=_tmdb_release_date(tmdb.get("release_date")),
+        language=tmdb.get("original_language") or None,
+        country=(tmdb.get("origin_country") or [None])[0],
+        production_company=(
+            tmdb.get("production_companies") or [{}]
+        )[0].get("name") or None,
+        imdb_rating=tmdb.get("vote_average"),
+        genres=[g["name"] for g in tmdb.get("genres") or [] if g.get("name")],
+        directors=_tmdb_extract_credits(tmdb.get("credits"), "Director"),
+        writers=_tmdb_extract_credits(tmdb.get("credits"), "Writer"),
+        actors=_tmdb_extract_cast(tmdb.get("credits"), top_n=5),
+        mpaa_rating=_tmdb_us_certification(tmdb.get("release_dates")),
+    )
+
+
 async def _tmdb_get_imdb(
     tmdb_id: int, media_type: str, api_key: str
 ) -> str | None:
