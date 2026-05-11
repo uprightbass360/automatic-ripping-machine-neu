@@ -66,14 +66,14 @@ def test_backfill_writes_blob_for_imdb_only_rows(upgraded_db):
     _insert(engine, 1, "tt7777")
 
     async def fake(imdb_id):
-        return {"poster_url": f"http://api/{imdb_id}.jpg", "video_type": "movie"}
+        return {"poster_url": f"https://api/{imdb_id}.jpg", "video_type": "movie"}
 
     with unittest.mock.patch("arm.services.metadata.get_details", side_effect=fake):
         command.upgrade(cfg, _AFTER)
 
     blob = _fetch_blob(engine, 1)
     assert blob is not None
-    assert "http://api/tt7777.jpg" in blob
+    assert "https://api/tt7777.jpg" in blob
 
 
 def test_backfill_leaves_existing_blob_untouched(upgraded_db):
