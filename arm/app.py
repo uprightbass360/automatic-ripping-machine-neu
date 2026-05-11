@@ -1,4 +1,5 @@
 """ARM API server - FastAPI."""
+import asyncio
 import functools
 import inspect
 import logging
@@ -116,6 +117,12 @@ async def lifespan(app: FastAPI):
         cfg.arm_config.get("INSTALLPATH", ""),
     ])
     start_background_refresh()
+
+    # Schedule the MediaMetadata blob backfill for pre-Phase-2 jobs in the
+    # background so it never blocks startup. Self-terminates once every job
+    # with imdb_id but no blob has been (best-effort) refetched.
+    from arm.services.metadata_backfill import backfill_media_metadata
+    asyncio.create_task(backfill_media_metadata())
 
     log.info("ARM API server starting up.")
     yield
