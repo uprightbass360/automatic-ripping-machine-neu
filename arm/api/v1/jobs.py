@@ -157,6 +157,15 @@ def _job_to_dict(job):
         except (json.JSONDecodeError, TypeError):
             data["transcode_overrides"] = None
     data["expected_titles"] = list(job.expected_titles or [])
+
+    # Project MediaMetadata into the JobContract's legacy flat fields so the
+    # wire shape stays back-compat after the columns moved into the blob.
+    meta = job.media_metadata
+    if meta is not None:
+        for legacy_field in ("poster_url", "artist", "album", "year", "imdb_id", "video_type"):
+            value = getattr(meta, legacy_field, None)
+            if value not in (None, "", []):
+                data[legacy_field] = value
     return JobContract.model_validate(data).model_dump(mode="json")
 
 
