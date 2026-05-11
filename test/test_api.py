@@ -3377,3 +3377,33 @@ class TestApiRetranscodeInfo:
         assert data["multi_title"] is True
         assert len(data["tracks"]) == 1
         assert data["tracks"][0]["title"] == "The Movie"
+
+
+class TestApiJobMetadata:
+    """GET /api/v1/jobs/{job_id}/metadata returns the merged MediaMetadata."""
+
+    def test_get_job_metadata_endpoint(self, client, app_context):
+        from arm.database import db
+        from arm.models.job import Job
+        from arm_contracts import MediaMetadata
+
+        job = Job(devpath="/dev/sr0", _skip_hardware=True)
+        job.set_metadata_auto(MediaMetadata(
+            title="Annihilation",
+            year="2018",
+            directors=["Alex Garland"],
+            genres=["Sci-Fi", "Drama"],
+        ))
+        db.session.add(job)
+        db.session.commit()
+
+        resp = client.get(f"/api/v1/jobs/{job.job_id}/metadata")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["title"] == "Annihilation"
+        assert data["directors"] == ["Alex Garland"]
+        assert data["genres"] == ["Sci-Fi", "Drama"]
+
+    def test_get_job_metadata_404_for_unknown_job(self, client):
+        resp = client.get("/api/v1/jobs/999999/metadata")
+        assert resp.status_code == 404
