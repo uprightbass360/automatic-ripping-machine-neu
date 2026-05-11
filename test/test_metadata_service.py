@@ -1596,3 +1596,66 @@ def test_normalize_omdb_series_sets_video_type_series():
     assert m.video_type == VideoType.series
     # Year range '2008-2013' should yield first year 2008
     assert m.year == "2008"
+
+
+# ---------------------------------------------------------------------------
+# TMDb -> MediaMetadata normalization (Task 10)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_tmdb_movie_returns_media_metadata():
+    """TMDb movie /{id} response normalizes to MediaMetadata."""
+    from datetime import date
+    from arm.services.metadata import _normalize_tmdb_movie_to_metadata
+
+    tmdb = {
+        "id": 300668,
+        "title": "Annihilation",
+        "release_date": "2018-02-22",
+        "runtime": 115,
+        "overview": "A biologist...",
+        "tagline": "Fear what's inside.",
+        "poster_path": "/path.jpg",
+        "backdrop_path": "/back.jpg",
+        "imdb_id": "tt2798920",
+        "original_language": "en",
+        "origin_country": ["US"],
+        "production_companies": [{"name": "Paramount"}],
+        "vote_average": 6.8,
+        "genres": [{"name": "Drama"}, {"name": "Sci-Fi"}],
+        "credits": {
+            "crew": [
+                {"job": "Director", "name": "Alex Garland"},
+                {"job": "Writer", "name": "Alex Garland"},
+                {"job": "Director of Photography", "name": "Rob Hardy"},
+            ],
+            "cast": [
+                {"name": "Natalie Portman", "order": 0},
+                {"name": "Jennifer Jason Leigh", "order": 1},
+            ],
+        },
+        "release_dates": {
+            "results": [
+                {"iso_3166_1": "US", "release_dates": [{"certification": "R"}]},
+                {"iso_3166_1": "GB", "release_dates": [{"certification": "15"}]},
+            ],
+        },
+    }
+    m = _normalize_tmdb_movie_to_metadata(tmdb)
+    assert m.title == "Annihilation"
+    assert m.year == "2018"
+    assert m.runtime_seconds == 115 * 60
+    assert m.released_date == date(2018, 2, 22)
+    assert m.plot == "A biologist..."
+    assert m.tagline == "Fear what's inside."
+    assert m.imdb_id == "tt2798920"
+    assert m.language == "en"
+    assert m.country == "US"
+    assert m.production_company == "Paramount"
+    assert m.imdb_rating == pytest.approx(6.8)
+    assert m.genres == ["Drama", "Sci-Fi"]
+    assert m.directors == ["Alex Garland"]
+    assert m.writers == ["Alex Garland"]
+    assert m.actors == ["Natalie Portman", "Jennifer Jason Leigh"]
+    assert m.mpaa_rating == "R"  # US certification
+    assert "https://image.tmdb.org/t/p/" in (m.poster_url or "")
