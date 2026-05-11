@@ -1,12 +1,25 @@
 """Naming pattern engine for display titles and folder paths.
 
 Supports per-type patterns with {variable} placeholders.
-Variables are extracted from Job fields, preferring manual over auto values.
-Per-job pattern overrides and per-track custom filenames are supported.
+Variables are extracted from Job fields + MediaMetadata, preferring manual
+over auto values. Per-job pattern overrides and per-track custom filenames
+are supported.
+
+Token vocabulary:
+- "Core" tokens (title, show, year, season, episode, episode_name, video_type,
+  imdb_id) are read directly from Job columns - the matcher writes these
+  during disc identification.
+- "Editorial" tokens (artist, album, director, genre, plot, tagline, etc.)
+  are read from Job.media_metadata, which merges manual-over-auto from the
+  two media_metadata_* JSON columns.
+- "Engine-only" tokens (label, disc_number, disc_total) come from Job
+  columns directly.
 """
 import logging
 import os
 import re
+
+from arm_contracts import PATTERN_TOKENS
 
 _TITLE_YEAR_PATTERN = '{title} ({year})'
 
@@ -19,25 +32,31 @@ DEFAULTS = {
     'MUSIC_FOLDER_PATTERN': '{artist}/{album} ({year})',
 }
 
-# Canonical list of variables available in naming patterns.
-# This is the single source of truth — UI, validation, and config docs derive from this.
-PATTERN_VARIABLES = {
-    'title':        'Disc title (may be episode title on multi-title TV discs)',
+# Tokens the engine sources from Job columns (not from MediaMetadata), in
+# addition to anything PATTERN_TOKENS covers. Kept here so the validator
+# accepts them.
+# - {show} mirrors {title} at job level; never gets overridden at track-level.
+# - {episode} is the per-track concept (track-level), not part of MediaMetadata.
+# - {episode_name} is the TVDB-matched per-track episode title.
+# - label / disc_number / disc_total are physical-disc properties.
+_ENGINE_ONLY_TOKENS = {
     'show':         'Series/show name (always the job-level title, never overridden by track)',
-    'year':         'Release year',
-    'artist':       'Music artist name',
-    'album':        'Music album name',
-    'season':       'TV season number (zero-padded to 2 digits)',
     'episode':      'TV episode number (zero-padded to 2 digits)',
     'episode_name': 'TV episode title from TVDB (track-level only)',
     'label':        'Original disc label from drive',
-    'video_type':   'Media type: movie, series, or music',
     'disc_number':  'Disc number in a multi-disc set',
     'disc_total':   'Total number of discs in the set',
-    'imdb_id':      'IMDb ID (e.g. tt0111161) for Jellyfin/Plex folder matching',
 }
 
-# Frozen set for fast validation — derived from PATTERN_VARIABLES
+# PATTERN_VARIABLES: source-of-truth for what tokens patterns can use.
+# Contract-derived tokens come from PATTERN_TOKENS in arm_contracts;
+# engine-only tokens are local to this module.
+PATTERN_VARIABLES = {
+    **{alias: desc for alias, (_, desc, _) in PATTERN_TOKENS.items()},
+    **_ENGINE_ONLY_TOKENS,
+}
+
+# Frozen set for fast validation - derived from PATTERN_VARIABLES
 VALID_VARS: frozenset = frozenset(PATTERN_VARIABLES.keys())
 
 # Map video_type to pattern key prefixes
@@ -54,38 +73,104 @@ class _SafeDict(dict):
         return ''
 
 
+def _job_media_metadata(job):
+    """Read MediaMetadata off a Job, tolerating sample namespaces in tests.
+
+    A real Job has a `media_metadata` property that merges the two JSON
+    blob columns. SimpleNamespace fixtures in unit tests may or may not
+    set one; in that case we return None and fall back to whatever the
+    test attached to the namespace directly.
+    """
+    return getattr(job, 'media_metadata', None)
+
+
 def _build_variables(job):
-    """Extract all pattern variables from a Job, preferring manual over auto."""
+    """Extract all pattern variables from a Job + its MediaMetadata.
+
+    Job columns drive `title`, `year`, `season`, `episode`, `imdb_id`,
+    `video_type`, `label`, `disc_number`, `disc_total` (matcher writes
+    these directly during identification). MediaMetadata fills in the
+    editorial tokens (director, genre, plot, etc.) plus poster_url and
+    artist/album/album_artist for music jobs.
+
+    Manual-over-auto is layered:
+    - Job-side: `_manual` columns override base columns (title_manual,
+      year_manual, etc.).
+    - MediaMetadata-side: the merged-read property in Job already does
+      field-by-field manual-over-auto from the two JSON blobs.
+    """
+    metadata = _job_media_metadata(job)
+
+    # Core tokens from Job columns (matcher writes these in identify.py).
     title = job.title_manual or job.title or ''
     year = job.year_manual or job.year or ''
     if year == '0000':
         year = ''
-    artist = getattr(job, 'artist_manual', None) or getattr(job, 'artist', None) or ''
-    album = getattr(job, 'album_manual', None) or getattr(job, 'album', None) or ''
     season = getattr(job, 'season_manual', None) or getattr(job, 'season', None) or getattr(job, 'season_auto', None) or ''
     episode = getattr(job, 'episode_manual', None) or getattr(job, 'episode', None) or getattr(job, 'episode_auto', None) or ''
-
-    # Zero-pad season/episode to 2 digits if numeric
     if season and season.isdigit():
         season = season.zfill(2)
     if episode and episode.isdigit():
         episode = episode.zfill(2)
 
-    return _SafeDict({
+    # Music tokens used to live on Job columns; now they're MediaMetadata.
+    # Take MediaMetadata first, then fall back to legacy job attributes
+    # (set by older code paths and still attached as instance attrs by
+    # tests / pre-migration code). Preserves _manual-over-base override
+    # semantics for backwards-compat.
+    artist = ''
+    album = ''
+    if metadata is not None:
+        artist = metadata.artist or ''
+        album = metadata.album or ''
+    if not artist:
+        artist = (getattr(job, 'artist_manual', None)
+                  or getattr(job, 'artist', None) or '')
+    if not album:
+        album = (getattr(job, 'album_manual', None)
+                 or getattr(job, 'album', None) or '')
+
+    out = _SafeDict()
+
+    # Contract-derived tokens from MediaMetadata, using each token's
+    # accessor lambda. None / empty values render as empty strings.
+    if metadata is not None:
+        for alias, (field_name, _desc, accessor) in PATTERN_TOKENS.items():
+            value = getattr(metadata, field_name, None)
+            if value is None or value == [] or value == "":
+                out[alias] = ''
+            else:
+                try:
+                    out[alias] = accessor(value)
+                except Exception:  # noqa: BLE001 - never break naming on a bad token
+                    out[alias] = ''
+    else:
+        # No MediaMetadata available (e.g. test fixture without it). Seed
+        # the contract tokens to empty so format_map doesn't insert '' for
+        # them from _SafeDict alone (it would, but being explicit avoids
+        # surprises later).
+        for alias in PATTERN_TOKENS:
+            out[alias] = ''
+
+    # Core tokens override the contract-derived defaults. Job columns are
+    # authoritative for these because they participate in matching and UI
+    # workflows beyond the naming engine.
+    out.update({
         'title': title,
-        'show': title,  # Always the job-level title (show name for TV)
+        'show': title,  # Always the job-level title (show name for TV).
         'year': year,
         'artist': artist,
         'album': album,
         'season': season,
         'episode': episode,
-        'episode_name': '',  # Populated at track level from TVDB
+        'episode_name': '',  # Populated at track level from TVDB.
         'label': getattr(job, 'label', '') or '',
         'video_type': getattr(job, 'video_type', '') or '',
         'disc_number': str(getattr(job, 'disc_number', '') or ''),
         'disc_total': str(getattr(job, 'disc_total', '') or ''),
         'imdb_id': getattr(job, 'imdb_id', '') or '',
     })
+    return out
 
 
 def _clean_empty_parens(s):

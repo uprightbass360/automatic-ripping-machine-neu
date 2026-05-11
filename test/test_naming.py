@@ -714,3 +714,71 @@ def test_clean_for_filename_preserves_square_brackets():
     """clean_for_filename keeps [] so [imdbid-ttXXXXXXX] tags survive."""
     from arm.ripper.naming import clean_for_filename
     assert clean_for_filename('Foo (2024) [imdbid-tt1234567]') == 'Foo (2024) [imdbid-tt1234567]'
+
+
+# --- PATTERN_TOKENS contract derivation (Task 13) ---
+
+
+def test_pattern_variables_includes_new_contract_tokens():
+    """The naming engine must expose every PATTERN_TOKENS alias as a variable."""
+    from arm.ripper.naming import PATTERN_VARIABLES, VALID_VARS
+    from arm_contracts import PATTERN_TOKENS
+
+    for alias in PATTERN_TOKENS:
+        assert alias in PATTERN_VARIABLES, f"missing token in engine: {alias}"
+        assert alias in VALID_VARS
+
+    # Engine-only tokens (not in contract): label, disc_number, disc_total, episode
+    for engine_alias in ("label", "disc_number", "disc_total", "episode"):
+        assert engine_alias in PATTERN_VARIABLES
+
+
+def test_render_title_uses_director_token(app_context):
+    """A pattern with {director} renders from MediaMetadata.directors[0]."""
+    from arm.database import db
+    from arm.models.job import Job
+    from arm.ripper.naming import render_title
+    from arm_contracts import MediaMetadata
+    from arm_contracts.enums import VideoType
+
+    job = Job(devpath="/dev/sr0", _skip_hardware=True)
+    job.video_type = "movie"  # the existing column drives pattern selection
+    job.title = "Annihilation"
+    job.year = "2018"
+    job.set_metadata_auto(MediaMetadata(
+        title="Annihilation",
+        year="2018",
+        video_type=VideoType.movie,
+        directors=["Alex Garland"],
+        genres=["Sci-Fi", "Drama"],
+        mpaa_rating="R",
+    ))
+    db.session.add(job)
+    db.session.commit()
+
+    rendered = render_title(job, config_dict={
+        "MOVIE_TITLE_PATTERN": "{title} - {director} ({year})"
+    })
+    assert rendered == "Annihilation - Alex Garland (2018)"
+
+
+def test_render_title_genre_token_returns_first(app_context):
+    from arm.database import db
+    from arm.models.job import Job
+    from arm.ripper.naming import render_title
+    from arm_contracts import MediaMetadata
+
+    job = Job(devpath="/dev/sr0", _skip_hardware=True)
+    job.video_type = "movie"
+    job.title = "Test"
+    job.set_metadata_auto(MediaMetadata(
+        title="Test", year="2024",
+        genres=["Sci-Fi", "Drama"],
+    ))
+    db.session.add(job)
+    db.session.commit()
+
+    rendered = render_title(job, config_dict={
+        "MOVIE_TITLE_PATTERN": "{title} [{genre}]"
+    })
+    assert rendered == "Test [Sci-Fi]"
