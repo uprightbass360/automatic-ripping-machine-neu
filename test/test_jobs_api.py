@@ -560,25 +560,3 @@ def test_job_list_projects_media_metadata_into_flat_fields(client, app_context, 
     assert d["album"] == "You've Come a Long Way, Baby"
 
 
-def test_drives_with_jobs_projects_poster_url(client, app_context, sample_job, sample_drives):
-    """Regression: dashboard 'drive currently working on' badge reads poster_url.
-
-    _job_summary on /api/v1/drives/with-jobs projects MediaMetadata.poster_url
-    into the JobSummary wire shape after the column purge.
-    """
-    from arm_contracts import MediaMetadata
-    from arm.models.system_drives import SystemDrives
-
-    sample_job.set_metadata_auto(MediaMetadata(
-        poster_url="https://example.com/badge-poster.jpg",
-    ))
-    drive = SystemDrives.query.first()
-    drive.job_id_current = sample_job.job_id
-    db.session.commit()
-
-    response = client.get("/api/v1/drives/with-jobs")
-    assert response.status_code == 200
-    drives = response.json()["drives"]
-    matching = [d for d in drives if d.get("current_job") and d["current_job"].get("job_id") == sample_job.job_id]
-    assert matching, "expected at least one drive with current_job set to sample_job"
-    assert matching[0]["current_job"]["poster_url"] == "https://example.com/badge-poster.jpg"

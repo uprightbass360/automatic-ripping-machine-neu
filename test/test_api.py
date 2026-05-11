@@ -2806,6 +2806,26 @@ class TestApiDrivesWithJobs:
         for drive in data["drives"]:
             assert drive["current_job"] is None
 
+    def test_drives_with_jobs_projects_poster_url(self, client, sample_drives, sample_job, app_context):
+        """Regression: dashboard 'drive currently working on' badge reads poster_url.
+
+        _job_summary on /api/v1/drives/with-jobs projects MediaMetadata.poster_url
+        into the JobSummary wire shape after the Phase 2 column purge.
+        """
+        from arm.database import db
+        from arm_contracts import MediaMetadata
+
+        sample_job.set_metadata_auto(MediaMetadata(
+            poster_url="https://example.com/badge-poster.jpg",
+        ))
+        sample_drives[0].job_id_current = sample_job.job_id
+        db.session.commit()
+
+        response = client.get('/api/v1/drives/with-jobs')
+        assert response.status_code == 200
+        drive = next(d for d in response.json()["drives"] if d["name"] == "Living Room")
+        assert drive["current_job"]["poster_url"] == "https://example.com/badge-poster.jpg"
+
 
 class TestApiJobDetail:
     """Test GET /api/v1/jobs/<id>/detail endpoint."""
