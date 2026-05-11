@@ -1,10 +1,11 @@
-"""Tests for arm/services/metadata.py — async metadata service.
+"""Tests for arm/services/metadata.py - async metadata service.
 
 Covers: _get_keys, has_api_key, _extract_year, _escape_lucene,
-_normalize_omdb, _build_artist_credit, _extract_label, _extract_catalog_number,
-_extract_format, _omdb_search, _omdb_details, _tmdb_search, _tmdb_find,
-_tmdb_get_imdb, search, get_details, search_music, get_music_details,
-lookup_crc, test_configured_key.
+_omdb_to_legacy_dict, _normalize_omdb_to_metadata, _normalize_tmdb_movie_to_metadata,
+_normalize_tvdb_to_metadata, _normalize_musicbrainz_to_metadata,
+_build_artist_credit, _extract_label, _extract_catalog_number, _extract_format,
+_omdb_search, _omdb_details, _tmdb_search, _tmdb_find, _tmdb_get_imdb, search,
+get_details, search_music, get_music_details, lookup_crc, test_configured_key.
 """
 
 import asyncio
@@ -112,10 +113,16 @@ class TestEscapeLucene:
         assert "\\-" in result
 
 
-class TestNormalizeOmdb:
+class TestOmdbToLegacyDict:
+    """Wire-shape projection used by /api/v1/metadata/search and /metadata/{id}.
+
+    Backs the dict that arm-ui currently consumes; field names are stable
+    even after we moved the underlying normalization to MediaMetadata.
+    """
+
     def test_movie_type(self):
-        from arm.services.metadata import _normalize_omdb
-        result = _normalize_omdb({"Title": "Matrix", "Year": "1999", "Type": "movie",
+        from arm.services.metadata import _omdb_to_legacy_dict
+        result = _omdb_to_legacy_dict({"Title": "Matrix", "Year": "1999", "Type": "movie",
                                    "imdbID": "tt0133093", "Poster": "http://img.com/p.jpg"})
         assert result["title"] == "Matrix"
         assert result["year"] == "1999"
@@ -124,32 +131,32 @@ class TestNormalizeOmdb:
         assert result["poster_url"] == "http://img.com/p.jpg"
 
     def test_series_type(self):
-        from arm.services.metadata import _normalize_omdb
-        result = _normalize_omdb({"Title": "Friends", "Year": "1994–2004", "Type": "series",
+        from arm.services.metadata import _omdb_to_legacy_dict
+        result = _omdb_to_legacy_dict({"Title": "Friends", "Year": "1994–2004", "Type": "series",
                                    "imdbID": "tt0108778", "Poster": "N/A"})
         assert result["media_type"] == "series"
         assert result["year"] == "1994"
         assert result["poster_url"] is None
 
     def test_unknown_type_defaults_to_movie(self):
-        from arm.services.metadata import _normalize_omdb
-        result = _normalize_omdb({"Title": "X", "Year": "2020", "Type": "game",
+        from arm.services.metadata import _omdb_to_legacy_dict
+        result = _omdb_to_legacy_dict({"Title": "X", "Year": "2020", "Type": "game",
                                    "imdbID": "tt0000001"})
         assert result["media_type"] == "movie"
 
     def test_missing_type_defaults_to_movie(self):
-        from arm.services.metadata import _normalize_omdb
-        result = _normalize_omdb({"Title": "X", "Year": "2020", "imdbID": "tt0000001"})
+        from arm.services.metadata import _omdb_to_legacy_dict
+        result = _omdb_to_legacy_dict({"Title": "X", "Year": "2020", "imdbID": "tt0000001"})
         assert result["media_type"] == "movie"
 
     def test_poster_na_normalized_to_none(self):
-        from arm.services.metadata import _normalize_omdb
-        result = _normalize_omdb({"Title": "X", "Year": "2020", "Poster": "N/A"})
+        from arm.services.metadata import _omdb_to_legacy_dict
+        result = _omdb_to_legacy_dict({"Title": "X", "Year": "2020", "Poster": "N/A"})
         assert result["poster_url"] is None
 
     def test_missing_poster(self):
-        from arm.services.metadata import _normalize_omdb
-        result = _normalize_omdb({"Title": "X", "Year": "2020"})
+        from arm.services.metadata import _omdb_to_legacy_dict
+        result = _omdb_to_legacy_dict({"Title": "X", "Year": "2020"})
         assert result["poster_url"] is None
 
 

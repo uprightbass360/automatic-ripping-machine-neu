@@ -508,7 +508,7 @@ async def _omdb_search(query: str, year: str | None, api_key: str, page: int = 1
     results = []
     if data.get("Response") == "True" and "Search" in data:
         for item in data["Search"]:
-            results.append(_normalize_omdb(item))
+            results.append(_omdb_to_legacy_dict(item))
         log.info("OMDb search for %r returned %d results", query, len(results))
         return results
 
@@ -523,31 +523,13 @@ async def _omdb_search(query: str, year: str | None, api_key: str, page: int = 1
             raise MetadataConfigError(_OMDB_KEY_ERROR)
         data = resp.json()
     if data.get("Response") == "True":
-        results.append(_normalize_omdb(data))
+        results.append(_omdb_to_legacy_dict(data))
     log.info("OMDb search for %r returned %d results (via ?t= fallback)", query, len(results))
     return results
 
 
-def _normalize_omdb(item: dict) -> dict[str, Any]:
-    media_type = (item.get("Type") or "movie").lower()
-    if media_type != "series":
-        media_type = "movie"
-    poster = item.get("Poster")
-    if poster == "N/A":
-        poster = None
-    year_raw = item.get("Year", "")
-    return {
-        "title": item.get("Title", ""),
-        "year": _extract_year(year_raw) if year_raw else "",
-        "imdb_id": item.get("imdbID"),
-        "media_type": media_type,
-        "poster_url": poster,
-        "runtime_seconds": parse_runtime(item.get("Runtime")),
-    }
-
-
 # ---------------------------------------------------------------------------
-# OMDb -> MediaMetadata adapter (post-MediaMetadata-contract migration)
+# OMDb -> MediaMetadata adapter (single source of truth for OMDb shape)
 # ---------------------------------------------------------------------------
 
 _OMDB_NA = "N/A"
@@ -645,6 +627,33 @@ def _normalize_omdb_to_metadata(omdb: dict) -> MediaMetadata:
     )
 
 
+def _omdb_to_legacy_dict(omdb: dict, *, include_details: bool = False) -> dict[str, Any]:
+    """Wire-shape projection of an OMDb response for the /api/v1/metadata HTTP API.
+
+    The HTTP wire shape is `media_type` (movie/series), not `video_type`
+    (enum), so we project from MediaMetadata back to the legacy field set
+    that arm-ui currently consumes. When `include_details` is True, also
+    emits `plot` + `background_url` (used by /metadata/{imdb_id}).
+    """
+    m = _normalize_omdb_to_metadata(omdb)
+    media_type = (
+        m.video_type.value if m.video_type is not None
+        else "movie"
+    )
+    out: dict[str, Any] = {
+        "title": m.title or "",
+        "year": m.year or "",
+        "imdb_id": m.imdb_id,
+        "media_type": media_type,
+        "poster_url": m.poster_url,
+        "runtime_seconds": m.runtime_seconds,
+    }
+    if include_details:
+        out["plot"] = m.plot
+        out["background_url"] = None  # OMDb has no background images
+    return out
+
+
 async def _omdb_details(imdb_id: str, api_key: str) -> dict[str, Any] | None:
     params = {"i": imdb_id, "plot": "short", "r": "json", "apikey": api_key}
     async with _http_client() as client:
@@ -655,11 +664,7 @@ async def _omdb_details(imdb_id: str, api_key: str) -> dict[str, Any] | None:
     if data.get("Response") != "True":
         log.debug("OMDb detail lookup for %s returned no result: %s", imdb_id, data.get("Error", "unknown"))
         return None
-    result = _normalize_omdb(data)
-    plot = data.get("Plot")
-    result["plot"] = plot if plot != "N/A" else None
-    result["background_url"] = None  # OMDb has no background images
-    return result
+    return _omdb_to_legacy_dict(data, include_details=True)
 
 
 # ---------------------------------------------------------------------------
@@ -685,7 +690,7 @@ async def _tmdb_search(query: str, year: str | None, api_key: str) -> list[dict[
     movie_count = data.get("total_results", 0)
     if movie_count > 0:
         for item in data["results"]:
-            results.append(await _normalize_tmdb(item, "movie", api_key))
+            results.append(await _tmdb_search_item_to_legacy_dict(item, "movie", api_key))
         log.info("TMDb movie search for %r returned %d results", query, len(results))
         return results
 
@@ -704,26 +709,29 @@ async def _tmdb_search(query: str, year: str | None, api_key: str) -> list[dict[
 
     if data.get("total_results", 0) > 0:
         for item in data["results"]:
-            results.append(await _normalize_tmdb(item, "series", api_key))
+            results.append(await _tmdb_search_item_to_legacy_dict(item, "series", api_key))
     log.info("TMDb TV search for %r returned %d results", query, len(results))
     return results
 
 
-async def _normalize_tmdb(
+async def _tmdb_search_item_to_legacy_dict(
     item: dict, media_type: str, api_key: str
 ) -> dict[str, Any]:
+    """Wire-shape projection of a TMDb search result for /api/v1/metadata.
+
+    TMDb search responses don't include imdb_id, so we fetch it via the
+    external_ids endpoint. TV results use `name` / `first_air_date` where
+    movies use `title` / `release_date`.
+    """
     title = item.get("title") or item.get("name", "")
     release = item.get("release_date") or item.get("first_air_date") or ""
-    year = _extract_year(release) if release else ""
-    poster_path = item.get("poster_path")
-    poster_url = f"{TMDB_POSTER_BASE}{poster_path}" if poster_path else None
     imdb_id = await _tmdb_get_imdb(item["id"], media_type, api_key)
     return {
-        "title": title,
-        "year": year,
+        "title": title or "",
+        "year": _tmdb_year_from_date(release) or "",
         "imdb_id": imdb_id,
         "media_type": media_type,
-        "poster_url": poster_url,
+        "poster_url": _tmdb_poster_url(item.get("poster_path")),
         "runtime_seconds": parse_runtime(item.get("runtime")),
     }
 
