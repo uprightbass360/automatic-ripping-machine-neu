@@ -141,9 +141,6 @@ class Job(db.Model):
     imdb_id = db.Column(db.String(15))
     imdb_id_auto = db.Column(db.String(15))
     imdb_id_manual = db.Column(db.String(15))
-    poster_url = db.Column(db.String(256))
-    poster_url_auto = db.Column(db.String(256))
-    poster_url_manual = db.Column(db.String(256))
     devpath = db.Column(db.String(15))
     mountpoint = db.Column(db.String(20))
     hasnicetitle = db.Column(db.Boolean)
@@ -153,13 +150,6 @@ class Job(db.Model):
     path = db.Column(db.String(256))
     raw_path = db.Column(db.String(256))
     transcode_path = db.Column(db.String(256))
-    # Music structured fields
-    artist = db.Column(db.String(256))
-    artist_auto = db.Column(db.String(256))
-    artist_manual = db.Column(db.String(256))
-    album = db.Column(db.String(256))
-    album_auto = db.Column(db.String(256))
-    album_manual = db.Column(db.String(256))
     # TV structured fields
     season = db.Column(db.String(10))
     season_auto = db.Column(db.String(10))
