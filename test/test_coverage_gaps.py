@@ -169,12 +169,17 @@ class TestBuildMusicArgs:
             42, 'xyz', 'Pink Floyd', 'The Wall', '1979', 26
         )
         assert args['job_id'] == '42'
-        assert args['artist'] == 'Pink Floyd'
-        assert args['album'] == 'The Wall'
         assert args['year'] == '1979'
         assert args['no_of_titles'] == 26
         assert args['video_type'] == 'music'
         assert artist_title == 'Pink Floyd The Wall'
+        # artist/album now ride in media_metadata_auto, not as standalone keys.
+        import json
+        blob = json.loads(args['media_metadata_auto'])
+        assert blob['artist'] == 'Pink Floyd'
+        assert blob['album'] == 'The Wall'
+        assert blob['video_type'] == 'music'
+        assert blob['year'] == '1979'
 
 
 # ── utils.py: AUDIO_FORMAT flag and remaining rip_music paths ────────────

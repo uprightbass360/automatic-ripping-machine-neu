@@ -473,8 +473,11 @@ class TestGetCdArt:
              unittest.mock.patch('arm.ripper.utils.database_updater') as mock_db:
             result = music_brainz.get_cd_art(music_job, mb_disc_response)
         assert result is True
+        # poster_url is merged into media_metadata_auto, not a standalone key.
         args_dict = mock_db.call_args[0][0]
-        assert args_dict['poster_url'] == 'https://coverartarchive.org/release/abc/front.jpg'
+        import json
+        blob = json.loads(args_dict['media_metadata_auto'])
+        assert blob['poster_url'] == 'https://coverartarchive.org/release/abc/front.jpg'
 
     def test_no_artwork_returns_false(self, music_job):
         """No artwork in release returns False."""
@@ -1017,9 +1020,12 @@ class TestMusicPipelineEndToEnd:
         assert music_job.hasnicetitle is True
         assert music_job.year == '1973'
         assert music_job.video_type == 'music'
-        assert music_job.artist == 'Pink Floyd'
-        assert music_job.album == 'The Dark Side of the Moon'
-        assert music_job.poster_url == 'https://coverartarchive.org/release/abc/front.jpg'
+        # artist/album/poster_url now live in media_metadata_auto (legacy
+        # columns dropped by the media_metadata_columns migration).
+        meta = music_job.media_metadata
+        assert meta.artist == 'Pink Floyd'
+        assert meta.album == 'The Dark Side of the Moon'
+        assert meta.poster_url == 'https://coverartarchive.org/release/abc/front.jpg'
 
         # Verify 3 Track records created in DB with source=MusicBrainz
         tracks = Track.query.filter_by(job_id=music_job.job_id).order_by(Track.track_number).all()

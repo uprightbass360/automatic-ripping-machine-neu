@@ -158,8 +158,24 @@ def get_disc_info(job, discid: str) -> str:
 
 def _build_music_args(job_id, crc_id, artist, title, year, no_of_titles,
                       disc_number=None, disc_total=None):
-    """Build the database update args dict for music metadata."""
+    """Build the database update args dict for music metadata.
+
+    artist + album live in media_metadata_auto (the legacy artist/album
+    Job columns were retired by the media_metadata_columns migration).
+    The blob is bundled into args so it commits atomically with the
+    Job-column writes via database_updater.
+    """
+    from arm_contracts import MediaMetadata
+    from arm_contracts.enums import VideoType
     artist_title = artist + " " + title
+    metadata_blob = MediaMetadata(
+        video_type=VideoType.music,
+        title=title or None,
+        year=str(year) if year else None,
+        artist=artist or None,
+        album=title or None,
+        album_artist=artist or None,
+    ).model_dump_json()
     args = {
         'job_id': str(job_id),
         'crc_id': crc_id,
@@ -171,10 +187,7 @@ def _build_music_args(job_id, crc_id, artist, title, year, no_of_titles,
         'title': artist_title,
         'title_auto': artist_title,
         'no_of_titles': no_of_titles,
-        'artist': artist,
-        'artist_auto': artist,
-        'album': title,
-        'album_auto': title,
+        'media_metadata_auto': metadata_blob,
     }
     if disc_number is not None:
         args['disc_number'] = disc_number
@@ -442,12 +455,20 @@ def get_cd_art(job, disc_info: str) -> bool:
                 for image in artlist["images"]:
                     # We dont care if its verified ?
                     if "image" in image:
-                        args = {
-                            'poster_url': str(image["image"]),
-                            'poster_url_auto': str(image["image"])
-                        }
+                        # Merge poster_url into the existing media_metadata_auto
+                        # blob (which _build_music_args populated with artist/
+                        # album/year). The legacy poster_url Job column was
+                        # retired by the media_metadata_columns migration.
+                        from arm_contracts import MediaMetadata
+                        existing = MediaMetadata.model_validate_json(
+                            job.media_metadata_auto
+                        ) if job.media_metadata_auto else MediaMetadata()
+                        merged = existing.model_copy(
+                            update={"poster_url": str(image["image"])}
+                        )
+                        args = {'media_metadata_auto': merged.model_dump_json()}
                         u.database_updater(args, job)
-                        logging.debug(f"poster_url: {args['poster_url']} poster_url_auto: {args['poster_url_auto']}")
+                        logging.debug(f"poster_url: {image['image']}")
                         return True
         return False
     except mb.WebServiceError as exc:
