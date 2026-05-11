@@ -511,3 +511,32 @@ def test_job_detail_track_includes_process_and_skip_reason(client, app_context, 
     assert tracks["1"]["skip_reason"] == "too_short"
     assert tracks["2"]["process"] is True
     assert tracks["2"]["skip_reason"] is None
+
+
+def test_job_detail_projects_media_metadata_into_flat_fields(client, app_context, sample_job):
+    """Regression: arm-ui disc review reads poster_url/artist/album at job top level.
+
+    After the Phase 2 column purge those fields live in the media_metadata blob;
+    the serializer projects them back out so the wire shape stays back-compat.
+    """
+    from arm_contracts import MediaMetadata
+
+    sample_job.set_metadata_auto(MediaMetadata(
+        poster_url="https://example.com/poster.jpg",
+        artist="Metronomy",
+        album="Small World",
+        year="2022",
+        imdb_id="tt1234567",
+        video_type="movie",
+    ))
+    db.session.commit()
+
+    response = client.get(f"/api/v1/jobs/{sample_job.job_id}/detail")
+    assert response.status_code == 200
+    job = response.json()["job"]
+    assert job["poster_url"] == "https://example.com/poster.jpg"
+    assert job["artist"] == "Metronomy"
+    assert job["album"] == "Small World"
+    assert job["year"] == "2022"
+    assert job["imdb_id"] == "tt1234567"
+    assert job["video_type"] == "movie"
