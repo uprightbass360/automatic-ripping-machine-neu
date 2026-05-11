@@ -85,7 +85,13 @@ def list_drives_with_jobs():
         job = Job.query.get(job_id)
         if not job:
             return None
-        return JobSummary.model_validate(job).model_dump(mode="json")
+        summary = JobSummary.model_validate(job).model_dump(mode="json")
+        # Project MediaMetadata into the JobSummary's poster_url field after
+        # the Phase 2 column purge moved it into the blob.
+        meta = job.media_metadata
+        if meta is not None and meta.poster_url:
+            summary["poster_url"] = meta.poster_url
+        return summary
 
     result = []
     for d in drives:

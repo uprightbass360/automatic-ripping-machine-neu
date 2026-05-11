@@ -160,9 +160,11 @@ def _job_to_dict(job):
 
     # Project MediaMetadata into the JobContract's legacy flat fields so the
     # wire shape stays back-compat after the columns moved into the blob.
+    # Only the three dropped columns (poster_url/artist/album) need this -
+    # year/imdb_id/video_type are still real columns and remain authoritative.
     meta = job.media_metadata
     if meta is not None:
-        for legacy_field in ("poster_url", "artist", "album", "year", "imdb_id", "video_type"):
+        for legacy_field in ("poster_url", "artist", "album"):
             value = getattr(meta, legacy_field, None)
             if value not in (None, "", []):
                 data[legacy_field] = value
