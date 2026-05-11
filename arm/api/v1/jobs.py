@@ -563,20 +563,26 @@ _FIELD_MAP = {
     'year': ('year', 'year_manual'),
     'video_type': ('video_type', 'video_type_manual'),
     'imdb_id': ('imdb_id', 'imdb_id_manual'),
-    'poster_url': ('poster_url', 'poster_url_manual'),
-    'artist': ('artist', 'artist_manual'),
-    'album': ('album', 'album_manual'),
     'season': ('season', 'season_manual'),
     'episode': ('episode', 'episode_manual'),
 }
+# Fields that don't map to Job columns - they route into the
+# media_metadata_manual MediaMetadata blob via set_metadata_manual().
+_METADATA_FIELDS = frozenset(('artist', 'album', 'poster_url'))
 _DIRECT_FIELDS = ('path', 'label', 'disctype', 'disc_number', 'disc_total')
 _STRUCTURED_KEYS = frozenset(('artist', 'album', 'season', 'episode'))
 _VALID_DISCTYPES = ('dvd', 'bluray', 'bluray4k', 'music', 'data')
 
 
 def _process_mapped_fields(body):
-    """Extract mapped fields from request body. Returns (args, updated, structured_changed)."""
-    args, updated = {}, {}
+    """Extract mapped fields from request body. Returns (args, updated, metadata_overrides, structured_changed).
+
+    `args` are the Job-column writes (bundle for database_updater).
+    `metadata_overrides` is a dict of {MediaMetadata field: value} that
+    must be written via set_metadata_manual().
+    `structured_changed` triggers a title re-render after the update.
+    """
+    args, updated, metadata_overrides = {}, {}, {}
     structured_changed = False
     for key, (eff, manual) in _FIELD_MAP.items():
         if key not in body or body[key] is None:
@@ -587,7 +593,15 @@ def _process_mapped_fields(body):
         updated[key] = value
         if key in _STRUCTURED_KEYS:
             structured_changed = True
-    return args, updated, structured_changed
+    for key in _METADATA_FIELDS:
+        if key not in body or body[key] is None:
+            continue
+        value = str(body[key]).strip()
+        metadata_overrides[key] = value
+        updated[key] = value
+        if key in _STRUCTURED_KEYS:
+            structured_changed = True
+    return args, updated, metadata_overrides, structured_changed
 
 
 def _process_direct_fields(body, args, updated):
@@ -629,7 +643,7 @@ def update_job_title(job_id: int, body: dict):
         return JSONResponse({"success": False, "error": _JOB_NOT_FOUND}, status_code=404)
     old_title, old_year = job.title, job.year
 
-    args, updated, structured_changed = _process_mapped_fields(body)
+    args, updated, metadata_overrides, structured_changed = _process_mapped_fields(body)
     error = _process_direct_fields(body, args, updated)
     if error:
         return error
@@ -638,6 +652,21 @@ def update_job_title(job_id: int, body: dict):
         return JSONResponse({"success": False, "error": "No fields to update"}, status_code=400)
 
     args['hasnicetitle'] = True
+    # If the body included MediaMetadata fields (artist/album/poster_url),
+    # merge them into the existing media_metadata_manual blob and bundle
+    # the write into the same database_updater call as the column writes.
+    if metadata_overrides:
+        from arm_contracts import MediaMetadata
+        existing_blob = job.media_metadata_manual
+        if existing_blob:
+            try:
+                existing = MediaMetadata.model_validate_json(existing_blob)
+                merged = existing.model_copy(update=metadata_overrides)
+            except Exception:
+                merged = MediaMetadata(**metadata_overrides)
+        else:
+            merged = MediaMetadata(**metadata_overrides)
+        args['media_metadata_manual'] = merged.model_dump_json()
     svc_files.database_updater(args, job)
 
     if structured_changed and 'title' not in updated:

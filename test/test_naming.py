@@ -14,7 +14,13 @@ from arm.ripper.naming import (
 
 
 def _make_job(**kwargs):
-    """Create a SimpleNamespace that quacks like a Job for pattern rendering."""
+    """Create a SimpleNamespace that quacks like a Job for pattern rendering.
+
+    Builds a MediaMetadata attached as job.media_metadata so the engine's
+    single code path (read-from-MediaMetadata) works without a real DB.
+    Manual overrides win field-by-field via a stacked merge.
+    """
+    from arm_contracts import MediaMetadata
     defaults = {
         'title': None, 'title_manual': None, 'title_auto': None,
         'year': None, 'year_manual': None, 'year_auto': None,
@@ -22,10 +28,20 @@ def _make_job(**kwargs):
         'album': None, 'album_manual': None, 'album_auto': None,
         'season': None, 'season_manual': None, 'season_auto': None,
         'episode': None, 'episode_manual': None, 'episode_auto': None,
-        'video_type': 'movie', 'label': None,
+        'video_type': 'movie', 'label': None, 'imdb_id': None,
+        'disc_number': None, 'disc_total': None,
         'title_pattern_override': None, 'folder_pattern_override': None,
     }
     defaults.update(kwargs)
+    # Build MediaMetadata from artist/album defaults (with manual-over-base
+    # override). The engine reads music tokens exclusively from here now.
+    artist = defaults.get('artist_manual') or defaults.get('artist') or None
+    album = defaults.get('album_manual') or defaults.get('album') or None
+    defaults['media_metadata'] = MediaMetadata(
+        artist=artist,
+        album=album,
+        album_artist=artist,
+    )
     return SimpleNamespace(**defaults)
 
 

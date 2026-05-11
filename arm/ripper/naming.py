@@ -73,17 +73,6 @@ class _SafeDict(dict):
         return ''
 
 
-def _job_media_metadata(job):
-    """Read MediaMetadata off a Job, tolerating sample namespaces in tests.
-
-    A real Job has a `media_metadata` property that merges the two JSON
-    blob columns. SimpleNamespace fixtures in unit tests may or may not
-    set one; in that case we return None and fall back to whatever the
-    test attached to the namespace directly.
-    """
-    return getattr(job, 'media_metadata', None)
-
-
 def _build_variables(job):
     """Extract all pattern variables from a Job + its MediaMetadata.
 
@@ -98,8 +87,12 @@ def _build_variables(job):
       year_manual, etc.).
     - MediaMetadata-side: the merged-read property in Job already does
       field-by-field manual-over-auto from the two JSON blobs.
+
+    The job *must* expose a `media_metadata` attribute - either the
+    property on a real Job, or a MediaMetadata attached to a test
+    SimpleNamespace.
     """
-    metadata = _job_media_metadata(job)
+    metadata = job.media_metadata
 
     # Core tokens from Job columns (matcher writes these in identify.py).
     title = job.title_manual or job.title or ''
@@ -113,44 +106,19 @@ def _build_variables(job):
     if episode and episode.isdigit():
         episode = episode.zfill(2)
 
-    # Music tokens used to live on Job columns; now they're MediaMetadata.
-    # Take MediaMetadata first, then fall back to legacy job attributes
-    # (set by older code paths and still attached as instance attrs by
-    # tests / pre-migration code). Preserves _manual-over-base override
-    # semantics for backwards-compat.
-    artist = ''
-    album = ''
-    if metadata is not None:
-        artist = metadata.artist or ''
-        album = metadata.album or ''
-    if not artist:
-        artist = (getattr(job, 'artist_manual', None)
-                  or getattr(job, 'artist', None) or '')
-    if not album:
-        album = (getattr(job, 'album_manual', None)
-                 or getattr(job, 'album', None) or '')
-
     out = _SafeDict()
 
     # Contract-derived tokens from MediaMetadata, using each token's
     # accessor lambda. None / empty values render as empty strings.
-    if metadata is not None:
-        for alias, (field_name, _desc, accessor) in PATTERN_TOKENS.items():
-            value = getattr(metadata, field_name, None)
-            if value is None or value == [] or value == "":
-                out[alias] = ''
-            else:
-                try:
-                    out[alias] = accessor(value)
-                except Exception:  # noqa: BLE001 - never break naming on a bad token
-                    out[alias] = ''
-    else:
-        # No MediaMetadata available (e.g. test fixture without it). Seed
-        # the contract tokens to empty so format_map doesn't insert '' for
-        # them from _SafeDict alone (it would, but being explicit avoids
-        # surprises later).
-        for alias in PATTERN_TOKENS:
+    for alias, (field_name, _desc, accessor) in PATTERN_TOKENS.items():
+        value = getattr(metadata, field_name, None)
+        if value is None or value == [] or value == "":
             out[alias] = ''
+        else:
+            try:
+                out[alias] = accessor(value)
+            except Exception:  # noqa: BLE001 - never break naming on a bad token
+                out[alias] = ''
 
     # Core tokens override the contract-derived defaults. Job columns are
     # authoritative for these because they participate in matching and UI
@@ -159,8 +127,8 @@ def _build_variables(job):
         'title': title,
         'show': title,  # Always the job-level title (show name for TV).
         'year': year,
-        'artist': artist,
-        'album': album,
+        'artist': metadata.artist or '',
+        'album': metadata.album or '',
         'season': season,
         'episode': episode,
         'episode_name': '',  # Populated at track level from TVDB.
