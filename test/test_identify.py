@@ -614,8 +614,11 @@ class TestIdentifyDvdCrc:
             result = identify_dvd(job)
         assert result is True
         mock_details.assert_called_once_with("tt4824308")
+        # poster_url now flows through media_metadata_auto, not as a Job column.
         call_args = mock_utils.database_updater.call_args[0][0]
-        assert call_args["poster_url"] == "https://m.media-amazon.com/images/poster.jpg"
+        import json
+        blob = json.loads(call_args["media_metadata_auto"])
+        assert blob["poster_url"] == "https://m.media-amazon.com/images/poster.jpg"
 
     def test_crc_no_poster_no_imdb_skips_fallback(self):
         """CRC match with no poster and no IMDB ID doesn't attempt fallback."""
@@ -668,8 +671,11 @@ class TestIdentifyDvdCrc:
             mock_utils.extract_year.return_value = "2016"
             result = identify_dvd(job)
         assert result is True
+        # Poster fallback failed -> empty poster_url stored in the blob as None.
         call_args = mock_utils.database_updater.call_args[0][0]
-        assert call_args["poster_url"] == ""
+        import json
+        blob = json.loads(call_args["media_metadata_auto"])
+        assert blob["poster_url"] is None
 
     def test_pydvdid_exception_returns_false(self):
         """pydvdid.compute() exception is caught, returns False."""

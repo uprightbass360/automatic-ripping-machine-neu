@@ -517,18 +517,36 @@ def identify_dvd(job):
             logging.info("Found crc64 id from online API")
             logging.info(f"title is {hit['title']}")
             poster = _resolve_poster(hit)
+            cleaned_year = utils.extract_year(hit['year'])
+            # poster_url + the rest of the editorial metadata live in the
+            # media_metadata_auto JSON blob now. Bundle the column writes
+            # and the blob write into a single database_updater call so
+            # everything commits atomically.
+            from arm_contracts import MediaMetadata
+            from arm_contracts.enums import VideoType
+            video_type_enum = (
+                VideoType.movie if hit['video_type'] == "movie"
+                else VideoType.series if hit['video_type'] == "series"
+                else None
+            )
+            metadata_blob = MediaMetadata(
+                title=hit['title'] or None,
+                year=cleaned_year or None,
+                video_type=video_type_enum,
+                imdb_id=hit['imdb_id'] or None,
+                poster_url=poster or None,
+            ).model_dump_json()
             args = {
                 'title': hit['title'],
                 'title_auto': hit['title'],
-                'year': utils.extract_year(hit['year']),
-                'year_auto': utils.extract_year(hit['year']),
+                'year': cleaned_year,
+                'year_auto': cleaned_year,
                 'imdb_id': hit['imdb_id'],
                 'imdb_id_auto': hit['imdb_id'],
                 'video_type': hit['video_type'],
                 'video_type_auto': hit['video_type'],
-                'poster_url': poster,
-                'poster_url_auto': poster,
-                'hasnicetitle': True
+                'media_metadata_auto': metadata_blob,
+                'hasnicetitle': True,
             }
             utils.database_updater(args, job)
             _write_movie_expected_title(
@@ -651,6 +669,27 @@ def update_job(job, search_results):
         best.title_score, best.year_score, best.type_score,
     )
 
+    # Build the editorial metadata blob from the matcher hit + the
+    # original search-result raw_result. Title/year/imdb_id are duplicated
+    # into the blob (alongside their Job-column writes) so the
+    # media_metadata view is self-contained for the naming engine and the
+    # /api/v1/jobs/{id}/metadata endpoint.
+    from arm_contracts import MediaMetadata
+    from arm_contracts.enums import VideoType
+    raw = best.raw_result or {}
+    video_type_enum = (
+        VideoType.movie if best.type == "movie"
+        else VideoType.series if best.type == "series"
+        else None
+    )
+    metadata_blob = MediaMetadata(
+        title=title or None,
+        year=str(best.year) if best.year else None,
+        video_type=video_type_enum,
+        imdb_id=best.imdb_id or None,
+        poster_url=best.poster_url or None,
+        runtime_seconds=raw.get("runtime_seconds"),
+    ).model_dump_json()
     args = {
         'year_auto': str(best.year),
         'year': str(best.year),
@@ -660,6 +699,7 @@ def update_job(job, search_results):
         'video_type': best.type,
         'imdb_id_auto': best.imdb_id,
         'imdb_id': best.imdb_id,
+        'media_metadata_auto': metadata_blob,
         'hasnicetitle': True,
     }
     # Persist disc number/season from label parsing (e.g. "Disc 2", "S01D03")
@@ -670,14 +710,6 @@ def update_job(job, search_results):
             args['season_auto'] = str(selection.label_info.season_number)
             args['season'] = str(selection.label_info.season_number)
     result = utils.database_updater(args, job)
-
-    # Persist editorial metadata (poster_url, plus future MediaMetadata
-    # fields) to the auto-blob. The legacy poster_url column was retired
-    # by the media_metadata_columns migration.
-    if best.poster_url:
-        from arm_contracts import MediaMetadata
-        job.set_metadata_auto(MediaMetadata(poster_url=best.poster_url))
-        db.session.commit()
 
     # Only write ExpectedTitle for movies. TV series matches are handled by the
     # TVDB-based path in A6, which writes one row per episode.
