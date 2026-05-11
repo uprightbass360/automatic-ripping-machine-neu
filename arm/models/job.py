@@ -527,14 +527,12 @@ class Job(db.Model):
     def _pattern_fields_available(self):
         """Check if the structured fields needed for pattern rendering are populated.
         Movies: always available (just need title).
-        Music: need artist or album.
+        Music: need artist or album (read from media_metadata).
         Series: need season or episode.
         """
         if self.video_type == 'music':
-            return bool(
-                getattr(self, 'artist', None) or getattr(self, 'artist_manual', None)
-                or getattr(self, 'album', None) or getattr(self, 'album_manual', None)
-            )
+            meta = self.media_metadata
+            return bool(meta.artist or meta.album)
         elif self.video_type == 'series':
             return bool(
                 getattr(self, 'season', None) or getattr(self, 'season_manual', None)

@@ -113,17 +113,17 @@ class TestPatternEngineIntegration:
 
     def test_music_formatted_title_uses_pattern(self, sample_job):
         """With artist+album set, formatted_title uses the music title pattern."""
+        from arm_contracts import MediaMetadata
         sample_job.video_type = "music"
-        sample_job.artist = "The Beatles"
-        sample_job.album = "Abbey Road"
+        sample_job.set_metadata_auto(MediaMetadata(artist="The Beatles", album="Abbey Road"))
         sample_job.year = "1969"
         assert sample_job.formatted_title == "The Beatles - Abbey Road"
 
     def test_music_folder_path_uses_pattern(self, sample_job):
         """With artist+album set, build_final_path uses the music folder pattern."""
+        from arm_contracts import MediaMetadata
         sample_job.video_type = "music"
-        sample_job.artist = "The Beatles"
-        sample_job.album = "Abbey Road"
+        sample_job.set_metadata_auto(MediaMetadata(artist="The Beatles", album="Abbey Road"))
         sample_job.year = "1969"
         path = sample_job.build_final_path()
         assert path == os.path.join(
@@ -132,9 +132,9 @@ class TestPatternEngineIntegration:
         )
 
     def test_music_transcode_path_uses_pattern(self, sample_job):
+        from arm_contracts import MediaMetadata
         sample_job.video_type = "music"
-        sample_job.artist = "Pink Floyd"
-        sample_job.album = "The Wall"
+        sample_job.set_metadata_auto(MediaMetadata(artist="Pink Floyd", album="The Wall"))
         sample_job.year = "1979"
         path = sample_job.build_transcode_path()
         assert path == os.path.join(
@@ -144,10 +144,10 @@ class TestPatternEngineIntegration:
 
     def test_music_manual_artist_preferred(self, sample_job):
         """Manual artist overrides auto-detected artist."""
+        from arm_contracts import MediaMetadata
         sample_job.video_type = "music"
-        sample_job.artist = "beatles"
-        sample_job.artist_manual = "The Beatles"
-        sample_job.album = "Help"
+        sample_job.set_metadata_auto(MediaMetadata(artist="beatles", album="Help"))
+        sample_job.set_metadata_manual(MediaMetadata(artist="The Beatles"))
         assert sample_job.formatted_title == "The Beatles - Help"
 
     def test_music_falls_back_without_structured_fields(self, sample_job):
