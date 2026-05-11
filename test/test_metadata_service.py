@@ -1659,3 +1659,54 @@ def test_normalize_tmdb_movie_returns_media_metadata():
     assert m.actors == ["Natalie Portman", "Jennifer Jason Leigh"]
     assert m.mpaa_rating == "R"  # US certification
     assert "https://image.tmdb.org/t/p/" in (m.poster_url or "")
+
+
+# ---------------------------------------------------------------------------
+# TVDB -> MediaMetadata normalization (Task 11)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_tvdb_series_returns_media_metadata():
+    from arm.services.metadata import _normalize_tvdb_to_metadata
+    from arm_contracts.enums import VideoType
+
+    tvdb = {
+        "id": 81189,
+        "name": "Breaking Bad",
+        "firstAired": "2008-01-20",
+        "image": "https://artworks.thetvdb.com/path.jpg",
+        "overview": "A high-school chemistry teacher...",
+        "originalLanguage": "eng",
+        "country": "USA",
+        "network": {"name": "AMC"},
+        "score": 9.4,
+        "year": "2008",
+        # genres in TVDB are sometimes a list of objects, sometimes strings
+        "genres": [{"name": "Drama"}, {"name": "Crime"}],
+    }
+    m = _normalize_tvdb_to_metadata(tvdb, video_type=VideoType.series)
+    assert m.title == "Breaking Bad"
+    assert m.video_type == VideoType.series
+    assert m.year == "2008"
+    assert m.network == "AMC"
+    assert m.genres == ["Drama", "Crime"]
+    assert m.country == "USA"
+    assert m.language == "eng"
+    assert m.imdb_rating == pytest.approx(9.4)
+
+
+def test_normalize_tvdb_handles_string_network_and_genres():
+    """TVDB sometimes returns network/genres as plain strings, sometimes objects."""
+    from arm.services.metadata import _normalize_tvdb_to_metadata
+    from arm_contracts.enums import VideoType
+
+    tvdb = {
+        "id": 42,
+        "name": "Some Show",
+        "year": "2020",
+        "network": "HBO",        # plain string
+        "genres": ["Drama", "Sci-Fi"],  # list of strings
+    }
+    m = _normalize_tvdb_to_metadata(tvdb, video_type=VideoType.series)
+    assert m.network == "HBO"
+    assert m.genres == ["Drama", "Sci-Fi"]
