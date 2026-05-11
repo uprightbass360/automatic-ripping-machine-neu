@@ -35,12 +35,6 @@ class MetadataConfigError(Exception):
     """Raised when metadata provider is not configured or returns an auth error."""
 
 
-def _extract_year(raw: str) -> str:
-    """Extract a 4-digit year from a date/range string."""
-    m = re.search(r"\d{4}", str(raw))
-    return m.group(0) if m else raw
-
-
 def _get_keys() -> dict[str, str | None]:
     """Read provider and API keys from live ARM config."""
     provider = str(cfg.arm_config.get("METADATA_PROVIDER", "omdb")).lower()
@@ -987,8 +981,7 @@ async def _tmdb_find(imdb_id: str, api_key: str) -> dict[str, Any] | None:
 
     title = item.get("title") or item.get("name", "")
     release = item.get("release_date") or item.get("first_air_date") or ""
-    year = _extract_year(release) if release else ""
-    poster_path = item.get("poster_path")
+    year = _tmdb_year_from_date(release) or ""
     backdrop_path = item.get("backdrop_path")
 
     log.info("TMDb detail for %s: %s (%s) [%s]", imdb_id, title, year, media_type)
@@ -997,7 +990,7 @@ async def _tmdb_find(imdb_id: str, api_key: str) -> dict[str, Any] | None:
         "year": year,
         "imdb_id": imdb_id,
         "media_type": media_type,
-        "poster_url": f"{TMDB_POSTER_BASE}{poster_path}" if poster_path else None,
+        "poster_url": _tmdb_poster_url(item.get("poster_path")),
         "plot": item.get("overview") or None,
         "background_url": f"{TMDB_POSTER_BASE}{backdrop_path}" if backdrop_path else None,
     }
