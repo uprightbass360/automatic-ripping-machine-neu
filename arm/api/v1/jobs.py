@@ -315,6 +315,15 @@ def delete_job(job_id: int):
     return svc_jobs.delete_job(str(job_id), 'delete')
 
 
+@router.get('/jobs/{job_id}/metadata')
+def get_job_metadata(job_id: int):
+    """Return the merged MediaMetadata for a job (auto + manual overrides)."""
+    job = Job.query.get(job_id)
+    if not job:
+        return JSONResponse({"detail": _JOB_NOT_FOUND}, status_code=404)
+    return JSONResponse(job.media_metadata.model_dump(mode='json'), status_code=200)
+
+
 @router.post('/jobs/{job_id}/abandon')
 def abandon_job(job_id: int):
     """Abandon a running job."""
