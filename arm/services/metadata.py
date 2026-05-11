@@ -874,6 +874,43 @@ def _normalize_tvdb_to_metadata(
     )
 
 
+# ---------------------------------------------------------------------------
+# MusicBrainz -> MediaMetadata adapter (post-MediaMetadata-contract migration)
+# ---------------------------------------------------------------------------
+
+
+def _mb_release_date(value: Optional[str]) -> Optional[date]:
+    """MusicBrainz 'date' field may be 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'."""
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _normalize_musicbrainz_to_metadata(mb: dict) -> MediaMetadata:
+    """Convert a MusicBrainz /release/{id} response into MediaMetadata.
+
+    Sets video_type=VideoType.music, with album in `album`, artist in
+    `artist` + `album_artist` (same field on a release), and the cover
+    art URL composed from the release MBID.
+    """
+    mbid = mb.get("id") or ""
+    raw_date = mb.get("date") or ""
+    artist = _build_artist_credit(mb.get("artist-credit") or [])
+    return MediaMetadata(
+        video_type=VideoType.music,
+        album=mb.get("title") or None,
+        artist=artist or None,
+        album_artist=artist or None,
+        year=raw_date[:4] if raw_date and len(raw_date) >= 4 else None,
+        released_date=_mb_release_date(raw_date),
+        country=mb.get("country") or None,
+        poster_url=f"{COVERART_BASE}/{mbid}/front-250" if mbid else None,
+    )
+
+
 async def _tmdb_get_imdb(
     tmdb_id: int, media_type: str, api_key: str
 ) -> str | None:

@@ -1710,3 +1710,52 @@ def test_normalize_tvdb_handles_string_network_and_genres():
     m = _normalize_tvdb_to_metadata(tvdb, video_type=VideoType.series)
     assert m.network == "HBO"
     assert m.genres == ["Drama", "Sci-Fi"]
+
+
+# ---------------------------------------------------------------------------
+# MusicBrainz -> MediaMetadata normalization (Task 12)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_musicbrainz_release_returns_media_metadata():
+    """MusicBrainz release response normalizes to MediaMetadata for audio CDs."""
+    from datetime import date
+    from arm.services.metadata import _normalize_musicbrainz_to_metadata
+    from arm_contracts.enums import VideoType
+
+    mb = {
+        "id": "abc-123",
+        "title": "The Dark Side of the Moon",
+        "date": "1973-03-01",
+        "country": "GB",
+        "artist-credit": [
+            {"name": "Pink Floyd", "artist": {"name": "Pink Floyd"}},
+        ],
+    }
+    m = _normalize_musicbrainz_to_metadata(mb)
+    assert m.video_type == VideoType.music
+    assert m.album == "The Dark Side of the Moon"
+    assert m.artist == "Pink Floyd"
+    assert m.album_artist == "Pink Floyd"
+    assert m.year == "1973"
+    assert m.released_date == date(1973, 3, 1)
+    assert m.country == "GB"
+    assert "abc-123" in (m.poster_url or "")
+
+
+def test_normalize_musicbrainz_handles_missing_fields():
+    """MusicBrainz returns sparse data for obscure releases."""
+    from arm.services.metadata import _normalize_musicbrainz_to_metadata
+    from arm_contracts.enums import VideoType
+
+    mb = {
+        "id": "xyz",
+        "title": "Untitled",
+        # no date, no artist-credit, no country
+    }
+    m = _normalize_musicbrainz_to_metadata(mb)
+    assert m.video_type == VideoType.music
+    assert m.album == "Untitled"
+    assert m.artist is None
+    assert m.year is None
+    assert m.released_date is None
