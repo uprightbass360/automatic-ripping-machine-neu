@@ -1,5 +1,30 @@
 # Changelog
 
+## [18.2.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v18.1.0...v18.2.0) (2026-05-12)
+
+
+### Features
+
+* **api:** GET /api/v1/jobs/{id}/metadata returns merged MediaMetadata ([a5c1b8a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a5c1b8a22d83cdd20eb9174676a4f9a344cc2055))
+* **identify:** write full MediaMetadata blob alongside Job columns on match ([e5e1792](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e5e1792b930aeab6c598b7b3ccf898954289f3b8))
+* **job:** media_metadata_auto/manual columns + merged-read property ([225a835](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/225a83586d66ef44e3cc7cd973465532a39fb486))
+* **job:** migration drops legacy poster_url/artist/album triples after backfill ([8b24542](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8b24542249a48d28fcb04b78489f02bd1cccda7d))
+* **metadata:** migrate poster_url consumers to media_metadata ([7163ef8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7163ef8ef7fc76612474a9f9e55794b837aff982))
+* **metadata:** MusicBrainz adapter returns MediaMetadata (additive) ([4266257](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4266257f942628711c7c88b2649d28180d681131))
+* **metadata:** OMDb adapter returns MediaMetadata (additive) ([ea1089c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ea1089cc97eb95c474fdf483904a35710d860091))
+* **metadata:** TMDb adapter returns MediaMetadata (additive) ([bb949e1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bb949e12c419a3637b1505fa843e725696fc5936))
+* **metadata:** TVDB adapter returns MediaMetadata (additive) ([f9bf4ef](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f9bf4ef4259aaae27953d74669e53afb38579790))
+* **naming:** derive PATTERN_VARIABLES from arm_contracts.PATTERN_TOKENS ([0327d42](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0327d4290aec0edcf542c8a1fc7eded7a833231e))
+
+
+### Bug Fixes
+
+* **jobs:** project media_metadata in list + drive-summary wire shapes ([4a39d66](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4a39d66d81348e85f494bb2401e9977f155346bd))
+* **jobs:** project media_metadata into wire shape ([19680dd](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/19680dd0608d615a7db72154c79884fa3bc38240))
+* **music:** write MediaMetadata blob from MusicBrainz path ([d18fede](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d18fede73ecc8e6748da4bd80d65029ed53e1dbb))
+* **test:** move drives/with-jobs test where the client mounts the drives router ([3c7bb9e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3c7bb9eb4296dce0fc3b508f144e5e73a9530a2d))
+* **test:** seed required status/disctype on backfill migration test rows ([519dbca](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/519dbcada390b44684f2ae612d0373179086613e))
+
 ## [18.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v18.0.0...v18.1.0) (2026-05-10)
 
 
