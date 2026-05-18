@@ -11,7 +11,7 @@ A fork of the [Automatic Ripping Machine](https://github.com/automatic-ripping-m
 ### What's different from upstream
 
 **Architecture**
-- Split into three independently-released services - ripper (this repo), [UI dashboard](https://github.com/uprightbass360/automatic-ripping-machine-ui), and [GPU transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) - deployable on one host or across machines, with a typed shared-contracts layer keeping them in lockstep.
+- Split into three independently-released services - ripper (this repo), [UI dashboard](https://github.com/uprightbass360/automatic-ripping-machine-ui), and [GPU transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) - deployable on one host or across machines, with a [typed shared-contracts layer](https://github.com/uprightbass360/automatic-ripping-machine-contracts) keeping them in lockstep.
 
 **What you'll see as a user**
 - Modern SvelteKit + TypeScript dashboard replacing the Flask/Jinja UI, with real-time WebSocket job updates and phase-aware progress bars (rip / transcode / finalize)
@@ -35,6 +35,7 @@ Part of the Automatic Ripping Machine (neu) ecosystem:
 | **automatic-ripping-machine-neu** | Fork of ARM with fixes and improvements (this project) |
 | [automatic-ripping-machine-ui](https://github.com/uprightbass360/automatic-ripping-machine-ui) | Modern replacement dashboard (SvelteKit + FastAPI) |
 | [automatic-ripping-machine-transcoder](https://github.com/uprightbass360/automatic-ripping-machine-transcoder) | GPU-accelerated transcoding service |
+| [automatic-ripping-machine-contracts](https://github.com/uprightbass360/automatic-ripping-machine-contracts) | Typed shared-contracts layer keeping the services in lockstep |
 
 Insert an optical disc (Blu-ray, DVD, CD) and ARM automatically detects, identifies, rips, and transcodes it. Headless and server-based, designed for unattended operation with one or more optical drives. This fork adds bug fixes, better notification payloads for external service integration, and improved compatibility with the companion transcoder and UI projects.
 
