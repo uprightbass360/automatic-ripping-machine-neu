@@ -368,26 +368,34 @@ def notify_entry(job):
     :param job:
     :return: None
     """
-    # TODO make this better or merge with notify/class
+    from datetime import datetime as _dt, timezone
+    from uuid import uuid4
+    from arm_contracts import JobStartedEvent
+    from arm_contracts.enums import Disctype
+    from arm.notifications import publish_event
+
+    # Always write a history row so the UI's notification pane reflects
+    # the new job, independent of any channel dispatch.
     notification = Notifications(f"New Job: {job.job_id} has started. Disctype: {job.disctype}",
                                  f"New job has started to rip - {job.label},"
                                  f"{job.disctype} at {datetime.datetime.now()}")
     database_adder(notification)
-    if job.disctype in ["dvd", "bluray", "bluray4k"]:
-        if cfg.arm_config["UI_BASE_URL"] == "":
-            display_address = (f"http://{check_ip()}:{job.config.WEBSERVER_PORT}")
-        else:
-            display_address = str(cfg.arm_config["UI_BASE_URL"])
-        # Send the notifications
-        notify(job, NOTIFY_TITLE,
-               f"Found disc: {job.title}. Disc type is {job.disctype}. "
-               f"Edit entry here: {display_address}/jobdetail?job_id={job.job_id}")
-    elif job.disctype == "music":
-        notify(job, NOTIFY_TITLE, f"Found music CD: {job.label}. Ripping all tracks.")
-    elif job.disctype == "data":
-        notify(job, NOTIFY_TITLE, "Found data disc.  Copying data.")
-    else:
+
+    # Preserve historical behaviour: an unrecognised disctype is a hard
+    # stop. The closed set is dvd/bluray/bluray4k/music/data; anything
+    # else (including 'unknown') is treated as a ripper failure.
+    if job.disctype not in ("dvd", "bluray", "bluray4k", "music", "data"):
         raise RipperException("Could not determine disc type")
+
+    publish_event(JobStartedEvent(
+        event_id=uuid4(),
+        occurred_at=_dt.now(timezone.utc),
+        job_id=job.job_id,
+        job_title=job.title or "",
+        job_disc_type=Disctype(job.disctype),
+        job_imdb_id=job.imdb_id,
+        drive_mount=getattr(job, "devpath", None),
+    ))
 
 
 def sleep_check_process(process_str, max_processes, sleep=(20, 120, 10)):

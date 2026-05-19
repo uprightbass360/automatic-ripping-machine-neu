@@ -3,61 +3,89 @@ import unittest.mock
 
 
 class TestNotifyExit:
-    """Test notify_exit() message formatting."""
+    """Test notify_exit() publishes JobTranscodeCompleteEvent."""
 
-    def test_success_notification(self):
+    def test_success_publishes_transcode_complete(self):
         from arm.ripper.arm_ripper import notify_exit
+        from arm_contracts import JobTranscodeCompleteEvent
 
         job = unittest.mock.MagicMock()
-        job.config.NOTIFY_TRANSCODE = True
+        job.job_id = 7
+        job.title = "Serial Mom"
+        job.disctype = "bluray"
+        job.imdb_id = None
         job.errors = None
-        job.title = "Serial Mom"
+        job.start_time = None
+        job.path = "/home/arm/media/completed/Serial Mom (1994)"
 
-        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils:
+        with unittest.mock.patch('arm.ripper.arm_ripper.publish_event') as mock_publish:
             notify_exit(job)
-            mock_utils.notify.assert_called_once()
-            call_args = mock_utils.notify.call_args[0]
-            assert "Serial Mom" in call_args[2]
-            assert "processing completed" not in call_args[2].lower() or "error" not in call_args[2].lower()
+            mock_publish.assert_called_once()
+            published = mock_publish.call_args[0][0]
+            assert isinstance(published, JobTranscodeCompleteEvent)
+            assert published.job_id == 7
+            assert published.job_title == "Serial Mom"
 
-    def test_error_notification(self):
+    def test_error_still_publishes_transcode_complete(self):
+        """Even when job.errors is populated we publish — the dedicated
+        job.failed event (emitted at the FAILURE state set site) carries
+        the error narrative for subscribers."""
+        from arm.ripper.arm_ripper import notify_exit
+        from arm_contracts import JobTranscodeCompleteEvent
+
+        job = unittest.mock.MagicMock()
+        job.job_id = 8
+        job.title = "Serial Mom"
+        job.disctype = "bluray"
+        job.imdb_id = None
+        job.errors = "title_03.mkv, title_07.mkv"
+        job.start_time = None
+        job.path = ""
+
+        with unittest.mock.patch('arm.ripper.arm_ripper.publish_event') as mock_publish:
+            notify_exit(job)
+            mock_publish.assert_called_once()
+            published = mock_publish.call_args[0][0]
+            assert isinstance(published, JobTranscodeCompleteEvent)
+
+    def test_publishes_even_when_legacy_flag_would_have_been_false(self):
+        """The legacy NOTIFY_TRANSCODE per-job guard is gone — channels
+        filter on subscribed_events instead, so publish_event always
+        fires regardless of the (now-ignored) job.config attribute."""
         from arm.ripper.arm_ripper import notify_exit
 
         job = unittest.mock.MagicMock()
-        job.config.NOTIFY_TRANSCODE = True
-        job.errors = ["title_03.mkv", "title_07.mkv"]
-        job.title = "Serial Mom"
+        job.job_id = 9
+        job.title = "Movie"
+        job.disctype = "dvd"
+        job.imdb_id = None
+        job.errors = None
+        job.start_time = None
+        job.path = ""
+        job.config.NOTIFY_TRANSCODE = False  # historical; now ignored
 
-        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils:
+        with unittest.mock.patch('arm.ripper.arm_ripper.publish_event') as mock_publish:
             notify_exit(job)
-            mock_utils.notify.assert_called_once()
-            call_args = mock_utils.notify.call_args[0]
-            assert "errors" in call_args[2].lower()
-            assert "title_03.mkv" in call_args[2]
-
-    def test_no_notification_when_disabled(self):
-        from arm.ripper.arm_ripper import notify_exit
-
-        job = unittest.mock.MagicMock()
-        job.config.NOTIFY_TRANSCODE = False
-
-        with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils:
-            notify_exit(job)
-            mock_utils.notify.assert_not_called()
+            mock_publish.assert_called_once()
 
 
 class TestRipVisualMedia:
-    """Test simplified rip_visual_media() flow: rip -> persist -> notify."""
+    """Test simplified rip_visual_media() flow: rip -> persist -> publish."""
 
     def _make_job(self, **overrides):
         """Build a mock job with configurable attributes."""
         job = unittest.mock.MagicMock()
+        job.job_id = overrides.get('job_id', 1)
         job.title = overrides.get('title', 'Test Movie')
         job.disctype = overrides.get('disctype', 'bluray')
+        job.imdb_id = overrides.get('imdb_id', None)
         job.config.NOTIFY_RIP = overrides.get('notify_rip', True)
         job.config.NOTIFY_TRANSCODE = overrides.get('notify_transcode', True)
         job.config.MAINFEATURE = overrides.get('mainfeature', False)
         job.errors = overrides.get('errors', None)
+        job.start_time = overrides.get('start_time', None)
+        job.path = overrides.get('path', '')
+        job.tracks.count.return_value = overrides.get('track_count', 1)
         job.build_final_path.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
         return job
 
@@ -68,6 +96,7 @@ class TestRipVisualMedia:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
              unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.ripper.arm_ripper.db'):
             mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
             mock_mkv.makemkv.return_value = '/home/arm/media/raw/Test Movie (2024)'
@@ -84,6 +113,7 @@ class TestRipVisualMedia:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
              unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.ripper.arm_ripper.db'):
             mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
             mock_mkv.makemkv.return_value = raw_path
@@ -98,21 +128,27 @@ class TestRipVisualMedia:
             assert len(raw_path_calls) == 1
             assert raw_path_calls[0][0][0]['raw_path'] == raw_path
 
-    def test_rip_sends_notification_on_completion(self):
+    def test_rip_publishes_rip_complete_and_transcode_complete(self):
+        """Happy path: a JobRipCompleteEvent (from _post_rip_handoff)
+        and a JobTranscodeCompleteEvent (from notify_exit) are both
+        published, in that order."""
         from arm.ripper.arm_ripper import rip_visual_media
+        from arm_contracts import JobRipCompleteEvent, JobTranscodeCompleteEvent
 
         job = self._make_job(notify_rip=True)
 
         with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
              unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event') as mock_publish, \
              unittest.mock.patch('arm.ripper.arm_ripper.db'):
             mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
             mock_mkv.makemkv.return_value = '/home/arm/media/raw/Test Movie (2024)'
 
             rip_visual_media(False, job, "test.log", 0)
 
-            # At least one notify call for rip complete
-            assert mock_utils.notify.call_count >= 1
+            published_types = [type(c[0][0]) for c in mock_publish.call_args_list]
+            assert JobRipCompleteEvent in published_types
+            assert JobTranscodeCompleteEvent in published_types
 
     def test_makemkv_error_raises_ripper_exception(self):
         from arm.ripper.arm_ripper import rip_visual_media
@@ -123,6 +159,7 @@ class TestRipVisualMedia:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
              unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.ripper.arm_ripper.db'):
             mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
             mock_utils.RipperException = RipperException
@@ -135,25 +172,29 @@ class TestRipVisualMedia:
             except RipperException:
                 pass
 
-    def test_no_rip_notification_when_disabled(self):
+    def test_rip_complete_publishes_regardless_of_legacy_notify_rip_flag(self):
+        """NOTIFY_RIP per-job guard is gone — publish_event fires for
+        rip_complete unconditionally on the happy path. Channels filter
+        on subscribed_events."""
         from arm.ripper.arm_ripper import rip_visual_media
+        from arm_contracts import JobRipCompleteEvent
 
         job = self._make_job(notify_rip=False)
 
         with unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
              unittest.mock.patch('arm.ripper.arm_ripper.makemkv') as mock_mkv, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event') as mock_publish, \
              unittest.mock.patch('arm.ripper.arm_ripper.db'):
             mock_utils.check_for_dupe_folder.return_value = '/home/arm/media/completed/movies/Test Movie (2024)'
             mock_mkv.makemkv.return_value = '/home/arm/media/raw/Test Movie (2024)'
 
             rip_visual_media(False, job, "test.log", 0)
 
-            # Only notify_exit should call notify (for NOTIFY_TRANSCODE), not rip notification
-            rip_complete_calls = [
-                c for c in mock_utils.notify.call_args_list
-                if 'rip complete' in str(c).lower()
+            rip_complete_publishes = [
+                c for c in mock_publish.call_args_list
+                if isinstance(c[0][0], JobRipCompleteEvent)
             ]
-            assert len(rip_complete_calls) == 0
+            assert len(rip_complete_publishes) == 1
 
 
 class TestSkipTranscode:
@@ -161,9 +202,16 @@ class TestSkipTranscode:
 
     def _make_job(self, skip_transcode=None, notify_rip=False):
         job = unittest.mock.MagicMock()
+        job.job_id = 1
         job.title = "Test Movie"
+        job.disctype = "bluray"
+        job.imdb_id = None
+        job.errors = None
+        job.start_time = None
+        job.path = ""
         job.config.SKIP_TRANSCODE = skip_transcode
         job.config.NOTIFY_RIP = notify_rip
+        job.tracks.count.return_value = 1
         return job
 
     def test_skip_transcode_true_finalizes_locally(self):
@@ -173,6 +221,7 @@ class TestSkipTranscode:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
              unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': 'http://transcoder:5000/webhook/arm', 'SKIP_TRANSCODE': False}), \
              unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
             _post_rip_handoff(job)
@@ -186,6 +235,7 @@ class TestSkipTranscode:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
              unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': 'http://transcoder:5000/webhook/arm', 'SKIP_TRANSCODE': False}), \
              unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
             _post_rip_handoff(job)
@@ -199,6 +249,7 @@ class TestSkipTranscode:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
              unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': '', 'SKIP_TRANSCODE': False}), \
              unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
             _post_rip_handoff(job)
@@ -213,6 +264,7 @@ class TestSkipTranscode:
 
         with unittest.mock.patch('arm.ripper.arm_ripper.db'), \
              unittest.mock.patch('arm.ripper.arm_ripper.utils') as mock_utils, \
+             unittest.mock.patch('arm.ripper.arm_ripper.publish_event'), \
              unittest.mock.patch('arm.config.config.arm_config', {'TRANSCODER_URL': 'http://transcoder:5000/webhook/arm', 'SKIP_TRANSCODE': False}), \
              unittest.mock.patch('arm.ripper.naming.finalize_output') as mock_finalize:
             _post_rip_handoff(job)

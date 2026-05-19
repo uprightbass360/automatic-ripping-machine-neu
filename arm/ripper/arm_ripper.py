@@ -3,8 +3,10 @@ It would help clear up main and make things easier to find
 """
 import logging
 from collections import Counter
+from datetime import datetime, timezone
 from importlib.util import find_spec
 from pathlib import Path
+from uuid import uuid4
 import sys
 
 # If the arm module can't be found, add the folder this file is in to PYTHONPATH
@@ -16,6 +18,61 @@ from arm.ripper import utils, makemkv  # noqa E402
 from arm.database import db  # noqa E402
 import arm.constants as constants  # noqa E402
 from arm.models.job import JobState  # noqa E402
+from arm.notifications import publish_event  # noqa E402
+from arm_contracts import (  # noqa E402
+    JobRipCompleteEvent,
+    JobTranscodeCompleteEvent,
+    JobFailedEvent,
+)
+from arm_contracts.enums import Disctype  # noqa E402
+
+
+def _job_disc_type(job) -> Disctype:
+    """Map the ripper's string disctype column onto the contracts enum.
+
+    A missing / empty value collapses to ``Disctype.unknown`` so the
+    publish never blows up on an event-level required field; the
+    upstream guard in ``notify_entry`` already rejects unknown discs
+    before they reach this point in the happy path.
+    """
+    if not job.disctype:
+        return Disctype.unknown
+    try:
+        return Disctype(job.disctype)
+    except ValueError:
+        return Disctype.unknown
+
+
+def _rip_duration_seconds(job) -> int:
+    """Wall-clock seconds from job.start_time to now.
+
+    ``job.start_time`` is a naive ``datetime`` in the DB; we treat it
+    as UTC for the subtraction. Returns 0 if start_time is missing
+    (defensive — the rip pipeline always sets it on entry).
+    """
+    if not job.start_time:
+        return 0
+    start = job.start_time.replace(tzinfo=timezone.utc)
+    return int((datetime.now(timezone.utc) - start).total_seconds())
+
+
+def _publish_job_failed(job, phase: str) -> None:
+    """Publish a ``job.failed`` event for the current FAILURE state.
+
+    Truncates ``job.errors`` to 200 chars to match the contracts'
+    expectation of a one-line summary suitable for a notification body.
+    """
+    publish_event(JobFailedEvent(
+        event_id=uuid4(),
+        occurred_at=datetime.now(timezone.utc),
+        job_id=job.job_id,
+        job_title=job.title or "",
+        job_disc_type=_job_disc_type(job),
+        job_imdb_id=job.imdb_id,
+        phase=phase,
+        error_message=(job.errors or "unknown failure")[:200],
+        error_code=None,
+    ))
 
 
 def _post_rip_handoff(job):
@@ -66,9 +123,28 @@ def _post_rip_handoff(job):
             job.status = JobState.FAILURE.value
             job.errors = "Transcoder handoff failed (see transcoder logs)"
         db.session.commit()
+        if job.status == JobState.FAILURE.value:
+            # Handoff itself failed even though the rip succeeded — surface
+            # this as a rip-phase failure rather than letting it look like
+            # a clean rip-complete.
+            _publish_job_failed(job, phase="rip")
 
-    if job.config.NOTIFY_RIP and job.status != JobState.FAILURE.value:
-        utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} rip complete.")
+    # The rip itself is done — emit job.rip_complete unconditionally
+    # (channels decide what to do via subscribed_events). We still skip
+    # publishing on a failed handoff so subscribers don't get a
+    # "complete" message right before a "failed" message for the same
+    # phase.
+    if job.status != JobState.FAILURE.value:
+        publish_event(JobRipCompleteEvent(
+            event_id=uuid4(),
+            occurred_at=datetime.now(timezone.utc),
+            job_id=job.job_id,
+            job_title=job.title or "",
+            job_disc_type=_job_disc_type(job),
+            job_imdb_id=job.imdb_id,
+            rip_duration_seconds=_rip_duration_seconds(job),
+            track_count=job.tracks.count(),
+        ))
 
 
 def check_empty_rip(job) -> bool:
@@ -133,6 +209,7 @@ def rip_visual_media(have_dupes, job, logfile, protection):
         job.status = JobState.FAILURE.value
         db.session.commit()
         logging.warning("Empty rip detected: %s", job.errors)
+        _publish_job_failed(job, phase="rip")
         notify_exit(job)
         return
 
@@ -145,18 +222,33 @@ def rip_visual_media(have_dupes, job, logfile, protection):
 
 
 def notify_exit(job):
+    """Publish ``job.transcode_complete`` at the end of ARM's local pipeline.
+
+    Channels filter on subscribed_events, so the legacy
+    ``NOTIFY_TRANSCODE`` per-job guard is gone — operators choose
+    visibility per channel now.
+
+    Errors are intentionally NOT branched on here: when the rip or
+    transcode genuinely failed, a ``job.failed`` event was already
+    published at the FAILURE-state-set site, and that event carries
+    the structured error narrative. Emitting both lets subscribers
+    correlate, while keeping this site type-agnostic.
     """
-    Notify post ripping - ARM finished\n
-    Includes any errors
-    :param job: current job
-    :return: None
-    """
-    if job.config.NOTIFY_TRANSCODE:
-        if job.errors:
-            errlist = ', '.join(job.errors)
-            utils.notify(job, constants.NOTIFY_TITLE,
-                         f" {job.title} processing completed with errors. "
-                         f"Title(s) {errlist} failed to complete. ")
-            logging.info(f"Processing completed with errors.  Title(s) {errlist} failed to complete. ")
-        else:
-            utils.notify(job, constants.NOTIFY_TITLE, f"{job.title} {constants.PROCESS_COMPLETE}")
+    if job.errors:
+        # Log so the historical "processing completed with errors" line
+        # survives in the ARM log, even though the channel-facing event
+        # is uniform.
+        logging.info(
+            "Processing completed with errors for job %s: %s",
+            job.job_id, job.errors,
+        )
+    publish_event(JobTranscodeCompleteEvent(
+        event_id=uuid4(),
+        occurred_at=datetime.now(timezone.utc),
+        job_id=job.job_id,
+        job_title=job.title or "",
+        job_disc_type=_job_disc_type(job),
+        job_imdb_id=job.imdb_id,
+        transcode_duration_seconds=_rip_duration_seconds(job),
+        output_path=str(job.path or ""),
+    ))
