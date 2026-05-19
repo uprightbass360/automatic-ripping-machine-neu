@@ -81,3 +81,300 @@ def purge_cleared_notifications():
 def read_notification(notify_id: int):
     """Mark a notification as read."""
     return svc_jobs.read_notification(str(notify_id))
+
+
+# -------------------- Channels CRUD --------------------
+
+from typing import Any  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+
+from arm_contracts import (  # noqa: E402
+    ChannelCreate,
+    ChannelUpdate,
+)
+from arm.notifications.models import (  # noqa: E402
+    NotificationChannel,
+    NotificationOutbox,
+)
+from arm.notifications import catalog as catalog_module  # noqa: E402
+from arm.notifications.url_composer import compose_apprise_url  # noqa: E402
+
+_HIDDEN_LITERAL = "<hidden>"
+# Per-channel test-send cooldown (seconds). Tracked in-memory; resets
+# on process restart. Sufficient for single-user setups.
+_TEST_SEND_COOLDOWN_SECONDS = 10
+_test_send_last: dict[int, datetime.datetime] = {}
+
+
+def _mask_config(cfg: dict) -> dict:
+    """Replace secret fields with the masked literal for GET responses."""
+    if not cfg:
+        return cfg
+    out = dict(cfg)
+    if cfg.get("type") == "webhook" and "shared_secret" in cfg:
+        if cfg["shared_secret"]:
+            out["shared_secret"] = _HIDDEN_LITERAL
+    return out
+
+
+def _merge_patch_config(existing: dict, incoming: dict | None) -> dict:
+    """When the client sends a PATCH with config.shared_secret=<hidden>,
+    preserve the existing secret instead of overwriting it."""
+    if incoming is None:
+        return existing
+    merged = dict(incoming)
+    if (
+        existing.get("type") == "webhook"
+        and merged.get("type") == "webhook"
+        and merged.get("shared_secret") == _HIDDEN_LITERAL
+    ):
+        merged["shared_secret"] = existing.get("shared_secret")
+    return merged
+
+
+def _channel_to_out_dict(ch: NotificationChannel) -> dict:
+    """Serialize a DB row to the Channel API shape with secrets masked."""
+    return {
+        "id": ch.id,
+        "type": ch.type,
+        "name": ch.name,
+        "enabled": ch.enabled,
+        "config": _mask_config(ch.config),
+        "subscribed_events": ch.subscribed_events or [],
+        "templates": ch.templates or {},
+        "last_fired_at": ch.last_fired_at.isoformat() if ch.last_fired_at else None,
+        "last_success_at": ch.last_success_at.isoformat() if ch.last_success_at else None,
+        "last_error": ch.last_error,
+    }
+
+
+def _validate_apprise_url(url: str) -> None:
+    """Reject URLs that apprise can't parse before saving the channel."""
+    import apprise
+    a = apprise.Apprise()
+    if not a.add(url):
+        raise HTTPException(
+            status_code=422,
+            detail=f"apprise rejected URL: {url}",
+        )
+
+
+@router.get("/notifications/channels")
+def list_channels():
+    rows = NotificationChannel.query.order_by(
+        NotificationChannel.created_at.desc()).all()
+    return [_channel_to_out_dict(r) for r in rows]
+
+
+@router.get("/notifications/channels/{channel_id}")
+def get_channel(channel_id: int):
+    ch = NotificationChannel.query.get(channel_id)
+    if ch is None:
+        raise HTTPException(404, "channel not found")
+    return _channel_to_out_dict(ch)
+
+
+@router.post("/notifications/channels", status_code=201)
+def create_channel(payload: ChannelCreate):
+    if payload.config.type == "apprise":
+        _validate_apprise_url(payload.config.url)
+    config_dict = payload.config.model_dump(mode="json")
+    # SecretStr -> plaintext for storage.
+    if payload.config.type == "webhook":
+        sec = payload.config.shared_secret
+        config_dict["shared_secret"] = (
+            sec.get_secret_value() if sec is not None else None
+        )
+    ch = NotificationChannel(
+        type=payload.type,
+        name=payload.name,
+        enabled=payload.enabled,
+        config=config_dict,
+        subscribed_events=list(payload.subscribed_events),
+        templates={k: v.model_dump() for k, v in payload.templates.items()},
+    )
+    db.session.add(ch)
+    db.session.commit()
+    return _channel_to_out_dict(ch)
+
+
+@router.patch("/notifications/channels/{channel_id}")
+def patch_channel(channel_id: int, payload: ChannelUpdate):
+    ch = NotificationChannel.query.get(channel_id)
+    if ch is None:
+        raise HTTPException(404, "channel not found")
+
+    if payload.name is not None:
+        ch.name = payload.name
+    if payload.enabled is not None:
+        ch.enabled = payload.enabled
+    if payload.subscribed_events is not None:
+        ch.subscribed_events = list(payload.subscribed_events)
+    if payload.templates is not None:
+        ch.templates = {k: v.model_dump() for k, v in payload.templates.items()}
+    if payload.config is not None:
+        incoming = payload.config.model_dump(mode="json")
+        if payload.config.type == "webhook":
+            sec = payload.config.shared_secret
+            incoming["shared_secret"] = (
+                sec.get_secret_value() if sec is not None else None
+            )
+        if payload.config.type == "apprise":
+            _validate_apprise_url(payload.config.url)
+        ch.config = _merge_patch_config(ch.config or {}, incoming)
+    db.session.commit()
+    return _channel_to_out_dict(ch)
+
+
+@router.delete("/notifications/channels/{channel_id}", status_code=204)
+def delete_channel(channel_id: int):
+    ch = NotificationChannel.query.get(channel_id)
+    if ch is None:
+        raise HTTPException(404, "channel not found")
+    # Cascade is declared in the FK; explicitly remove outbox rows for
+    # SQLite where ON DELETE CASCADE isn't always honored.
+    NotificationOutbox.query.filter_by(channel_id=channel_id).delete()
+    db.session.delete(ch)
+    db.session.commit()
+    return None
+
+
+# -------------------- Test send --------------------
+
+def _synthetic_event(event_key: str) -> dict:
+    """A placeholder event payload used by the test-send endpoint."""
+    from uuid import uuid4
+    base = {
+        "event_id": str(uuid4()),
+        "occurred_at": datetime.datetime.utcnow().isoformat(),
+        "job_id": 0,
+        "job_title": "ARM Test",
+        "job_disc_type": "dvd",
+        "job_imdb_id": None,
+    }
+    if event_key == "job.started":
+        return {**base, "event_key": event_key, "drive_mount": "/dev/sr0"}
+    if event_key == "job.rip_complete":
+        return {**base, "event_key": event_key,
+                "rip_duration_seconds": 0, "track_count": 0}
+    if event_key == "job.transcode_complete":
+        return {**base, "event_key": event_key,
+                "transcode_duration_seconds": 0, "output_path": "/test"}
+    if event_key == "job.failed":
+        return {**base, "event_key": event_key,
+                "phase": "rip",
+                "error_message": "test send",
+                "error_code": None}
+    if event_key == "job.manual_wait_required":
+        return {**base, "event_key": event_key,
+                "wait_minutes_remaining": 0,
+                "reason": "manual_mode_activated"}
+    if event_key == "job.duplicate_detected":
+        return {**base, "event_key": event_key,
+                "existing_job_id": 0,
+                "existing_output_path": None}
+    raise HTTPException(400, f"unknown event_key: {event_key}")
+
+
+@router.post("/notifications/channels/{channel_id}/test", status_code=202)
+def test_send(channel_id: int, body: dict | None = None):
+    ch = NotificationChannel.query.get(channel_id)
+    if ch is None:
+        raise HTTPException(404, "channel not found")
+
+    now = datetime.datetime.utcnow()
+    last = _test_send_last.get(channel_id)
+    if last and (now - last).total_seconds() < _TEST_SEND_COOLDOWN_SECONDS:
+        remaining = int(
+            _TEST_SEND_COOLDOWN_SECONDS - (now - last).total_seconds())
+        raise HTTPException(
+            status_code=429,
+            detail=f"test send cooldown, retry in {remaining}s",
+            headers={"Retry-After": str(remaining)},
+        )
+    _test_send_last[channel_id] = now
+
+    event_key = (body or {}).get("event_key", "job.started")
+    payload = _synthetic_event(event_key)
+
+    row = NotificationOutbox(
+        channel_id=channel_id,
+        event_key=event_key,
+        event_payload=payload,
+        status="pending",
+        attempts=0,
+        next_attempt_at=now,
+    )
+    db.session.add(row)
+    db.session.commit()
+    return {"sent_at": now.isoformat(), "dispatch_id": row.id}
+
+
+@router.get("/notifications/dispatch/{dispatch_id}")
+def get_dispatch(dispatch_id: int):
+    row = NotificationOutbox.query.get(dispatch_id)
+    if row is None:
+        raise HTTPException(404, "dispatch not found")
+    return {
+        "id": row.id,
+        "status": row.status,
+        "attempts": row.attempts,
+        "last_error": row.last_error,
+        "completed_at": (row.completed_at.isoformat()
+                         if row.completed_at else None),
+    }
+
+
+@router.get("/notifications/dispatches")
+def list_dispatches(
+    channel_id: int | None = None,
+    status: str | None = None,
+    limit: int = 50,
+):
+    if limit > 200:
+        limit = 200
+    q = NotificationOutbox.query
+    if channel_id is not None:
+        q = q.filter_by(channel_id=channel_id)
+    if status is not None:
+        q = q.filter_by(status=status)
+    rows = q.order_by(NotificationOutbox.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": r.id,
+            "channel_id": r.channel_id,
+            "event_key": r.event_key,
+            "status": r.status,
+            "attempts": r.attempts,
+            "last_error": r.last_error,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "completed_at": (r.completed_at.isoformat()
+                             if r.completed_at else None),
+        }
+        for r in rows
+    ]
+
+
+# -------------------- Catalog --------------------
+
+_catalog_cache: dict | None = None
+
+
+@router.get("/notifications/services")
+def get_services():
+    """Apprise service catalog. Cached in-process for the lifetime of
+    the worker — restarting picks up apprise updates."""
+    global _catalog_cache
+    if _catalog_cache is None:
+        _catalog_cache = catalog_module.build_catalog()
+    return _catalog_cache
+
+
+@router.post("/notifications/services/{service_id}/compose-url")
+def compose_url(service_id: str, body: dict):
+    required = body.get("required") or {}
+    advanced = body.get("advanced") or {}
+    url = compose_apprise_url(
+        service_id=service_id, required=required, advanced=advanced)
+    return {"url": url}
