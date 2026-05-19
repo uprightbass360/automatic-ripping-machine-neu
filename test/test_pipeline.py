@@ -120,8 +120,10 @@ class TestCheckForDupeFolder:
             cfg.arm_config['ALLOW_DUPLICATES'] = original
 
     def test_existing_folder_dupes_disabled_raises(self, tmp_path):
-        """Existing folder + no duplicates allowed → RipperException."""
+        """Existing folder + no duplicates allowed → RipperException +
+        JobDuplicateDetectedEvent published."""
         from arm.ripper.utils import check_for_dupe_folder, RipperException
+        from arm_contracts import JobDuplicateDetectedEvent
         import arm.config.config as cfg
 
         existing = tmp_path / 'existing'
@@ -133,10 +135,20 @@ class TestCheckForDupeFolder:
             job = unittest.mock.MagicMock()
             job.stage = '170750493000'
             job.title = 'Test'
-            with unittest.mock.patch('arm.ripper.utils.notify'), \
+            job.label = 'TEST_LABEL'
+            job.crc_id = 'abc123'
+            job.job_id = 42
+            job.imdb_id = 'tt0000001'
+            job.disctype = 'dvd'
+            with unittest.mock.patch('arm.notifications.publish_event') as mock_publish, \
                  unittest.mock.patch('arm.ripper.utils.database_updater'), \
                  pytest.raises(RipperException):
                 check_for_dupe_folder(True, str(existing), job)
+            assert mock_publish.called
+            published = mock_publish.call_args[0][0]
+            assert isinstance(published, JobDuplicateDetectedEvent)
+            assert published.job_id == 42
+            assert published.existing_job_id == 0
         finally:
             cfg.arm_config['ALLOW_DUPLICATES'] = original_allow
 
