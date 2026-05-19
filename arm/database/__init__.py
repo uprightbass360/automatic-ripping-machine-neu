@@ -16,7 +16,7 @@ from time import sleep
 
 from sqlalchemy import (
     BigInteger, Column, Integer, String, Boolean, Float, Text,
-    DateTime, SmallInteger, Unicode, Enum, ForeignKey,
+    DateTime, SmallInteger, Unicode, Enum, ForeignKey, JSON, Index,
     create_engine, text, event,
 )
 from sqlalchemy.exc import OperationalError
@@ -223,7 +223,9 @@ class _DB:
     SmallInteger = SmallInteger
     Unicode = Unicode
     Enum = Enum
+    JSON = JSON
     ForeignKey = staticmethod(ForeignKey)
+    Index = staticmethod(Index)
 
     # --- Relationships ---
     relationship = staticmethod(relationship)

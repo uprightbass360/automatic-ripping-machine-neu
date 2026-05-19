@@ -12,3 +12,7 @@ from .system_info import SystemInfo  # noqa F401
 from .track import Track  # noqa F401
 from .ui_settings import UISettings  # noqa F401
 from .user import User  # noqa F401
+
+# Notifications module models — imported here so alembic's
+# `import arm.models` populates db.metadata with them.
+import arm.notifications.models  # noqa: F401
