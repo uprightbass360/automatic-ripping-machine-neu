@@ -183,3 +183,88 @@ def test_dispatcher_handles_vanished_channel(db_session, make_channel):
     process_one_row(row.id)
     db_session.refresh(row)
     assert row.status == "failed"
+
+
+def test_process_one_row_returns_silently_when_outbox_vanished(db_session):
+    """Calling process_one_row with a missing outbox id must not raise
+    and must not invoke record_failure (there's nothing to fail)."""
+    from arm.notifications import dispatcher as dispatcher_mod
+    from arm.notifications.dispatcher import process_one_row
+
+    with patch.object(dispatcher_mod, "record_failure") as rec_fail, \
+         patch.object(dispatcher_mod, "record_success") as rec_ok:
+        # 999999 is well outside any test-fixture-allocated id space.
+        process_one_row(999999)
+
+    rec_fail.assert_not_called()
+    rec_ok.assert_not_called()
+
+
+def test_process_one_row_bash_failure_is_terminal_regardless_of_marker(
+    db_session, make_channel
+):
+    """Per N9 contract, bash failures are always terminal — even when the
+    sender's error string lacks ``terminal=true`` (or explicitly says
+    ``terminal=false``). The dispatcher must bypass _parse_terminal_flag
+    for bash."""
+    from arm.notifications.dispatcher import process_one_row
+
+    ch = make_channel(
+        type="bash",
+        config={"type": "bash", "script_path": "/x"},
+        subscribed_events=["job.started"],
+    )
+    row = _outbox_row(db_session, ch.id, _started_payload())
+
+    # Note: NO terminal=true in the error string. In fact, claim the
+    # opposite, so a naive _parse_terminal_flag call would mark this as
+    # retryable. The dispatcher must override and treat it as terminal.
+    with patch("arm.notifications.dispatcher.send_bash",
+               return_value=(False, "bash script exit code 1 terminal=false")):
+        process_one_row(row.id)
+
+    db_session.refresh(row)
+    assert row.status == "failed", (
+        "bash failures must be terminal regardless of sender marker"
+    )
+    assert row.last_error is not None
+    assert "bash" in row.last_error.lower()
+
+
+def test_process_one_row_webhook_success_constructs_payload(
+    db_session, make_channel
+):
+    """Happy-path webhook: assert send_webhook receives a payload_dict
+    matching the documented HMAC-signed shape (event/title/body/channel/
+    sent_at)."""
+    from arm.notifications.dispatcher import process_one_row
+
+    ch = make_channel(
+        type="webhook",
+        config={"type": "webhook",
+                "url": "https://example.com/hook",
+                "shared_secret": "s3cret"},
+        subscribed_events=["job.started"],
+    )
+    row = _outbox_row(db_session, ch.id, _started_payload())
+
+    with patch("arm.notifications.dispatcher.send_webhook",
+               return_value=(True, None)) as send:
+        process_one_row(row.id)
+
+    send.assert_called_once()
+    kwargs = send.call_args.kwargs
+    payload = kwargs["payload_dict"]
+
+    # Top-level shape:
+    for key in ("event", "title", "body", "channel", "sent_at"):
+        assert key in payload, f"missing top-level key '{key}' in webhook payload"
+
+    # channel sub-shape:
+    channel_ref = payload["channel"]
+    assert channel_ref["id"] == ch.id
+    assert channel_ref["name"] == ch.name
+    assert channel_ref["type"] == "webhook"
+
+    db_session.refresh(row)
+    assert row.status == "success"
