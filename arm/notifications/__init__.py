@@ -4,6 +4,9 @@ The rest of arm-neu must not import from this module's internals.
 Only ``publish_event`` (the producer entry point) and ``router`` (the
 FastAPI router) are part of the public API.
 """
-# Public names are wired up in later tasks (events.py for publish_event,
-# api.py for router). Keep this file minimal so other modules can't
-# reach in through it.
+from arm.notifications.events import publish_event  # noqa: F401
+
+# router is exported by arm.notifications.api once that module exists
+# (added in a later task).
+
+__all__ = ["publish_event"]
