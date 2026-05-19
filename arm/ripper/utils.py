@@ -1375,9 +1375,30 @@ def check_for_dupe_folder(have_dupes, hb_out_path, job):
                 f"Duplicate disc detected: '{job.title}' (label={job.label}, "
                 f"crc={job.crc_id}). Skipping — ALLOW_DUPLICATES is false."
             )
-            notify(job, NOTIFY_TITLE, f"ARM Detected a duplicate disc. For {job.title}. "
-                                      f"Duplicate rips are disabled. "
-                                      f"You can re-enable them from your config file. ")
+            # Lazy imports mirror notify_entry() — utils.py is imported
+            # very early in the worker, and arm.notifications pulls in
+            # the dispatcher/dependency graph we want loaded only when
+            # the producer actually fires.
+            from datetime import datetime as _dt, timezone
+            from uuid import uuid4
+            from arm_contracts import JobDuplicateDetectedEvent
+            from arm.notifications import publish_event
+            from arm.ripper._notify_helpers import job_disc_type
+            # ``check_for_dupe_folder`` only knows that *a* prior job
+            # collided (have_dupes=True) — it does not look up the
+            # specific prior job's id. Use 0 as a sentinel to keep the
+            # producer simple; consumers that need the exact previous
+            # job can resolve it from the title/label.
+            publish_event(JobDuplicateDetectedEvent(
+                event_id=uuid4(),
+                occurred_at=_dt.now(timezone.utc),
+                job_id=job.job_id,
+                job_title=job.title or "",
+                job_disc_type=job_disc_type(job),
+                job_imdb_id=job.imdb_id,
+                existing_job_id=0,
+                existing_output_path=None,
+            ))
             raise RipperException("Duplicate rips are disabled")
     logging.info(f"Final Output directory \"{hb_out_path}\"")
     return hb_out_path

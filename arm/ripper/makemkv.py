@@ -17,8 +17,11 @@ import re
 import shlex
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from time import sleep
+from uuid import uuid4
 
+from arm_contracts import JobFailedEvent, JobManualWaitRequiredEvent
 from arm_contracts.enums import SkipReason, TrackStatus
 
 import arm.config.config as cfg
@@ -26,8 +29,9 @@ from arm.constants import SINGLE_TRACK_VIDEO_TYPES
 from arm.enums import RipMethod
 from arm.models import SystemDrives, Track
 from arm.models.job import JobState
+from arm.notifications import publish_event
 from arm.ripper import utils
-from arm.ripper.utils import notify
+from arm.ripper._notify_helpers import job_disc_type as _disc_type_or_unknown
 from arm.database import db
 
 MAKEMKV_INFO_WAIT_TIME = 60  # [s]
@@ -729,11 +733,22 @@ def makemkv_mkv(job, rawpath):
             db.session.commit()
             process_single_tracks(job, rawpath, mode)
         else:
-            # Notify User: no action was taken
-            title = "ARM is Sad - Job Abandoned"
-            message = "You left me alone in the cold and dark, I forgot who I was. Your job has been abandoned."
-            notify(job, title, message)
-
+            # User timed out waiting on manual mode. Publish job.failed with
+            # error_code=manual_timeout so subscribers can distinguish a
+            # user-abandoned job from a ripper crash. A second job.failed
+            # may follow from the outer FAILURE branch (arm_ripper.py) with
+            # a different error_code — acceptable redundancy.
+            publish_event(JobFailedEvent(
+                event_id=uuid4(),
+                occurred_at=datetime.now(timezone.utc),
+                job_id=job.job_id,
+                job_title=job.title or "",
+                job_disc_type=_disc_type_or_unknown(job),
+                job_imdb_id=job.imdb_id,
+                phase="rip",
+                error_message="Manual mode timed out waiting for user input",
+                error_code="manual_timeout",
+            ))
             raise utils.RipperException("Manual mode: Timed out waiting for user input")
 
     # if no maximum length, process the whole disc in one command
@@ -1929,12 +1944,18 @@ def manual_wait(job) -> bool:
     user_ready = False
     wait_time: int = 30
 
-    title = "Manual Mode Activated!"
-    message = f"ARM has taken it's hands off the wheels. You have {wait_time} minutes to set the job."
-    notify(job, title, message)
+    publish_event(JobManualWaitRequiredEvent(
+        event_id=uuid4(),
+        occurred_at=datetime.now(timezone.utc),
+        job_id=job.job_id,
+        job_title=job.title or "",
+        job_disc_type=_disc_type_or_unknown(job),
+        job_imdb_id=job.imdb_id,
+        wait_minutes_remaining=wait_time,
+        reason="manual_mode_activated",
+    ))
 
     # Wait for the user to set the files and then start
-    title = "Waiting for input on job!"
     for i in range(wait_time, 0, -1):
         # Wait for a minute
         sleep(60)
@@ -1945,19 +1966,37 @@ def manual_wait(job) -> bool:
 
         # Check the job state (true once ready)
         if job.manual_start:
+            # The user just clicked "ready" — the next pipeline event
+            # (job.rip_complete eventually) is the right signal. No
+            # explicit notify on user-acknowledgement: there's no
+            # contracts event for it and pestering the user with a
+            # "thanks for clicking" message is noise.
             user_ready = True
-            title = "The Wait is Over"
-            message = "Thanks for not forgetting me, I am now processing your job."
-            notify(job, title, message)
             break
         else:
             # If nothing has happened, remind the user every 5 minutes
             if i % 5 == 0 and i != wait_time:
-                body = f"Don't forget me, I need your help to continue doing ARM things!. You have {i} minutes."
-                notify(job, title, body)
+                publish_event(JobManualWaitRequiredEvent(
+                    event_id=uuid4(),
+                    occurred_at=datetime.now(timezone.utc),
+                    job_id=job.job_id,
+                    job_title=job.title or "",
+                    job_disc_type=_disc_type_or_unknown(job),
+                    job_imdb_id=job.imdb_id,
+                    wait_minutes_remaining=i,
+                    reason="reminder",
+                ))
 
             if i == 1:
-                body = "ARM is about to cancel this job!!! You have less than 1 minute left!"
-                notify(job, title, body)
+                publish_event(JobManualWaitRequiredEvent(
+                    event_id=uuid4(),
+                    occurred_at=datetime.now(timezone.utc),
+                    job_id=job.job_id,
+                    job_title=job.title or "",
+                    job_disc_type=_disc_type_or_unknown(job),
+                    job_imdb_id=job.imdb_id,
+                    wait_minutes_remaining=1,
+                    reason="final_warning",
+                ))
 
     return user_ready

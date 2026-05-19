@@ -24,23 +24,7 @@ from arm_contracts import (  # noqa E402
     JobTranscodeCompleteEvent,
     JobFailedEvent,
 )
-from arm_contracts.enums import Disctype  # noqa E402
-
-
-def _job_disc_type(job) -> Disctype:
-    """Map the ripper's string disctype column onto the contracts enum.
-
-    A missing / empty value collapses to ``Disctype.unknown`` so the
-    publish never blows up on an event-level required field; the
-    upstream guard in ``notify_entry`` already rejects unknown discs
-    before they reach this point in the happy path.
-    """
-    if not job.disctype:
-        return Disctype.unknown
-    try:
-        return Disctype(job.disctype)
-    except ValueError:
-        return Disctype.unknown
+from arm.ripper._notify_helpers import job_disc_type as _job_disc_type  # noqa E402,F401
 
 
 def _rip_duration_seconds(job) -> int:
