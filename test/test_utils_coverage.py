@@ -311,51 +311,58 @@ class TestScanEmby:
 
 
 class TestNotifyEntry:
-    """Test notify_entry() disc type notification routing."""
+    """Test notify_entry() publishes JobStartedEvent for the disc type.
+
+    The legacy per-disctype message text now lives in channel-side
+    templates rendered from the typed event, so the assertions check
+    the event's ``job_disc_type`` rather than free-form body strings.
+    """
 
     def test_video_disc_notification(self, app_context, sample_job):
         from arm.ripper.utils import notify_entry
-        import arm.config.config as cfg
+        from arm_contracts import JobStartedEvent
+        from arm_contracts.enums import Disctype
 
-        old = cfg.arm_config.get('UI_BASE_URL')
-        cfg.arm_config['UI_BASE_URL'] = ''
-        try:
-            with unittest.mock.patch('arm.ripper.utils.notify') as mock_notify, \
-                 unittest.mock.patch('arm.ripper.utils.database_adder'), \
-                 unittest.mock.patch('arm.ripper.utils.check_ip', return_value='127.0.0.1'):
-                notify_entry(sample_job)
-            mock_notify.assert_called_once()
-            call_body = mock_notify.call_args[0][2]
-            assert 'Found disc' in call_body
-        finally:
-            if old is not None:
-                cfg.arm_config['UI_BASE_URL'] = old
+        with unittest.mock.patch('arm.notifications.publish_event') as mock_publish, \
+             unittest.mock.patch('arm.ripper.utils.database_adder'):
+            notify_entry(sample_job)
+        mock_publish.assert_called_once()
+        event = mock_publish.call_args[0][0]
+        assert isinstance(event, JobStartedEvent)
+        assert event.job_disc_type in (Disctype.dvd, Disctype.bluray, Disctype.bluray4k)
 
     def test_music_disc_notification(self, app_context, sample_job):
         from arm.ripper.utils import notify_entry
+        from arm_contracts import JobStartedEvent
+        from arm_contracts.enums import Disctype
 
         sample_job.disctype = 'music'
-        with unittest.mock.patch('arm.ripper.utils.notify') as mock_notify, \
+        with unittest.mock.patch('arm.notifications.publish_event') as mock_publish, \
              unittest.mock.patch('arm.ripper.utils.database_adder'):
             notify_entry(sample_job)
-        call_body = mock_notify.call_args[0][2]
-        assert 'music CD' in call_body
+        event = mock_publish.call_args[0][0]
+        assert isinstance(event, JobStartedEvent)
+        assert event.job_disc_type == Disctype.music
 
     def test_data_disc_notification(self, app_context, sample_job):
         from arm.ripper.utils import notify_entry
+        from arm_contracts import JobStartedEvent
+        from arm_contracts.enums import Disctype
 
         sample_job.disctype = 'data'
-        with unittest.mock.patch('arm.ripper.utils.notify') as mock_notify, \
+        with unittest.mock.patch('arm.notifications.publish_event') as mock_publish, \
              unittest.mock.patch('arm.ripper.utils.database_adder'):
             notify_entry(sample_job)
-        call_body = mock_notify.call_args[0][2]
-        assert 'data disc' in call_body
+        event = mock_publish.call_args[0][0]
+        assert isinstance(event, JobStartedEvent)
+        assert event.job_disc_type == Disctype.data
 
     def test_unknown_disc_raises(self, app_context, sample_job):
         from arm.ripper.utils import notify_entry, RipperException
 
         sample_job.disctype = 'unknown'
-        with unittest.mock.patch('arm.ripper.utils.database_adder'), \
+        with unittest.mock.patch('arm.notifications.publish_event'), \
+             unittest.mock.patch('arm.ripper.utils.database_adder'), \
              pytest.raises(RipperException, match="Could not determine"):
             notify_entry(sample_job)
 
