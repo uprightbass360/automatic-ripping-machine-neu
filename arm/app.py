@@ -117,9 +117,26 @@ async def lifespan(app: FastAPI):
     ])
     start_background_refresh()
 
+    # Notification dispatcher (drains outbox, runs forever).
+    import asyncio
+    from arm.notifications.dispatcher import run_dispatcher_loop
+    dispatcher_stop = asyncio.Event()
+    dispatcher_task = asyncio.create_task(
+        run_dispatcher_loop(stop_event=dispatcher_stop),
+        name="notification-dispatcher",
+    )
+
     log.info("ARM API server starting up.")
-    yield
-    log.info("ARM API server shutting down.")
+    try:
+        yield
+    finally:
+        log.info("ARM API server shutting down.")
+        dispatcher_stop.set()
+        try:
+            await asyncio.wait_for(dispatcher_task, timeout=10.0)
+        except asyncio.TimeoutError:
+            log.warning("dispatcher did not stop within 10s; cancelling")
+            dispatcher_task.cancel()
 
 
 app = FastAPI(title="ARM API", lifespan=lifespan)
