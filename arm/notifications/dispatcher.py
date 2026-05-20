@@ -34,6 +34,7 @@ from arm.notifications.channels.webhook import send_webhook
 from arm.notifications.channels.bash import send_bash
 from arm.notifications.models import NotificationChannel, NotificationOutbox
 from arm.notifications.outbox import (
+    cleanup_completed,
     dequeue_due,
     record_failure,
     record_success,
@@ -48,6 +49,8 @@ log = logging.getLogger(__name__)
 
 _TICK_INTERVAL_SECONDS = 5.0
 _BATCH_SIZE = 20
+_CLEANUP_INTERVAL_SECONDS = 3600.0  # outbox retention sweep cadence
+_CLEANUP_RETENTION_DAYS = 7
 
 # Keys we set explicitly in _build_bash_env — pass-through loop skips
 # these to avoid double-emit / overwrite of curated values.
@@ -212,6 +215,9 @@ async def run_dispatcher_loop(stop_event: Optional[asyncio.Event] = None) -> Non
     if rescued:
         log.info("dispatcher rescued %d stale in_flight rows", rescued)
 
+    loop = asyncio.get_event_loop()
+    next_cleanup_at = loop.time() + _CLEANUP_INTERVAL_SECONDS
+
     while True:
         if stop_event is not None and stop_event.is_set():
             log.info("notification dispatcher stopping")
@@ -226,4 +232,19 @@ async def run_dispatcher_loop(stop_event: Optional[asyncio.Event] = None) -> Non
             # Dispatcher-level failure (DB error etc.) — log and sleep
             # so we don't tight-loop on the same error.
             log.exception("dispatcher tick failed: %s", exc)
+
+        if loop.time() >= next_cleanup_at:
+            try:
+                deleted = cleanup_completed(
+                    older_than_days=_CLEANUP_RETENTION_DAYS,
+                )
+                if deleted:
+                    log.info(
+                        "notification outbox cleanup: deleted %d "
+                        "completed rows", deleted,
+                    )
+            except Exception:
+                log.exception("notification outbox cleanup failed")
+            next_cleanup_at = loop.time() + _CLEANUP_INTERVAL_SECONDS
+
         await asyncio.sleep(_TICK_INTERVAL_SECONDS)
