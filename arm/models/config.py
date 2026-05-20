@@ -5,8 +5,7 @@ from arm.enums import RipMethod
 
 
 hidden_attribs = ("OMDB_API_KEY", "EMBY_USERID", "EMBY_PASSWORD",
-                  "EMBY_API_KEY", "PB_KEY", "IFTTT_KEY", "PO_KEY",
-                  "PO_USER_KEY", "PO_APP_KEY", "ARM_API_KEY",
+                  "EMBY_API_KEY", "ARM_API_KEY",
                   "TMDB_API_KEY", "TRANSCODER_WEBHOOK_SECRET",
                   "_sa_instance_state")
 HIDDEN_VALUE = "<hidden>"
@@ -73,13 +72,6 @@ class Config(db.Model):
     EMBY_USERID = db.Column(db.String(128))
     EMBY_PASSWORD = db.Column(db.String(128))
     EMBY_API_KEY = db.Column(db.String(64))
-    NOTIFY_RIP = db.Column(db.Boolean)
-    NOTIFY_TRANSCODE = db.Column(db.Boolean)
-    PB_KEY = db.Column(db.String(64))
-    IFTTT_KEY = db.Column(db.String(64))
-    IFTTT_EVENT = db.Column(db.String(25))
-    PO_USER_KEY = db.Column(db.String(64))
-    PO_APP_KEY = db.Column(db.String(64))
     OMDB_API_KEY = db.Column(db.String(64))
     USE_DISC_LABEL_FOR_TV = db.Column(db.Boolean)
     GROUP_TV_DISCS_UNDER_SERIES = db.Column(db.Boolean)

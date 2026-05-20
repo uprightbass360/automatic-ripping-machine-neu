@@ -37,14 +37,26 @@ import pyudev  # noqa: E402
 if find_spec("arm") is None:
     sys.path.append(str(Path(__file__).parents[2]))
 
+from datetime import timezone
+from uuid import uuid4
+
 import arm.config.config as cfg  # noqa E402
 from arm.models.config import Config  # noqa: E402
 from arm.models.job import Job, JobState  # noqa: E402
 from arm.models.system_drives import CDS, SystemDrives  # noqa: E402
 from arm.database import db  # noqa E402
 import arm.constants as constants  # noqa E402
+from arm.notifications import publish_event  # noqa E402
+from arm_contracts import (  # noqa E402
+    JobFailedEvent,
+    JobRipCompleteEvent,
+)
 from arm.ripper import (arm_ripper, identify, logger,  # noqa: E402
                         makemkv, music_brainz, utils)
+from arm.ripper._notify_helpers import (  # noqa E402
+    job_disc_type as _job_disc_type,
+    rip_duration_seconds as _rip_duration_seconds,
+)
 from arm.ripper.ARMInfo import ARMInfo  # noqa E402
 from arm.services import drives as drive_utils  # noqa E402
 
@@ -98,7 +110,7 @@ def log_arm_params(job):
                 "VIDEOTYPE", "MANUAL_WAIT", "MANUAL_WAIT_TIME", "RIPMETHOD",
                 "MKV_ARGS", "DELRAWFILES", "RAW_PATH", "TRANSCODE_PATH",
                 "COMPLETED_PATH", "EXTRAS_SUB", "EMBY_REFRESH", "EMBY_SERVER",
-                "EMBY_PORT", "NOTIFY_RIP", "NOTIFY_TRANSCODE",
+                "EMBY_PORT",
                 "MAX_CONCURRENT_MAKEMKVINFO"):
         logging.info(f"{key.lower()}: {str(cfg.arm_config.get(key, '<not given>'))}")
     logging.info("******************* End of config parameters *******************")
@@ -250,7 +262,16 @@ def main():
     # Type: Music
     elif job.disctype == "music":
         if utils.rip_music(job, log_file):
-            utils.notify(job, constants.NOTIFY_TITLE, f"Music CD: {job.title} {constants.PROCESS_COMPLETE}")
+            publish_event(JobRipCompleteEvent(
+                event_id=uuid4(),
+                occurred_at=datetime.datetime.now(timezone.utc),
+                job_id=job.job_id,
+                job_title=job.title or "",
+                job_disc_type=_job_disc_type(job),
+                job_imdb_id=job.imdb_id,
+                rip_duration_seconds=_rip_duration_seconds(job),
+                track_count=job.tracks.count(),
+            ))
             utils.scan_emby()
             # This shouldn't be needed. but to be safe
             job.status = JobState.SUCCESS.value
@@ -264,7 +285,16 @@ def main():
     elif job.disctype == "data":
         logging.info("Disc identified as data")
         if utils.rip_data(job):
-            utils.notify(job, constants.NOTIFY_TITLE, f"Data disc: {job.label} copying complete. ")
+            publish_event(JobRipCompleteEvent(
+                event_id=uuid4(),
+                occurred_at=datetime.datetime.now(timezone.utc),
+                job_id=job.job_id,
+                job_title=job.title or "",
+                job_disc_type=_job_disc_type(job),
+                job_imdb_id=job.imdb_id,
+                rip_duration_seconds=_rip_duration_seconds(job),
+                track_count=job.tracks.count(),
+            ))
         else:
             logging.critical("Data rip failed.  See previous errors.  Exiting.")
 
@@ -439,22 +469,24 @@ if __name__ == "__main__":
         logging.critical(error, exc_info=(error if print_stacktrace else None),)
 
         if job:
-            utils.notify(
-                job,
-                constants.NOTIFY_TITLE,
-                f"ARM encountered a fatal error processing {job.title}. "
-                f"Check the logs for more details. {error}"
-            )
-        else:
-            utils.notify(
-                job,
-                constants.NOTIFY_TITLE,
-                f"ARM encountered a fatal error during job setup."
-                f"Check the logs for more details. {error}"
-            )
-        if job:
             job.status = JobState.FAILURE.value
             job.errors = str(error)
+            try:
+                publish_event(JobFailedEvent(
+                    event_id=uuid4(),
+                    occurred_at=datetime.datetime.now(timezone.utc),
+                    job_id=job.job_id,
+                    job_title=job.title or "",
+                    job_disc_type=_job_disc_type(job),
+                    job_imdb_id=job.imdb_id,
+                    phase="rip",
+                    error_message=str(error)[:200] or "unknown failure",
+                    error_code=None,
+                ))
+            except Exception:  # pragma: no cover - top-level safety net
+                logging.exception("Failed to publish job.failed event for fatal error")
+        # No job means failure happened during setup before a Job row existed;
+        # nothing to publish (publish_event requires a job_id).
         # Possibly add cleanup section here for failed job files
     else:
         # Success path: _post_rip_handoff has already committed the correct

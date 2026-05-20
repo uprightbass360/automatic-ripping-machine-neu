@@ -16,7 +16,6 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 import arm.config.config as cfg
-from arm.config.config_utils import arm_yaml_test_bool
 from arm.config import config_utils
 from arm.models.alembic_version import AlembicVersion
 from arm.models.system_info import SystemInfo
@@ -384,31 +383,3 @@ def build_arm_cfg(form_data, comments):
     return arm_cfg
 
 
-def build_apprise_cfg(form_data):
-    """
-    Main function for saving new updated apprise.yaml\n
-    :param form_data: post data
-    :return: full new arm.yaml as a String
-    """
-    log.debug("save_apprise: START")
-    apprise_cfg = "\n\n"
-    for key, value in form_data.items():
-        # Skip the Cross Site Request Forgery (CSRF) token
-        if key == "csrf_token":
-            continue
-        if isinstance(value, str):
-            value = value.strip()
-        if re.search(r"KEY|API|PASS|TOKEN|SECRET", key):
-            key_value = "####--redacted--####"
-        else:
-            key_value = value
-        log.debug(f"save_settings: [{key}] = {key_value} ")
-
-        # test if key value is an int
-        try:
-            post_value = int(value)
-            apprise_cfg += f"{key}: {post_value}\n"
-        except ValueError:
-            apprise_cfg += arm_yaml_test_bool(key, value)
-    log.debug("save_apprise: FINISH")
-    return apprise_cfg

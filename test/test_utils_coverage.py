@@ -1,103 +1,18 @@
 """Additional tests for arm/ripper/utils.py — covering missing lines.
 
-Covers: bash_notify(), _build_job_env(), _move_to_shared_storage(),
-transcoder_notify(), scan_emby(), notify_entry(), job_dupe_check(),
-is_ripping_paused(), get_drive_mode(), clean_old_jobs(),
-save_disc_poster(), _apply_track_phases(), _update_music_tracks(),
-arm_setup(), duplicate_run_check().
+Covers: _move_to_shared_storage(), transcoder_notify(), scan_emby(),
+notify_entry(), job_dupe_check(), is_ripping_paused(), get_drive_mode(),
+clean_old_jobs(), save_disc_poster(), _apply_track_phases(),
+_update_music_tracks(), arm_setup(), duplicate_run_check().
+
+The legacy ``bash_notify()`` and ``_build_job_env()`` helpers were
+removed in N19; their tests are gone with them.
 """
 import datetime
 import os
 import unittest.mock
 
 import pytest
-
-
-class TestBuildJobEnv:
-    """Test _build_job_env() environment variable construction."""
-
-    def test_builds_env_dict(self):
-        from arm.ripper.utils import _build_job_env
-
-        job = unittest.mock.MagicMock()
-        job.job_id = 42
-        job.title = "Test Movie"
-        job.title_auto = "Test Movie"
-        job.year = "2024"
-        job.video_type = "movie"
-        job.disctype = "bluray"
-        job.label = "TEST"
-        job.status='video_ripping'
-        job.path = "/home/arm/media/completed/movies/Test Movie"
-        job.raw_path = "/home/arm/media/raw/Test Movie"
-        job.transcode_path = "/home/arm/media/transcode/Test Movie"
-        job.config.RAW_PATH = "/home/arm/media/raw"
-        job.config.COMPLETED_PATH = "/home/arm/media/completed"
-
-        env = _build_job_env(job)
-        assert env['ARM_JOB_ID'] == '42'
-        assert env['ARM_TITLE'] == 'Test Movie'
-        assert env['ARM_DISCTYPE'] == 'bluray'
-        assert env['ARM_RAW_PATH_BASE'] == '/home/arm/media/raw'
-
-    def test_handles_none_values(self):
-        from arm.ripper.utils import _build_job_env
-
-        job = unittest.mock.MagicMock()
-        job.job_id = None
-        job.title = None
-        job.title_auto = None
-        job.year = None
-        job.video_type = None
-        job.disctype = None
-        job.label = None
-        job.status = None
-        job.path = None
-        job.raw_path = None
-        job.transcode_path = None
-        job.config = None
-
-        env = _build_job_env(job)
-        assert env['ARM_JOB_ID'] == ''
-        assert env['ARM_TITLE'] == ''
-
-
-class TestBashNotify:
-    """Test bash_notify() subprocess execution (lines 135-136)."""
-
-    def test_calls_bash_script(self):
-        from arm.ripper.utils import bash_notify
-
-        cfg = {'BASH_SCRIPT': '/usr/local/bin/notify.sh'}
-        job = unittest.mock.MagicMock()
-        job.job_id = 1
-        job.title = "Test"
-        job.config = None
-
-        with unittest.mock.patch('subprocess.run') as mock_run, \
-             unittest.mock.patch('arm.ripper.utils._build_job_env', return_value={}):
-            bash_notify(cfg, "Title", "Body", job)
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args[0][0]
-        assert '/usr/local/bin/notify.sh' in call_args
-        assert 'Title' in call_args
-        assert 'Body' in call_args
-
-    def test_empty_script_does_nothing(self):
-        from arm.ripper.utils import bash_notify
-
-        cfg = {'BASH_SCRIPT': ''}
-        with unittest.mock.patch('subprocess.run') as mock_run:
-            bash_notify(cfg, "Title", "Body")
-        mock_run.assert_not_called()
-
-    def test_exception_caught(self):
-        from arm.ripper.utils import bash_notify
-
-        cfg = {'BASH_SCRIPT': '/bad/script.sh'}
-        with unittest.mock.patch('subprocess.run', side_effect=OSError("not found")):
-            # Should not raise
-            bash_notify(cfg, "Title", "Body")
 
 
 class TestMoveToSharedStorage:

@@ -26,7 +26,6 @@ def extract_year(raw: str) -> str:
     return m.group(0) if m else raw
 import httpx
 import requests
-import apprise
 import psutil
 
 from netifaces import interfaces, ifaddresses, AF_INET
@@ -43,99 +42,12 @@ from arm.models.track import Track
 from arm.models.user import User
 from arm.models.app_state import AppState
 from arm.models.system_drives import SystemDrives
-from arm.ripper import apprise_bulk
 
 NOTIFY_TITLE = "ARM notification"
 
 
 class RipperException(Exception):
     pass
-
-
-def notify(job, title: str, body: str):
-    """
-    Send notifications with apprise\n
-    :param job: Current Job
-    :param title: title for notification
-    :param body: body of the notification
-    :return: None
-    """
-
-    # Prepend Site Name if configured
-    if cfg.arm_config["ARM_NAME"] != "":
-        title = f"[{cfg.arm_config['ARM_NAME']}] - {title}"
-
-    # append Job ID if configured
-    if cfg.arm_config["NOTIFY_JOBID"] and job is not None:
-        title = f"{title} - {job.job_id}"
-
-    # Send to local db
-    logging.debug(f"apprise message, title: {title} body: {body}")
-    notification = Notifications(title, body)
-    database_adder(notification)
-
-    bash_notify(cfg.arm_config, title, body, job)
-
-    # Sent to remote sites
-    # Create an Apprise instance
-    apobj = apprise.Apprise()
-    if cfg.arm_config["PB_KEY"] != "":
-        apobj.add('pbul://' + str(cfg.arm_config["PB_KEY"]))
-    if cfg.arm_config["IFTTT_KEY"] != "":
-        apobj.add('ifttt://' + str(cfg.arm_config["IFTTT_KEY"]) + "@" + str(cfg.arm_config["IFTTT_EVENT"]))
-    if cfg.arm_config["PO_USER_KEY"] != "":
-        apobj.add('pover://' + str(cfg.arm_config["PO_USER_KEY"]) + "@" + str(cfg.arm_config["PO_APP_KEY"]))
-    if cfg.arm_config["JSON_URL"] != "":
-        apobj.add(str(cfg.arm_config["JSON_URL"]).replace("http://", "json://").replace("https://", "jsons://"))
-    if len(apobj) > 0:
-        try:
-            apobj.notify(body, title=title)
-        except Exception as error:  # noqa: E722
-            logging.error(f"Failed sending notifications. error:{error}. Continuing processing...")
-
-    # Bulk send notifications, using the config set on the ripper config page
-    if cfg.arm_config["APPRISE"] != "":
-        try:
-            apprise_bulk.apprise_notify(cfg.arm_config["APPRISE"], title, body)
-            logging.debug(f"apprise-config: {cfg.arm_config['APPRISE']}")
-        except Exception as error:  # noqa: E722
-            logging.error(f"Failed sending apprise notifications. {error}")
-
-
-def _build_job_env(job):
-    """Build ARM_* environment variables from a job object."""
-    env = {
-        'ARM_JOB_ID': str(job.job_id or ''),
-        'ARM_TITLE': str(job.title or ''),
-        'ARM_TITLE_AUTO': str(job.title_auto or ''),
-        'ARM_YEAR': str(job.year or ''),
-        'ARM_VIDEO_TYPE': str(job.video_type or ''),
-        'ARM_DISCTYPE': str(job.disctype or ''),
-        'ARM_LABEL': str(job.label or ''),
-        'ARM_STATUS': str(job.status or ''),
-        'ARM_PATH': str(job.path or ''),
-        'ARM_RAW_PATH': str(job.raw_path or ''),
-        'ARM_TRANSCODE_PATH': str(job.transcode_path or ''),
-    }
-    if job.config:
-        env['ARM_RAW_PATH_BASE'] = str(getattr(job.config, 'RAW_PATH', '') or '')
-        env['ARM_COMPLETED_PATH_BASE'] = str(getattr(job.config, 'COMPLETED_PATH', '') or '')
-    return env
-
-
-def bash_notify(cfg, title, body, job=None):
-    """Run BASH_SCRIPT with notification data.
-    Positional args ($1=title, $2=body) preserved for backward compatibility.
-    Job metadata passed via ARM_* environment variables."""
-    if cfg['BASH_SCRIPT'] != "":
-        try:
-            env = os.environ.copy()
-            if job is not None:
-                env.update(_build_job_env(job))
-            subprocess.run(["/usr/bin/env", "bash", cfg['BASH_SCRIPT'], title, body], env=env)
-            logging.debug("Sent bash notification successful")
-        except Exception as error:  # noqa: E722
-            logging.error(f"Failed sending notification via bash. Continuing  processing...{error}")
 
 
 def _move_to_shared_storage(cfg, raw_basename, job=None):

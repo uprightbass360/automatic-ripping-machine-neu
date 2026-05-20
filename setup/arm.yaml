@@ -352,42 +352,6 @@ EMBY_PASSWORD: ""
 EMBY_API_KEY: ""
 
 
-#############################
-## Notification Parameters ##
-#############################
-
-# Notify after Rip?
-NOTIFY_RIP: true
-
-# Notify after transcode?
-NOTIFY_TRANSCODE: true
-
-# Add Job ID to Notification Title
-NOTIFY_JOBID: false
-
-# Pushbullet API Key
-# Leave empty to disable Pushbullet notifications
-PB_KEY: ""
-
-# IFTTT API KEY
-# Leave empty to disable IFTTT notifications
-IFTTT_KEY: ""
-
-# IFTTT Event Name
-IFTTT_EVENT: "arm_event"
-
-# Pushover API User and Application Key
-# Leave User key empty to disable Pushover notifications
-PO_USER_KEY: ""
-PO_APP_KEY: ""
-
-
-## Specify a script to be called.
-# We will call the script with two arguments:
-# First Argument: Title
-# Second Argument: Body
-BASH_SCRIPT: ""
-
 ## Transcoder Integration
 
 # Skip transcoding — finalize ripped files directly without sending to
@@ -438,15 +402,3 @@ TVDB_API_KEY: ""
 # for TVDB episode matching (used when disc label has no season info).
 TVDB_MAX_SEASON_SCAN: 10
 
-# JSON_URL
-# Url to send Notifications to in JSON format
-JSON_URL: ""
-
-
-#################################################
-##            APPRISE NOTIFICATIONS            ##
-#################################################
-
-# File location of your apprise.yaml file
-# Leave blank to disable
-APPRISE: ""

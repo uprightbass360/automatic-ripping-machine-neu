@@ -1236,28 +1236,6 @@ class TestBuildArmCfg:
         assert "MINLENGTH: 600" in result
 
 
-class TestBuildAppriseCfg:
-    """Test build_apprise_cfg."""
-
-    def test_builds_apprise_string(self):
-        from arm.services.config import build_apprise_cfg
-
-        with patch("arm.services.config.arm_yaml_test_bool",
-                   return_value="SOME_KEY: value\n"):
-            result = build_apprise_cfg({"PORT": "8080", "HOST": "localhost"})
-
-        assert "PORT: 8080" in result
-
-    def test_skips_csrf(self):
-        from arm.services.config import build_apprise_cfg
-
-        with patch("arm.services.config.arm_yaml_test_bool",
-                   return_value="X: y\n"):
-            result = build_apprise_cfg({"csrf_token": "abc", "HOST": "localhost"})
-
-        assert "csrf_token" not in result
-
-
 class TestFormatYamlValue:
     """Test _format_yaml_value."""
 

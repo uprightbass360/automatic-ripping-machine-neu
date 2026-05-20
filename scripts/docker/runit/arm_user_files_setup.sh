@@ -143,7 +143,7 @@ if [[ ! -d /etc/arm/config ]]; then
 fi
 chown arm:arm /etc/arm/config 2>/dev/null || true
 check_folder_ownership "/etc/arm/config"
-CONFS="arm.yaml apprise.yaml"
+CONFS="arm.yaml"
 for conf in $CONFS; do
   thisConf="/etc/arm/config/${conf}"
   if [[ ! -f "${thisConf}" ]] ; then

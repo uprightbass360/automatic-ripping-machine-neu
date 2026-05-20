@@ -12,7 +12,8 @@ import logging
 
 from arm.database import db
 from arm.models.job import Job, JobState, JOB_STATUS_FINISHED, JOB_STATUS_TRANSCODING
-from arm.ripper.utils import clean_old_jobs, notify
+from arm.models.notifications import Notifications
+from arm.ripper.utils import clean_old_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -55,15 +56,18 @@ def cleanup_orphaned_jobs() -> int:
         db.session.commit()
         logger.info("Cleaned up %d orphaned job(s)", count)
 
-        # Send summary notification
+        # Write a summary row to the in-app history feed. The notifications
+        # outbox dispatcher only fires on per-job lifecycle events, so this
+        # system-level message stays UI-only (intentional — we don't have a
+        # contracts event for "ARM restarted, N orphans swept").
         titles = ", ".join(j.title or f"Job {j.job_id}" for j in orphans)
         try:
-            notify(
-                None,
+            db.session.add(Notifications(
                 f"ARM Startup: {count} orphaned job(s) cleaned up",
                 f"Failed jobs: {titles}",
-            )
+            ))
+            db.session.commit()
         except Exception:
-            logger.warning("Could not send orphan cleanup notification", exc_info=True)
+            logger.warning("Could not record orphan cleanup notification", exc_info=True)
 
     return count

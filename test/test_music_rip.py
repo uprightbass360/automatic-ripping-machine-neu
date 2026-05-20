@@ -696,25 +696,27 @@ class TestMusicPathGeneration:
 class TestMusicMainFlow:
 
     def test_music_success_notifies_and_sets_status(self, music_job):
-        """Successful music rip calls notify, scan_emby, sets SUCCESS."""
+        """Successful music rip publishes a rip-complete event, calls
+        scan_emby, sets SUCCESS."""
         with unittest.mock.patch('arm.ripper.music_brainz.main') as mock_mb, \
              unittest.mock.patch('arm.ripper.utils.rip_music', return_value=True) as mock_rip, \
-             unittest.mock.patch('arm.ripper.utils.notify') as mock_notify, \
+             unittest.mock.patch('arm.ripper.main.publish_event') as mock_publish, \
              unittest.mock.patch('arm.ripper.utils.scan_emby') as mock_emby:
 
             # Simulate the main.py music branch (lines 136-148)
             music_job.disctype = "music"
             music_brainz.main(music_job)
             if utils.rip_music(music_job, "test.log"):
-                utils.notify(music_job, "ARM notification",
-                             f"Music CD: {music_job.title} processing complete.")
+                # Mirror main.py: publish a JobRipCompleteEvent and scan_emby
+                from arm.ripper.main import publish_event  # noqa F401 (patched above)
+                publish_event(unittest.mock.sentinel.event)
                 utils.scan_emby()
                 music_job.status = "success"
                 db.session.commit()
 
         mock_mb.assert_called_once_with(music_job)
         mock_rip.assert_called_once()
-        mock_notify.assert_called_once()
+        mock_publish.assert_called_once()
         mock_emby.assert_called_once()
         assert music_job.status == "success"
 

@@ -17,9 +17,6 @@ arm_config_path: str = os.environ.get("ARM_CONFIG_FILE", "/etc/arm/config/arm.ya
 abcde_config: dict[str, str]
 abcde_config_path: str
 
-apprise_config: dict[str, str]
-apprise_config_path: str
-
 
 def _load_config(fp):
     with open(fp, "r") as yaml_file:
@@ -83,13 +80,6 @@ arm_config = _load_config(arm_config_path)
 # abcde config file, open and read contents
 abcde_config_path = arm_config["ABCDE_CONFIG_FILE"]
 abcde_config = _load_abcde(abcde_config_path)
-
-# apprise config, open and read yaml contents
-apprise_config_path = arm_config["APPRISE"] or "/etc/arm/config/apprise.yaml"
-try:
-    apprise_config = _load_config(apprise_config_path)
-except OSError:
-    apprise_config = {}
 
 
 def get_db_uri() -> str:

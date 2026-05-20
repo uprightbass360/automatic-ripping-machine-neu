@@ -1,121 +1,15 @@
 """Tests for notification flow and ripping dispatch — README Features:
-Notifications (Apprise), Audio CD Ripping, Data Disc ISO Backup.
+Notifications (event publish), Audio CD Ripping, Data Disc ISO Backup.
 
-Covers notify(), notify_entry(), rip_music(), rip_data(),
-clean_old_jobs(), and the full notification pipeline.
+Covers notify_entry(), rip_music(), rip_data(), and clean_old_jobs().
+The legacy ``notify()`` / ``bash_notify()`` pipeline was removed in
+N19 — channels are now driven by ``publish_event`` + the outbox
+dispatcher.
 """
 import os
 import unittest.mock
 
 import pytest
-
-
-class TestNotify:
-    """Test notify() full notification pipeline."""
-
-    def _make_job(self):
-        job = unittest.mock.MagicMock()
-        job.job_id = 42
-        job.title = 'Serial Mom'
-        job.title_auto = 'SERIAL_MOM'
-        job.video_type = 'movie'
-        job.disctype = 'bluray'
-        job.label = 'SERIAL_MOM'
-        job.status='video_ripping'
-        job.path = None
-        job.raw_path = None
-        job.transcode_path = None
-        job.year = '1994'
-        return job
-
-    def test_prepends_arm_name(self):
-        """ARM_NAME is prepended to notification title."""
-        from arm.ripper.utils import notify
-        import arm.config.config as cfg
-
-        job = self._make_job()
-        original = cfg.arm_config.get('ARM_NAME', '')
-        cfg.arm_config['ARM_NAME'] = 'MyARM'
-        try:
-            with unittest.mock.patch('arm.ripper.utils.database_adder'), \
-                 unittest.mock.patch('arm.ripper.utils.bash_notify') as mock_bash, \
-                 unittest.mock.patch('apprise.Apprise'):
-                notify(job, 'Test Title', 'Test Body')
-                call_args = mock_bash.call_args[0]
-                assert '[MyARM]' in call_args[1]
-        finally:
-            cfg.arm_config['ARM_NAME'] = original
-
-    def test_appends_job_id(self):
-        """Job ID is appended when NOTIFY_JOBID is True."""
-        from arm.ripper.utils import notify
-        import arm.config.config as cfg
-
-        job = self._make_job()
-        original_name = cfg.arm_config.get('ARM_NAME', '')
-        original_jobid = cfg.arm_config.get('NOTIFY_JOBID', False)
-        cfg.arm_config['ARM_NAME'] = ''
-        cfg.arm_config['NOTIFY_JOBID'] = True
-        try:
-            with unittest.mock.patch('arm.ripper.utils.database_adder'), \
-                 unittest.mock.patch('arm.ripper.utils.bash_notify') as mock_bash, \
-                 unittest.mock.patch('apprise.Apprise'):
-                notify(job, 'Title', 'Body')
-                call_args = mock_bash.call_args[0]
-                assert '42' in call_args[1]
-        finally:
-            cfg.arm_config['ARM_NAME'] = original_name
-            cfg.arm_config['NOTIFY_JOBID'] = original_jobid
-
-    def test_creates_db_notification(self):
-        """notify() creates a Notifications record in the database."""
-        from arm.ripper.utils import notify
-        import arm.config.config as cfg
-
-        job = self._make_job()
-        original = cfg.arm_config.get('ARM_NAME', '')
-        cfg.arm_config['ARM_NAME'] = ''
-        try:
-            with unittest.mock.patch('arm.ripper.utils.database_adder') as mock_adder, \
-                 unittest.mock.patch('arm.ripper.utils.bash_notify'), \
-                 unittest.mock.patch('apprise.Apprise'):
-                notify(job, 'Title', 'Body')
-                mock_adder.assert_called_once()
-        finally:
-            cfg.arm_config['ARM_NAME'] = original
-
-    def test_apprise_channels_configured(self):
-        """Apprise adds channels for configured keys."""
-        from arm.ripper.utils import notify
-        import arm.config.config as cfg
-
-        job = self._make_job()
-        originals = {}
-        keys = ['ARM_NAME', 'PB_KEY', 'IFTTT_KEY', 'IFTTT_EVENT',
-                'PO_USER_KEY', 'PO_APP_KEY', 'JSON_URL', 'APPRISE']
-        for k in keys:
-            originals[k] = cfg.arm_config.get(k, '')
-        cfg.arm_config['ARM_NAME'] = ''
-        cfg.arm_config['PB_KEY'] = 'test_pb_key'
-        cfg.arm_config['IFTTT_KEY'] = 'test_ifttt'
-        cfg.arm_config['IFTTT_EVENT'] = 'arm_event'
-        cfg.arm_config['PO_USER_KEY'] = 'po_user'
-        cfg.arm_config['PO_APP_KEY'] = 'po_app'
-        cfg.arm_config['JSON_URL'] = 'http://example.com/webhook'
-        cfg.arm_config['APPRISE'] = ''
-        try:
-            with unittest.mock.patch('arm.ripper.utils.database_adder'), \
-                 unittest.mock.patch('arm.ripper.utils.bash_notify'), \
-                 unittest.mock.patch('apprise.Apprise') as MockApprise:
-                mock_instance = MockApprise.return_value
-                mock_instance.__len__ = lambda self: 4  # 4 services added
-                notify(job, 'Title', 'Body')
-                # PB_KEY, IFTTT, Pushover, JSON_URL = 4 add calls
-                assert mock_instance.add.call_count == 4
-                mock_instance.notify.assert_called_once()
-        finally:
-            for k, v in originals.items():
-                cfg.arm_config[k] = v
 
 
 class TestNotifyEntry:
