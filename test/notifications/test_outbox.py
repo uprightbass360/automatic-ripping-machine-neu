@@ -170,3 +170,50 @@ def test_cleanup_completed_older_than_7_days(db_session, make_channel):
     assert NotificationOutbox.query.get(old_id) is None
     assert NotificationOutbox.query.get(recent_id) is not None
     assert NotificationOutbox.query.get(pending_id) is not None
+
+
+def test_cleanup_completed_is_callable_from_outbox_module():
+    """cleanup_completed must remain importable as
+    arm.notifications.outbox.cleanup_completed so the dispatcher loop
+    (and any future periodic hook) can call it without reaching into
+    internals."""
+    from arm.notifications.outbox import cleanup_completed
+    assert callable(cleanup_completed)
+
+
+def test_dispatcher_loop_invokes_cleanup_completed(db_session, make_channel):
+    """Dispatcher loop is the periodic hook for outbox retention. Verify
+    cleanup_completed is called at least once when the loop runs for
+    long enough that the cleanup interval elapses (we force-elapse the
+    deadline via monkey-patching the module constant)."""
+    import asyncio
+    from unittest.mock import patch
+
+    from arm.notifications import dispatcher as dispatcher_module
+
+    calls = {"n": 0}
+
+    def fake_cleanup(older_than_days):
+        calls["n"] += 1
+        assert older_than_days == dispatcher_module._CLEANUP_RETENTION_DAYS
+        return 0
+
+    async def _run():
+        stop = asyncio.Event()
+        with patch.object(dispatcher_module, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
+                patch.object(dispatcher_module, "_TICK_INTERVAL_SECONDS", 0.01), \
+                patch.object(dispatcher_module, "cleanup_completed",
+                             side_effect=fake_cleanup):
+            task = asyncio.create_task(
+                dispatcher_module.run_dispatcher_loop(stop_event=stop)
+            )
+            # Let the loop tick a few times.
+            for _ in range(10):
+                await asyncio.sleep(0.01)
+                if calls["n"] > 0:
+                    break
+            stop.set()
+            await asyncio.wait_for(task, timeout=2.0)
+
+    asyncio.run(_run())
+    assert calls["n"] >= 1
