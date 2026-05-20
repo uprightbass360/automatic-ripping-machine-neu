@@ -63,7 +63,7 @@ def _post_rip_handoff(job):
       1. Per-job config.SKIP_TRANSCODE (if not None)
       2. Global SKIP_TRANSCODE (default False)
 
-    Always fires NOTIFY_RIP when enabled.
+    Always publishes JobRipCompleteEvent when the handoff didn't fail.
     """
     import arm.config.config as cfg
     from arm.ripper.naming import finalize_output
