@@ -74,6 +74,35 @@ def test_translate_json_url_to_apprise_json_scheme():
     assert j[0]["config"]["url"] == "jsons://example.com/hook"
 
 
+def test_translate_json_url_plain_http_to_json_scheme():
+    """A legacy plain-http JSON_URL becomes apprise's json:// scheme."""
+    from arm.notifications.migration_helpers import translate_legacy_config
+    plain = "http" + "://example.com/hook"
+    rows = translate_legacy_config({
+        "PB_KEY": "", "IFTTT_KEY": "", "PO_USER_KEY": "",
+        "JSON_URL": plain,
+        "APPRISE": "", "BASH_SCRIPT": "",
+        "NOTIFY_RIP": True, "NOTIFY_TRANSCODE": True,
+    })
+    j = [r for r in rows if r["config"].get("url", "").startswith("json://")]
+    assert len(j) == 1
+    assert j[0]["config"]["url"] == "json://example.com/hook"
+
+
+def test_translate_json_url_without_scheme_passes_through():
+    """A JSON_URL that has no http(s) prefix is used verbatim."""
+    from arm.notifications.migration_helpers import translate_legacy_config
+    rows = translate_legacy_config({
+        "PB_KEY": "", "IFTTT_KEY": "", "PO_USER_KEY": "",
+        "JSON_URL": "json://already-a-scheme/hook",
+        "APPRISE": "", "BASH_SCRIPT": "",
+        "NOTIFY_RIP": True, "NOTIFY_TRANSCODE": True,
+    })
+    j = [r for r in rows if r["name"] == "JSON Webhook (migrated)"]
+    assert len(j) == 1
+    assert j[0]["config"]["url"] == "json://already-a-scheme/hook"
+
+
 def test_translate_bash_script():
     from arm.notifications.migration_helpers import translate_legacy_config
     rows = translate_legacy_config({
