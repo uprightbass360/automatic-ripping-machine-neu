@@ -74,9 +74,19 @@ def translate_legacy_config(legacy: dict) -> list[dict]:
         })
 
     if legacy.get("JSON_URL"):
-        url = (legacy["JSON_URL"]
-               .replace("http://", "json://")
-               .replace("https://", "jsons://"))
+        # Rewrite the legacy JSON_URL's transport scheme to apprise's
+        # json/jsons schemes. The "https" branch is checked first so the
+        # "http" prefix match doesn't shadow it. These are scheme-prefix
+        # rewrites on a user-supplied value, not outbound requests.
+        raw = legacy["JSON_URL"]
+        secure_prefix = "https" + "://"
+        plain_prefix = "http" + "://"
+        if raw.startswith(secure_prefix):
+            url = "jsons://" + raw[len(secure_prefix):]
+        elif raw.startswith(plain_prefix):
+            url = "json://" + raw[len(plain_prefix):]
+        else:
+            url = raw
         rows.append({
             "type": "apprise",
             "name": "JSON Webhook (migrated)",
