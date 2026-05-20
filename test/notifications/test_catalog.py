@@ -161,3 +161,110 @@ def test_catalog_featured_subset():
         assert feat in service_ids, (
             f"featured service {feat!r} not in installed apprise plugins"
         )
+
+
+def test_catalog_skips_plugin_with_no_scheme():
+    """A plugin exposing neither protocol nor secure_protocol has no
+    canonical id and is skipped."""
+    from arm.notifications.catalog import build_catalog
+
+    schemeless = _fake_plugin(
+        service_name="Schemeless",
+        service_url="https://example",
+        protocols=None,
+        secure_protocols=None,  # both None -> _service_id returns None
+        template_tokens={},
+        template_args={},
+    )
+    fake_mgr = MagicMock()
+    fake_mgr.plugins.return_value = [schemeless]
+    with patch("arm.notifications.catalog._get_manager",
+               return_value=fake_mgr):
+        catalog = build_catalog()
+    assert catalog["services"] == []
+
+
+def test_catalog_uses_first_scheme_from_list():
+    """When secure_protocol is a list/tuple, the first entry is the id."""
+    from arm.notifications.catalog import build_catalog
+
+    multi = _fake_plugin(
+        service_name="Multi",
+        service_url="https://example",
+        protocols=None,
+        secure_protocols=["multi", "multialt"],
+        template_tokens={
+            "token": {"name": _lazy("Token"), "type": "string",
+                      "required": True},
+        },
+        template_args={},
+    )
+    fake_mgr = MagicMock()
+    fake_mgr.plugins.return_value = [multi]
+    with patch("arm.notifications.catalog._get_manager",
+               return_value=fake_mgr):
+        catalog = build_catalog()
+    assert any(s["id"] == "multi" for s in catalog["services"])
+
+
+def test_catalog_dedupes_plugins_sharing_a_scheme():
+    """Two plugins resolving to the same id keep only the first."""
+    from arm.notifications.catalog import build_catalog
+
+    def _mk(name):
+        return _fake_plugin(
+            service_name=name,
+            service_url="https://example",
+            protocols=None,
+            secure_protocols="dup",
+            template_tokens={
+                "token": {"name": _lazy("Token"), "type": "string",
+                          "required": True},
+            },
+            template_args={},
+        )
+
+    fake_mgr = MagicMock()
+    fake_mgr.plugins.return_value = [_mk("First"), _mk("Second")]
+    with patch("arm.notifications.catalog._get_manager",
+               return_value=fake_mgr):
+        catalog = build_catalog()
+    dups = [s for s in catalog["services"] if s["id"] == "dup"]
+    assert len(dups) == 1
+
+
+def test_catalog_skips_plugin_that_raises_during_build():
+    """A plugin whose metadata access raises is logged and skipped, not
+    fatal — the rest of the catalog still builds."""
+    from arm.notifications.catalog import build_catalog
+
+    good = _fake_plugin(
+        service_name="Good",
+        service_url="https://example",
+        protocols=None,
+        secure_protocols="good",
+        template_tokens={
+            "token": {"name": _lazy("Token"), "type": "string",
+                      "required": True},
+        },
+        template_args={},
+    )
+
+    bad = MagicMock()
+    bad.__name__ = "NotifyBad"
+    # template_tokens access raises during _build_service_entry.
+    type(bad).secure_protocol = "bad"
+    type(bad).protocol = None
+    type(bad).service_name = "Bad"
+    type(bad).service_url = "https://example"
+    prop = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+    type(bad).template_tokens = prop
+
+    fake_mgr = MagicMock()
+    fake_mgr.plugins.return_value = [bad, good]
+    with patch("arm.notifications.catalog._get_manager",
+               return_value=fake_mgr):
+        catalog = build_catalog()
+    ids = {s["id"] for s in catalog["services"]}
+    assert "good" in ids
+    assert "bad" not in ids
