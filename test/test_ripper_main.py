@@ -110,7 +110,15 @@ class TestMainBranching:
         job.title = 'Test'
         job.label = 'TEST'
         job.has_track_99 = False
-        job.tracks = []
+        # ``job.tracks`` is a SQLAlchemy lazy='dynamic' relation in
+        # production, so callers do ``.count()`` on it. Mock that
+        # explicitly so the test doesn't fall through to ``list.count``
+        # which has a different signature.
+        job.tracks = unittest.mock.MagicMock()
+        job.tracks.count.return_value = 0
+        job.tracks.__iter__ = lambda self: iter([])
+        job.start_time = None
+        job.imdb_id = None
         job.devpath = '/dev/sr0'
         job.job_id = 1
         return job
@@ -158,7 +166,7 @@ class TestMainBranching:
                  unittest.mock.patch('arm.ripper.main.check_fstab'), \
                  unittest.mock.patch('arm.ripper.main.music_brainz.main') as mock_mb, \
                  unittest.mock.patch('arm.ripper.main.utils.rip_music', return_value=True), \
-                 unittest.mock.patch('arm.ripper.main.utils.notify'), \
+                 unittest.mock.patch('arm.ripper.main.publish_event'), \
                  unittest.mock.patch('arm.ripper.main.utils.scan_emby'), \
                  unittest.mock.patch('arm.ripper.main.db'):
                 main_mod.main()
@@ -181,7 +189,7 @@ class TestMainBranching:
                  unittest.mock.patch('arm.ripper.main.log_arm_params'), \
                  unittest.mock.patch('arm.ripper.main.check_fstab'), \
                  unittest.mock.patch('arm.ripper.main.utils.rip_data', return_value=True) as mock_data, \
-                 unittest.mock.patch('arm.ripper.main.utils.notify'), \
+                 unittest.mock.patch('arm.ripper.main.publish_event'), \
                  unittest.mock.patch('arm.ripper.main.db'):
                 main_mod.main()
             mock_data.assert_called_once_with(job)

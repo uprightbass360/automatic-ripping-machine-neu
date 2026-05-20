@@ -80,11 +80,6 @@ class TestArmYamlCheckGroups:
         result = arm_yaml_check_groups(_full_comments(), 'WEBSERVER_IP')
         assert '# Web Server' in result
 
-    def test_notify_rip_returns_notify(self):
-        from arm.config.config_utils import arm_yaml_check_groups
-        result = arm_yaml_check_groups(_full_comments(), 'NOTIFY_RIP')
-        assert '# Notifications' in result
-
 
 class TestBuildArmCfgStrip:
     """Test that build_arm_cfg strips whitespace from values (#1684)."""

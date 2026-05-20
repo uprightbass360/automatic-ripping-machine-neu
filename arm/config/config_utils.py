@@ -14,9 +14,7 @@ def arm_yaml_check_groups(comments, key):
                       'SET_MEDIA_PERMISSIONS': "\n" + comments['ARM_CFG_GROUPS']['FILE_PERMS'],
                       'RIPMETHOD': "\n" + comments['ARM_CFG_GROUPS']['MAKE_MKV'],
                       'EMBY_REFRESH': "\n" + comments['ARM_CFG_GROUPS']['EMBY']
-                                      + "\n" + comments['ARM_CFG_GROUPS']['EMBY_ADDITIONAL'],
-                      'NOTIFY_RIP': "\n" + comments['ARM_CFG_GROUPS']['NOTIFY_PERMS'],
-                      'APPRISE': "\n" + comments['ARM_CFG_GROUPS']['APPRISE']}
+                                      + "\n" + comments['ARM_CFG_GROUPS']['EMBY_ADDITIONAL']}
     if key in comment_groups:
         arm_cfg = comment_groups[key]
     else:

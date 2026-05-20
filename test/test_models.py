@@ -114,9 +114,9 @@ class TestConfigPrettyTable:
     def test_masks_sensitive(self, app_context):
         from arm.models.config import Config, HIDDEN_VALUE
 
-        config = Config({'PB_KEY': 'my_pushbullet_key'}, job_id=1)
+        config = Config({'OMDB_API_KEY': 'my_omdb_secret'}, job_id=1)
         result = config.pretty_table()
-        assert 'my_pushbullet_key' not in result
+        assert 'my_omdb_secret' not in result
         assert HIDDEN_VALUE in result
 
 

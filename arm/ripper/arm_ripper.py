@@ -24,20 +24,10 @@ from arm_contracts import (  # noqa E402
     JobTranscodeCompleteEvent,
     JobFailedEvent,
 )
-from arm.ripper._notify_helpers import job_disc_type as _job_disc_type  # noqa E402,F401
-
-
-def _rip_duration_seconds(job) -> int:
-    """Wall-clock seconds from job.start_time to now.
-
-    ``job.start_time`` is a naive ``datetime`` in the DB; we treat it
-    as UTC for the subtraction. Returns 0 if start_time is missing
-    (defensive — the rip pipeline always sets it on entry).
-    """
-    if not job.start_time:
-        return 0
-    start = job.start_time.replace(tzinfo=timezone.utc)
-    return int((datetime.now(timezone.utc) - start).total_seconds())
+from arm.ripper._notify_helpers import (  # noqa E402,F401
+    job_disc_type as _job_disc_type,
+    rip_duration_seconds as _rip_duration_seconds,
+)
 
 
 def _publish_job_failed(job, phase: str) -> None:
