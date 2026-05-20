@@ -42,7 +42,7 @@ def send_bash(
     env.update(env_vars)
 
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # NOSONAR python:S4721,python:S6350 - argv-list invocation (no shell=True); script_path is an operator-configured channel, which is privileged admin functionality by design
             ["/usr/bin/env", "bash", script_path, title, body],
             env=env,
             capture_output=True,

@@ -341,8 +341,7 @@ def test_dispatcher_sender_raised_is_transient(db_session, make_channel):
     assert "kaboom" in row.last_error
 
 
-@pytest.mark.asyncio
-async def test_dispatcher_loop_survives_tick_exception(db_session):
+def test_dispatcher_loop_survives_tick_exception(db_session):
     """A failure inside the tick body (e.g. dequeue raises) is logged and
     the loop keeps running rather than crashing."""
     import asyncio
@@ -354,27 +353,28 @@ async def test_dispatcher_loop_survives_tick_exception(db_session):
         calls["n"] += 1
         raise RuntimeError("dequeue blew up")
 
-    stop = asyncio.Event()
-    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
-            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 1e9), \
-            patch.object(dispatcher_mod, "dequeue_due", side_effect=boom):
-        task = asyncio.create_task(
-            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
-        )
-        for _ in range(20):
-            await asyncio.sleep(0.01)
-            if calls["n"] >= 2:
-                break
-        stop.set()
-        await asyncio.wait_for(task, timeout=2.0)
+    async def _run():
+        stop = asyncio.Event()
+        with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+                patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 1e9), \
+                patch.object(dispatcher_mod, "dequeue_due", side_effect=boom):
+            task = asyncio.create_task(
+                dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+            )
+            for _ in range(20):
+                await asyncio.sleep(0.01)
+                if calls["n"] >= 2:
+                    break
+            stop.set()
+            await asyncio.wait_for(task, timeout=2.0)
 
+    asyncio.run(_run())
     # Loop ticked more than once despite every tick raising — proof it
     # caught the exception and continued.
     assert calls["n"] >= 2
 
 
-@pytest.mark.asyncio
-async def test_dispatcher_loop_survives_cleanup_exception(db_session):
+def test_dispatcher_loop_survives_cleanup_exception(db_session):
     """A failure inside the periodic cleanup is logged and the loop keeps
     running."""
     import asyncio
@@ -386,20 +386,23 @@ async def test_dispatcher_loop_survives_cleanup_exception(db_session):
         calls["n"] += 1
         raise RuntimeError("cleanup blew up")
 
-    stop = asyncio.Event()
-    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
-            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
-            patch.object(dispatcher_mod, "cleanup_completed", side_effect=boom):
-        task = asyncio.create_task(
-            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
-        )
-        for _ in range(20):
-            await asyncio.sleep(0.01)
-            if calls["n"] >= 1:
-                break
-        stop.set()
-        await asyncio.wait_for(task, timeout=2.0)
+    async def _run():
+        stop = asyncio.Event()
+        with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+                patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
+                patch.object(dispatcher_mod, "cleanup_completed",
+                             side_effect=boom):
+            task = asyncio.create_task(
+                dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+            )
+            for _ in range(20):
+                await asyncio.sleep(0.01)
+                if calls["n"] >= 1:
+                    break
+            stop.set()
+            await asyncio.wait_for(task, timeout=2.0)
 
+    asyncio.run(_run())
     assert calls["n"] >= 1
 
 
@@ -427,31 +430,34 @@ def test_process_one_row_outer_safety_net_swallows_commit_error(
         process_one_row(row.id)
 
 
-@pytest.mark.asyncio
-async def test_dispatcher_loop_logs_rescued_stale_rows(db_session):
+def test_dispatcher_loop_logs_rescued_stale_rows(db_session):
     """On startup the loop reaps stale in_flight rows; when any are
     rescued it logs a count (covers the rescued>0 branch)."""
     import asyncio
     from arm.notifications import dispatcher as dispatcher_mod
 
-    stop = asyncio.Event()
-    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
-            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 1e9), \
-            patch.object(dispatcher_mod, "reap_stale_in_flight",
-                         return_value=3) as reap, \
-            patch.object(dispatcher_mod, "dequeue_due", return_value=[]):
-        task = asyncio.create_task(
-            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
-        )
-        await asyncio.sleep(0.05)
-        stop.set()
-        await asyncio.wait_for(task, timeout=2.0)
+    reap_mock = {}
 
-    reap.assert_called_once()
+    async def _run():
+        stop = asyncio.Event()
+        with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+                patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 1e9), \
+                patch.object(dispatcher_mod, "reap_stale_in_flight",
+                             return_value=3) as reap, \
+                patch.object(dispatcher_mod, "dequeue_due", return_value=[]):
+            task = asyncio.create_task(
+                dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+            )
+            await asyncio.sleep(0.05)
+            stop.set()
+            await asyncio.wait_for(task, timeout=2.0)
+            reap_mock["count"] = reap.call_count
+
+    asyncio.run(_run())
+    assert reap_mock["count"] == 1
 
 
-@pytest.mark.asyncio
-async def test_dispatcher_loop_logs_cleanup_deletions(db_session):
+def test_dispatcher_loop_logs_cleanup_deletions(db_session):
     """When the periodic cleanup deletes rows, the loop logs the count
     (covers the deleted>0 branch)."""
     import asyncio
@@ -463,20 +469,22 @@ async def test_dispatcher_loop_logs_cleanup_deletions(db_session):
         calls["n"] += 1
         return 7  # non-zero -> exercises the deleted>0 log line
 
-    stop = asyncio.Event()
-    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
-            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
-            patch.object(dispatcher_mod, "dequeue_due", return_value=[]), \
-            patch.object(dispatcher_mod, "cleanup_completed",
-                         side_effect=fake_cleanup):
-        task = asyncio.create_task(
-            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
-        )
-        for _ in range(20):
-            await asyncio.sleep(0.01)
-            if calls["n"] >= 1:
-                break
-        stop.set()
-        await asyncio.wait_for(task, timeout=2.0)
+    async def _run():
+        stop = asyncio.Event()
+        with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+                patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
+                patch.object(dispatcher_mod, "dequeue_due", return_value=[]), \
+                patch.object(dispatcher_mod, "cleanup_completed",
+                             side_effect=fake_cleanup):
+            task = asyncio.create_task(
+                dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+            )
+            for _ in range(20):
+                await asyncio.sleep(0.01)
+                if calls["n"] >= 1:
+                    break
+            stop.set()
+            await asyncio.wait_for(task, timeout=2.0)
 
+    asyncio.run(_run())
     assert calls["n"] >= 1
