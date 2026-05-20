@@ -1,12 +1,14 @@
 """End-to-end integration test: publish_event -> outbox -> dispatcher
 -> apprise send. Uses a mocked send_apprise so we don't actually hit
-Discord — the goal is to confirm the wiring, not the apprise library."""
+Discord — the goal is to confirm the wiring, not the apprise library.
+
+Written as sync tests driving their own event loop via asyncio.run so
+they don't depend on pytest-asyncio being installed in CI.
+"""
 import asyncio
 import datetime
 from unittest.mock import patch
 from uuid import uuid4
-
-import pytest
 
 
 def _started_event():
@@ -22,8 +24,7 @@ def _started_event():
     )
 
 
-@pytest.mark.asyncio
-async def test_publish_then_dispatch_success(db_session, make_channel):
+def test_publish_then_dispatch_success(db_session, make_channel):
     from arm.notifications import publish_event
     from arm.notifications import dispatcher as dispatcher_module
     from arm.notifications.models import NotificationOutbox
@@ -37,29 +38,30 @@ async def test_publish_then_dispatch_success(db_session, make_channel):
     publish_event(_started_event())
     assert NotificationOutbox.query.filter_by(channel_id=ch.id).count() == 1
 
-    stop = asyncio.Event()
-    with patch("arm.notifications.dispatcher.send_apprise",
-               return_value=(True, None)), \
-            patch.object(dispatcher_module, "_TICK_INTERVAL_SECONDS", 0.05):
-        task = asyncio.create_task(
-            dispatcher_module.run_dispatcher_loop(stop_event=stop)
-        )
-        for _ in range(40):
-            await asyncio.sleep(0.05)
-            row = (NotificationOutbox.query
-                   .filter_by(channel_id=ch.id).first())
-            if row and row.status == "success":
-                break
-        stop.set()
-        await asyncio.wait_for(task, timeout=5.0)
+    async def _run():
+        stop = asyncio.Event()
+        with patch("arm.notifications.dispatcher.send_apprise",
+                   return_value=(True, None)), \
+                patch.object(dispatcher_module, "_TICK_INTERVAL_SECONDS", 0.05):
+            task = asyncio.create_task(
+                dispatcher_module.run_dispatcher_loop(stop_event=stop)
+            )
+            for _ in range(40):
+                await asyncio.sleep(0.05)
+                row = (NotificationOutbox.query
+                       .filter_by(channel_id=ch.id).first())
+                if row and row.status == "success":
+                    break
+            stop.set()
+            await asyncio.wait_for(task, timeout=5.0)
 
+    asyncio.run(_run())
     row = NotificationOutbox.query.filter_by(channel_id=ch.id).first()
     assert row.status == "success"
     assert row.completed_at is not None
 
 
-@pytest.mark.asyncio
-async def test_publish_then_dispatch_retry_then_succeed(
+def test_publish_then_dispatch_retry_then_succeed(
     db_session, make_channel
 ):
     """If the first send fails (transient), the dispatcher retries on
@@ -84,27 +86,29 @@ async def test_publish_then_dispatch_retry_then_succeed(
 
     publish_event(_started_event())
 
-    stop = asyncio.Event()
-    with patch("arm.notifications.dispatcher.send_apprise",
-               side_effect=flaky_send), \
-            patch.object(dispatcher_module, "_TICK_INTERVAL_SECONDS", 0.05):
-        task = asyncio.create_task(
-            dispatcher_module.run_dispatcher_loop(stop_event=stop)
-        )
-        for _ in range(60):
-            await asyncio.sleep(0.05)
-            row = (NotificationOutbox.query
-                   .filter_by(channel_id=ch.id).first())
-            if row and row.status == "pending":
-                # Force backoff to elapse so the retry happens within
-                # the test window.
-                row.next_attempt_at = datetime.datetime.utcnow()
-                db_session.commit()
-            if row and row.status == "success":
-                break
-        stop.set()
-        await asyncio.wait_for(task, timeout=5.0)
+    async def _run():
+        stop = asyncio.Event()
+        with patch("arm.notifications.dispatcher.send_apprise",
+                   side_effect=flaky_send), \
+                patch.object(dispatcher_module, "_TICK_INTERVAL_SECONDS", 0.05):
+            task = asyncio.create_task(
+                dispatcher_module.run_dispatcher_loop(stop_event=stop)
+            )
+            for _ in range(60):
+                await asyncio.sleep(0.05)
+                row = (NotificationOutbox.query
+                       .filter_by(channel_id=ch.id).first())
+                if row and row.status == "pending":
+                    # Force backoff to elapse so the retry happens within
+                    # the test window.
+                    row.next_attempt_at = datetime.datetime.utcnow()
+                    db_session.commit()
+                if row and row.status == "success":
+                    break
+            stop.set()
+            await asyncio.wait_for(task, timeout=5.0)
 
+    asyncio.run(_run())
     row = NotificationOutbox.query.filter_by(channel_id=ch.id).first()
     assert row.status == "success"
     # attempts increments on each failure; the successful retry does not

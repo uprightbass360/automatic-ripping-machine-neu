@@ -1,13 +1,14 @@
 """Confirm the dispatcher task is started by the FastAPI lifespan."""
 import asyncio
 
-import pytest
 
-
-@pytest.mark.asyncio
-async def test_lifespan_starts_and_stops_dispatcher(monkeypatch):
+def test_lifespan_starts_and_stops_dispatcher(monkeypatch):
     """Mock the dispatcher coroutine; assert it was scheduled and
-    awaited by the lifespan context manager."""
+    awaited by the lifespan context manager.
+
+    Written as a sync test driving its own event loop via asyncio.run
+    so it doesn't depend on pytest-asyncio being installed in CI.
+    """
     started = asyncio.Event()
     stopped = asyncio.Event()
 
@@ -21,7 +22,12 @@ async def test_lifespan_starts_and_stops_dispatcher(monkeypatch):
         fake_dispatcher,
     )
 
-    from arm.app import app
-    async with app.router.lifespan_context(app):
-        await asyncio.wait_for(started.wait(), timeout=2.0)
-    await asyncio.wait_for(stopped.wait(), timeout=2.0)
+    async def _run():
+        from arm.app import app
+        async with app.router.lifespan_context(app):
+            await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(stopped.wait(), timeout=2.0)
+
+    asyncio.run(_run())
+    assert started.is_set()
+    assert stopped.is_set()
