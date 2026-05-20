@@ -70,6 +70,20 @@ def test_record_success(db_session, make_channel):
     assert channel.last_error is None
 
 
+def test_record_success_on_vanished_row_is_noop(db_session):
+    """If the row was deleted between dequeue and record, record_success
+    logs and returns without raising."""
+    from arm.notifications.outbox import record_success
+    # No exception, no DB write — just a silent no-op.
+    record_success(999999)
+
+
+def test_record_failure_on_vanished_row_is_noop(db_session):
+    """Same guard on the failure path."""
+    from arm.notifications.outbox import record_failure
+    record_failure(999999, "anything", terminal=False)
+
+
 def test_record_failure_transient_schedules_retry(db_session, make_channel):
     """Transient failure: status returns to pending, attempts++, backoff applied."""
     from arm.notifications.outbox import record_failure

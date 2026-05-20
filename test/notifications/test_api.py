@@ -215,3 +215,180 @@ def test_compose_url_endpoint(client):
     )
     assert resp.status_code == 200
     assert resp.json()["url"].startswith("discord://1234/abcd")
+
+
+# -------------------- 404 / not-found paths --------------------
+
+def test_get_channel_404(client):
+    resp = client.get("/api/v1/notifications/channels/999999")
+    assert resp.status_code == 404
+
+
+def test_patch_channel_404(client):
+    resp = client.patch("/api/v1/notifications/channels/999999",
+                        json={"name": "x"})
+    assert resp.status_code == 404
+
+
+def test_delete_channel_404(client):
+    resp = client.delete("/api/v1/notifications/channels/999999")
+    assert resp.status_code == 404
+
+
+def test_test_send_404(client):
+    resp = client.post("/api/v1/notifications/channels/999999/test", json={})
+    assert resp.status_code == 404
+
+
+def test_get_dispatch_404(client):
+    resp = client.get("/api/v1/notifications/dispatch/999999")
+    assert resp.status_code == 404
+
+
+# -------------------- PATCH field-by-field --------------------
+
+def test_patch_channel_updates_enabled_and_events(client, make_channel):
+    """Exercises the enabled / subscribed_events / templates PATCH
+    branches independently of the config branch."""
+    from arm.notifications.models import NotificationChannel
+    from arm.database import db
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    body = {
+        "enabled": False,
+        "subscribed_events": ["job.failed", "job.rip_complete"],
+        "templates": {"job.failed": {"title": "T", "body": "B"}},
+    }
+    resp = client.patch(f"/api/v1/notifications/channels/{ch.id}", json=body)
+    assert resp.status_code == 200
+    db.session.expire_all()
+    refreshed = NotificationChannel.query.get(ch.id)
+    assert refreshed.enabled is False
+    assert set(refreshed.subscribed_events) == {"job.failed", "job.rip_complete"}
+    assert "job.failed" in refreshed.templates
+
+
+def test_patch_channel_apprise_config_revalidates_url(client, make_channel):
+    """PATCHing an apprise config re-runs URL validation; a bad URL is
+    rejected 422."""
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    body = {"config": {"type": "apprise", "url": "not-a-real-scheme"}}
+    resp = client.patch(f"/api/v1/notifications/channels/{ch.id}", json=body)
+    assert resp.status_code == 422
+
+
+# -------------------- test-send synthetic events --------------------
+
+@pytest.mark.parametrize("event_key", [
+    "job.started",
+    "job.rip_complete",
+    "job.transcode_complete",
+    "job.failed",
+    "job.manual_wait_required",
+    "job.duplicate_detected",
+])
+def test_test_send_builds_each_event_type(client, make_channel, event_key):
+    """The test-send endpoint must produce a valid synthetic payload for
+    every supported event key."""
+    from arm.notifications.models import NotificationOutbox
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=[event_key],
+    )
+    resp = client.post(f"/api/v1/notifications/channels/{ch.id}/test",
+                       json={"event_key": event_key})
+    assert resp.status_code == 202, resp.text
+    row = (NotificationOutbox.query
+           .filter_by(channel_id=ch.id, event_key=event_key).first())
+    assert row is not None
+    assert row.event_payload["event_key"] == event_key
+
+
+def test_test_send_unknown_event_key_is_400(client, make_channel):
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    resp = client.post(f"/api/v1/notifications/channels/{ch.id}/test",
+                       json={"event_key": "job.does_not_exist"})
+    assert resp.status_code == 400
+
+
+# -------------------- dispatches list clamps --------------------
+
+def test_list_dispatches_limit_clamped_to_200(client, make_channel, db_session):
+    """A limit above 200 is clamped; the request still succeeds."""
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    resp = client.get(
+        f"/api/v1/notifications/dispatches?channel_id={ch.id}&limit=5000"
+    )
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+def test_list_channels_returns_all(client, make_channel):
+    """GET /channels lists every channel, newest first."""
+    make_channel(type="apprise",
+                 config={"type": "apprise", "url": "discord://a/b"},
+                 subscribed_events=["job.started"], name="one")
+    make_channel(type="apprise",
+                 config={"type": "apprise", "url": "discord://c/d"},
+                 subscribed_events=["job.failed"], name="two")
+    resp = client.get("/api/v1/notifications/channels")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 2
+    names = {c["name"] for c in data}
+    assert names == {"one", "two"}
+
+
+def test_create_webhook_channel_stores_secret_and_masks_on_read(client):
+    """Creating a webhook channel with a shared_secret stores the
+    plaintext (covers the SecretStr extraction) and masks it on GET."""
+    from arm.notifications.models import NotificationChannel
+    body = {
+        "type": "webhook",
+        "name": "Hook",
+        "config": {"type": "webhook",
+                   "url": "https://example.com/hook",
+                   "shared_secret": "topsecret"},
+        "subscribed_events": ["job.failed"],
+    }
+    resp = client.post("/api/v1/notifications/channels", json=body)
+    assert resp.status_code == 201, resp.text
+    new_id = resp.json()["id"]
+    # Stored plaintext in the DB column...
+    stored = NotificationChannel.query.get(new_id)
+    assert stored.config["shared_secret"] == "topsecret"
+    # ...but masked on the API response.
+    assert resp.json()["config"]["shared_secret"] == "<hidden>"
+
+
+# -------------------- config helper edge cases --------------------
+
+def test_mask_config_handles_empty_dict():
+    """_mask_config returns the input unchanged when there's no config."""
+    from arm.api.v1.notifications import _mask_config
+    assert _mask_config({}) == {}
+    assert _mask_config(None) is None
+
+
+def test_merge_patch_config_none_incoming_keeps_existing():
+    """A PATCH that doesn't include a config field leaves the stored
+    config untouched."""
+    from arm.api.v1.notifications import _merge_patch_config
+    existing = {"type": "apprise", "url": "discord://x/y"}
+    assert _merge_patch_config(existing, None) == existing

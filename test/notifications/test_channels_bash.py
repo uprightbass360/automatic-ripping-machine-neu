@@ -59,6 +59,29 @@ def test_bash_send_missing_script_is_terminal():
     assert "terminal=true" in error
 
 
+def test_bash_send_non_executable_script_is_terminal():
+    """A script that exists but lacks the execute bit is a terminal
+    config error, not a transient failure."""
+    from arm.notifications.channels.bash import send_bash
+    f = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".sh", delete=False, prefix="arm-test-noexec-")
+    f.write("#!/usr/bin/env bash\nexit 0\n")
+    f.close()
+    # Read/write only — explicitly no execute bit.
+    os.chmod(f.name, stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        ok, error = send_bash(
+            script_path=f.name,
+            title="T", body="B",
+            env_vars={},
+        )
+        assert ok is False
+        assert "not executable" in error
+        assert "terminal=true" in error
+    finally:
+        os.unlink(f.name)
+
+
 def test_bash_send_timeout_is_terminal():
     """If the script runs past the configured timeout, terminate it
     and report terminal failure."""

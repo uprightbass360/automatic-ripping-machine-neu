@@ -268,3 +268,215 @@ def test_process_one_row_webhook_success_constructs_payload(
 
     db_session.refresh(row)
     assert row.status == "success"
+
+
+def test_dispatcher_event_reconstruction_failure_is_terminal(
+    db_session, make_channel
+):
+    """A corrupt event_payload that the contracts TypeAdapter can't
+    parse is a terminal failure (retrying won't fix bad data)."""
+    from arm.notifications.dispatcher import process_one_row
+
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    # event_key is valid (so it gets enqueued/dispatched) but the payload
+    # is missing required fields, so reconstruction raises.
+    bad_payload = {"event_key": "job.started"}
+    row = _outbox_row(db_session, ch.id, bad_payload)
+
+    process_one_row(row.id)
+    db_session.refresh(row)
+    assert row.status == "failed"
+    assert "reconstruction" in row.last_error.lower()
+
+
+def test_dispatcher_unknown_channel_type_is_terminal(
+    db_session, make_channel
+):
+    """A channel row with an unrecognized type is a terminal failure."""
+    from arm.notifications.dispatcher import process_one_row
+    from arm.notifications.models import NotificationChannel
+
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    row = _outbox_row(db_session, ch.id, _started_payload())
+    # Mutate the stored type to something the dispatcher doesn't handle.
+    persisted = NotificationChannel.query.get(ch.id)
+    persisted.type = "carrier-pigeon"
+    db_session.commit()
+
+    process_one_row(row.id)
+    db_session.refresh(row)
+    assert row.status == "failed"
+    assert "unknown channel type" in row.last_error.lower()
+
+
+def test_dispatcher_sender_raised_is_transient(db_session, make_channel):
+    """If a channel sender raises (it shouldn't, but defensively), the
+    dispatcher records a transient failure so a bug doesn't permanently
+    wedge dispatch."""
+    from arm.notifications.dispatcher import process_one_row
+
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    row = _outbox_row(db_session, ch.id, _started_payload())
+
+    with patch("arm.notifications.dispatcher.send_apprise",
+               side_effect=RuntimeError("kaboom")):
+        process_one_row(row.id)
+
+    db_session.refresh(row)
+    # Transient -> back to pending (attempts < max), error captured.
+    assert row.status == "pending"
+    assert "sender raised" in row.last_error.lower()
+    assert "kaboom" in row.last_error
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_loop_survives_tick_exception(db_session):
+    """A failure inside the tick body (e.g. dequeue raises) is logged and
+    the loop keeps running rather than crashing."""
+    import asyncio
+    from arm.notifications import dispatcher as dispatcher_mod
+
+    calls = {"n": 0}
+
+    def boom(*a, **k):
+        calls["n"] += 1
+        raise RuntimeError("dequeue blew up")
+
+    stop = asyncio.Event()
+    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 1e9), \
+            patch.object(dispatcher_mod, "dequeue_due", side_effect=boom):
+        task = asyncio.create_task(
+            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+        )
+        for _ in range(20):
+            await asyncio.sleep(0.01)
+            if calls["n"] >= 2:
+                break
+        stop.set()
+        await asyncio.wait_for(task, timeout=2.0)
+
+    # Loop ticked more than once despite every tick raising — proof it
+    # caught the exception and continued.
+    assert calls["n"] >= 2
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_loop_survives_cleanup_exception(db_session):
+    """A failure inside the periodic cleanup is logged and the loop keeps
+    running."""
+    import asyncio
+    from arm.notifications import dispatcher as dispatcher_mod
+
+    calls = {"n": 0}
+
+    def boom(*a, **k):
+        calls["n"] += 1
+        raise RuntimeError("cleanup blew up")
+
+    stop = asyncio.Event()
+    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
+            patch.object(dispatcher_mod, "cleanup_completed", side_effect=boom):
+        task = asyncio.create_task(
+            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+        )
+        for _ in range(20):
+            await asyncio.sleep(0.01)
+            if calls["n"] >= 1:
+                break
+        stop.set()
+        await asyncio.wait_for(task, timeout=2.0)
+
+    assert calls["n"] >= 1
+
+
+def test_process_one_row_outer_safety_net_swallows_commit_error(
+    db_session, make_channel
+):
+    """If record_success itself raises (e.g. a DB commit error), the
+    outer try/except in process_one_row swallows it so the function
+    never raises — the dispatcher loop relies on this guarantee."""
+    from arm.notifications import dispatcher as dispatcher_mod
+    from arm.notifications.dispatcher import process_one_row
+
+    ch = make_channel(
+        type="apprise",
+        config={"type": "apprise", "url": "discord://x/y"},
+        subscribed_events=["job.started"],
+    )
+    row = _outbox_row(db_session, ch.id, _started_payload())
+
+    with patch("arm.notifications.dispatcher.send_apprise",
+               return_value=(True, None)), \
+            patch.object(dispatcher_mod, "record_success",
+                         side_effect=RuntimeError("commit failed")):
+        # Must NOT raise.
+        process_one_row(row.id)
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_loop_logs_rescued_stale_rows(db_session):
+    """On startup the loop reaps stale in_flight rows; when any are
+    rescued it logs a count (covers the rescued>0 branch)."""
+    import asyncio
+    from arm.notifications import dispatcher as dispatcher_mod
+
+    stop = asyncio.Event()
+    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 1e9), \
+            patch.object(dispatcher_mod, "reap_stale_in_flight",
+                         return_value=3) as reap, \
+            patch.object(dispatcher_mod, "dequeue_due", return_value=[]):
+        task = asyncio.create_task(
+            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+        )
+        await asyncio.sleep(0.05)
+        stop.set()
+        await asyncio.wait_for(task, timeout=2.0)
+
+    reap.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_loop_logs_cleanup_deletions(db_session):
+    """When the periodic cleanup deletes rows, the loop logs the count
+    (covers the deleted>0 branch)."""
+    import asyncio
+    from arm.notifications import dispatcher as dispatcher_mod
+
+    calls = {"n": 0}
+
+    def fake_cleanup(older_than_days):
+        calls["n"] += 1
+        return 7  # non-zero -> exercises the deleted>0 log line
+
+    stop = asyncio.Event()
+    with patch.object(dispatcher_mod, "_TICK_INTERVAL_SECONDS", 0.01), \
+            patch.object(dispatcher_mod, "_CLEANUP_INTERVAL_SECONDS", 0.0), \
+            patch.object(dispatcher_mod, "dequeue_due", return_value=[]), \
+            patch.object(dispatcher_mod, "cleanup_completed",
+                         side_effect=fake_cleanup):
+        task = asyncio.create_task(
+            dispatcher_mod.run_dispatcher_loop(stop_event=stop)
+        )
+        for _ in range(20):
+            await asyncio.sleep(0.01)
+            if calls["n"] >= 1:
+                break
+        stop.set()
+        await asyncio.wait_for(task, timeout=2.0)
+
+    assert calls["n"] >= 1

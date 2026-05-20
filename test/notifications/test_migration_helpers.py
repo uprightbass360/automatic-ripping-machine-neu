@@ -121,6 +121,26 @@ def test_translate_apprise_yaml_parses_known_keys(tmp_path):
     assert len(yaml_rows) == 2
 
 
+def test_translate_apprise_yaml_malformed_is_skipped(tmp_path):
+    """A corrupt apprise.yaml is logged and skipped, not fatal — the
+    rest of the legacy config still translates."""
+    from arm.notifications.migration_helpers import translate_legacy_config
+    yaml_path = tmp_path / "apprise.yaml"
+    # Unbalanced bracket -> yaml.safe_load raises.
+    yaml_path.write_text("urls: [discord://abc/def\n  bad: : :\n")
+    rows = translate_legacy_config({
+        "PB_KEY": "pbtoken", "IFTTT_KEY": "", "PO_USER_KEY": "",
+        "JSON_URL": "",
+        "APPRISE": str(yaml_path),
+        "BASH_SCRIPT": "",
+        "NOTIFY_RIP": True, "NOTIFY_TRANSCODE": True,
+    })
+    # No apprise:N rows from the broken file, but PB_KEY still migrated.
+    yaml_rows = [r for r in rows if r["name"].startswith("apprise:")]
+    assert len(yaml_rows) == 0
+    assert any(r["name"] == "Pushbullet (migrated)" for r in rows)
+
+
 def test_subscribed_events_from_notify_toggles():
     """NOTIFY_RIP=True → subscribed to started + rip_complete;
     NOTIFY_TRANSCODE=True → subscribed to transcode_complete.
