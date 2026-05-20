@@ -68,6 +68,8 @@ A shared-contracts Python package (`components/contracts`) defines the typed enu
 
 **Durable webhook callbacks.** The transcoder-to-ripper notification pipeline is backed by a `pending_callbacks` table + drainer loop, so callbacks survive transcoder restarts and intermittent network failures rather than being lost in memory.
 
+**Typed multi-channel notification system.** User notifications run through a self-contained `arm/notifications/` module: a DB-backed outbox with an async dispatcher (retry + backoff + stale-reaper), three channel types (Apprise, rich-payload Webhook with HMAC-SHA256, and Bash script), an Apprise-introspected service catalog, per-channel/per-event message templates, and six lifecycle events published from the ripper. Channels are managed via `/api/v1/notifications/` and the arm-ui Notifications page. This replaces the legacy flat-config notification fields (`PB_KEY`, `IFTTT_KEY`, `PO_USER_KEY`, `PO_APP_KEY`, `JSON_URL`, `APPRISE`, `BASH_SCRIPT`, `NOTIFY_RIP`, `NOTIFY_TRANSCODE`), which an alembic migration translates into channel rows before dropping the columns.
+
 **API key authentication with admin/readonly RBAC.** Optional `REQUIRE_API_AUTH` gates the transcoder REST API; admin keys can mutate (create/delete presets, retry/delete jobs, restart, PATCH config) while readonly keys can only observe. Webhook endpoint has its own `X-Webhook-Secret` separate from API keys.
 
 **Job-level transcode overrides + retranscode.** Bitrate, codec, preset, and output format can be overridden per-job via the webhook payload, and a completed job can be re-transcoded with new settings without re-ripping the disc.
