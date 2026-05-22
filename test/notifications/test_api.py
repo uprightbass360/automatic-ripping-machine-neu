@@ -385,26 +385,25 @@ def test_test_config_invalid_type(client):
     assert resp.status_code == 422
 
 
+def test_test_config_bash_is_rejected(client):
+    """Bash is excluded from the unsaved-test endpoint: it would run an
+    arbitrary request-supplied script_path before the channel is saved.
+    Bash channels remain testable via /channels/{id}/test after saving."""
+    body = {
+        "type": "bash",
+        "config": {"type": "bash", "script_path": "/tmp/evil.sh"},
+        "event_key": "job.started",
+    }
+    resp = client.post("/api/v1/notifications/test", json=body)
+    assert resp.status_code == 422
+
+
 def test_test_config_empty_apprise_url_is_friendly_error(client):
     """An empty apprise URL returns a friendly {ok: false} rather than
     raising, so the Add-channel form can show a message."""
     body = {
         "type": "apprise",
         "config": {"type": "apprise", "url": ""},
-        "event_key": "job.started",
-    }
-    resp = client.post("/api/v1/notifications/test", json=body)
-    assert resp.status_code == 200, resp.text
-    data = resp.json()
-    assert data["ok"] is False
-    assert data["error"]
-
-
-def test_test_config_empty_bash_script_path_is_friendly_error(client):
-    """An empty bash script_path returns a friendly {ok: false}."""
-    body = {
-        "type": "bash",
-        "config": {"type": "bash", "script_path": ""},
         "event_key": "job.started",
     }
     resp = client.post("/api/v1/notifications/test", json=body)

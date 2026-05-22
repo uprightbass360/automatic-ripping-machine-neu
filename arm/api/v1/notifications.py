@@ -320,19 +320,24 @@ def test_config(body: dict):
     Persists nothing. Unknown ``event_key`` → 400; unsupported ``type`` →
     422; send/validation problems are returned as ``{ok: false, error}``
     (200) so the UI can show a friendly message.
+
+    Only ``apprise`` and ``webhook`` (URL-based senders) can be tested
+    unsaved. ``bash`` is intentionally excluded: it would execute an
+    arbitrary request-supplied ``script_path`` before the channel is
+    persisted. Bash channels are still testable via
+    ``/channels/{id}/test`` after they're saved, where the operator has
+    already committed the script path to the DB.
     """
     from arm.notifications.dispatcher import send_now, _reconstruct_event
 
     ch_type = body.get("type")
-    if ch_type not in ("apprise", "webhook", "bash"):
-        raise HTTPException(422, "invalid channel type")
+    if ch_type not in ("apprise", "webhook"):
+        raise HTTPException(422, "unsaved test supports only apprise and webhook")
     config = body.get("config") or {}
 
     # Friendly (non-raising) validation so the form shows a message.
-    if ch_type in ("apprise", "webhook") and not config.get("url"):
+    if not config.get("url"):
         return {"ok": False, "error": "url is required"}
-    if ch_type == "bash" and not config.get("script_path"):
-        return {"ok": False, "error": "script_path is required"}
 
     event_key = body.get("event_key", "job.started")
     payload = _synthetic_event(event_key)  # raises 400 on unknown key
