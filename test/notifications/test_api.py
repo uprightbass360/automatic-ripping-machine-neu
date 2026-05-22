@@ -323,6 +323,135 @@ def test_test_send_unknown_event_key_is_400(client, make_channel):
     assert resp.status_code == 400
 
 
+# -------------------- test unsaved config --------------------
+
+def test_test_config_apprise_success(client):
+    """POST /notifications/test sends to an unsaved apprise config
+    synchronously and reports success without persisting anything."""
+    from unittest.mock import patch
+    from arm.notifications.models import NotificationOutbox
+
+    body = {
+        "type": "apprise",
+        "config": {"type": "apprise", "url": "json://localhost/x"},
+        "event_key": "job.started",
+    }
+    with patch("arm.notifications.dispatcher.send_apprise",
+               return_value=(True, None)):
+        resp = client.post("/api/v1/notifications/test", json=body)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "error": None}
+    # Nothing persisted to the outbox.
+    assert NotificationOutbox.query.count() == 0
+
+
+def test_test_config_reports_failure(client):
+    """A sender failure is surfaced as {ok: false, error: ...} (200)."""
+    from unittest.mock import patch
+
+    body = {
+        "type": "apprise",
+        "config": {"type": "apprise", "url": "json://localhost/x"},
+        "event_key": "job.started",
+    }
+    with patch("arm.notifications.dispatcher.send_apprise",
+               return_value=(False, "boom")):
+        resp = client.post("/api/v1/notifications/test", json=body)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": False, "error": "boom"}
+
+
+def test_test_config_unknown_event_key(client):
+    """An unknown event_key is rejected with 400 (via _synthetic_event)."""
+    body = {
+        "type": "apprise",
+        "config": {"type": "apprise", "url": "json://localhost/x"},
+        "event_key": "job.does_not_exist",
+    }
+    resp = client.post("/api/v1/notifications/test", json=body)
+    assert resp.status_code == 400
+
+
+def test_test_config_invalid_type(client):
+    """An unsupported channel type is rejected with 422."""
+    body = {
+        "type": "carrier-pigeon",
+        "config": {},
+        "event_key": "job.started",
+    }
+    resp = client.post("/api/v1/notifications/test", json=body)
+    assert resp.status_code == 422
+
+
+def test_test_config_empty_apprise_url_is_friendly_error(client):
+    """An empty apprise URL returns a friendly {ok: false} rather than
+    raising, so the Add-channel form can show a message."""
+    body = {
+        "type": "apprise",
+        "config": {"type": "apprise", "url": ""},
+        "event_key": "job.started",
+    }
+    resp = client.post("/api/v1/notifications/test", json=body)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error"]
+
+
+def test_test_config_empty_bash_script_path_is_friendly_error(client):
+    """An empty bash script_path returns a friendly {ok: false}."""
+    body = {
+        "type": "bash",
+        "config": {"type": "bash", "script_path": ""},
+        "event_key": "job.started",
+    }
+    resp = client.post("/api/v1/notifications/test", json=body)
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error"]
+
+
+def test_test_config_defaults_event_key(client):
+    """Omitting event_key defaults to job.started."""
+    from unittest.mock import patch
+
+    body = {
+        "type": "apprise",
+        "config": {"type": "apprise", "url": "json://localhost/x"},
+    }
+    with patch("arm.notifications.dispatcher.send_apprise",
+               return_value=(True, None)) as send:
+        resp = client.post("/api/v1/notifications/test", json=body)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["ok"] is True
+    title = send.call_args.kwargs["title"]
+    assert "ARM started" in title
+
+
+def test_test_config_sender_exception_is_caught(client):
+    """If send_now raises, the endpoint returns {ok: false, error: ...}
+    rather than 500."""
+    from unittest.mock import patch
+
+    body = {
+        "type": "apprise",
+        "config": {"type": "apprise", "url": "json://localhost/x"},
+        "event_key": "job.started",
+    }
+    with patch("arm.notifications.dispatcher.send_now",
+               side_effect=RuntimeError("kaboom")):
+        resp = client.post("/api/v1/notifications/test", json=body)
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is False
+    assert "kaboom" in data["error"]
+
+
 # -------------------- dispatches list clamps --------------------
 
 def test_list_dispatches_limit_clamped_to_200(client, make_channel, db_session):

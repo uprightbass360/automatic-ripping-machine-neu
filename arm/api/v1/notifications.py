@@ -311,6 +311,39 @@ def test_send(channel_id: int, body: dict | None = None):
     return {"sent_at": now.isoformat(), "dispatch_id": row.id}
 
 
+@router.post("/notifications/test")
+def test_config(body: dict):
+    """Test-send to an UNSAVED channel config, synchronously.
+
+    Lets the arm-ui "Add channel" form verify a config before saving it.
+    Body: ``{type, config: {...}, event_key?}``. Returns ``{ok, error}``.
+    Persists nothing. Unknown ``event_key`` → 400; unsupported ``type`` →
+    422; send/validation problems are returned as ``{ok: false, error}``
+    (200) so the UI can show a friendly message.
+    """
+    from arm.notifications.dispatcher import send_now, _reconstruct_event
+
+    ch_type = body.get("type")
+    if ch_type not in ("apprise", "webhook", "bash"):
+        raise HTTPException(422, "invalid channel type")
+    config = body.get("config") or {}
+
+    # Friendly (non-raising) validation so the form shows a message.
+    if ch_type in ("apprise", "webhook") and not config.get("url"):
+        return {"ok": False, "error": "url is required"}
+    if ch_type == "bash" and not config.get("script_path"):
+        return {"ok": False, "error": "script_path is required"}
+
+    event_key = body.get("event_key", "job.started")
+    payload = _synthetic_event(event_key)  # raises 400 on unknown key
+    event = _reconstruct_event(payload)
+    try:
+        ok, error = send_now(ch_type, config, event)
+    except Exception as exc:
+        return {"ok": False, "error": f"{exc}"}
+    return {"ok": ok, "error": error}
+
+
 @router.get("/notifications/dispatch/{dispatch_id}")
 def get_dispatch(dispatch_id: int):
     row = NotificationOutbox.query.get(dispatch_id)

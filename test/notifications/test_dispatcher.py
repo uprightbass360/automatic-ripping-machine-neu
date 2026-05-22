@@ -457,6 +457,100 @@ def test_dispatcher_loop_logs_rescued_stale_rows(db_session):
     assert reap_mock["count"] == 1
 
 
+def _started_event():
+    """A reconstructed NotificationEvent model from the started payload."""
+    from arm.notifications.dispatcher import _reconstruct_event
+    return _reconstruct_event(_started_payload())
+
+
+def test_send_now_apprise_renders_and_calls_sender():
+    """send_now for apprise renders title/body and forwards to
+    send_apprise, returning the sender's (ok, error) tuple."""
+    from arm.notifications.dispatcher import send_now
+
+    with patch("arm.notifications.dispatcher.send_apprise",
+               return_value=(True, None)) as send:
+        ok, error = send_now(
+            "apprise", {"type": "apprise", "url": "json://localhost/x"},
+            _started_event())
+
+    assert (ok, error) == (True, None)
+    send.assert_called_once()
+    kwargs = send.call_args.kwargs
+    assert kwargs["url"] == "json://localhost/x"
+    assert "ARM started" in kwargs["title"]
+    assert kwargs["body"]
+
+
+def test_send_now_webhook_builds_payload_and_calls_sender():
+    """send_now for webhook constructs the OutboundWebhookPayload dict and
+    passes shared_secret/headers through to send_webhook."""
+    from arm.notifications.dispatcher import send_now
+
+    with patch("arm.notifications.dispatcher.send_webhook",
+               return_value=(True, None)) as send:
+        ok, error = send_now(
+            "webhook",
+            {"type": "webhook", "url": "https://example.com/hook",
+             "shared_secret": "s3cret", "headers": {"X-Test": "1"}},
+            _started_event())
+
+    assert (ok, error) == (True, None)
+    send.assert_called_once()
+    kwargs = send.call_args.kwargs
+    assert kwargs["url"] == "https://example.com/hook"
+    assert kwargs["shared_secret"] == "s3cret"
+    assert kwargs["headers"] == {"X-Test": "1"}
+    payload = kwargs["payload_dict"]
+    for key in ("event", "title", "body", "channel", "sent_at"):
+        assert key in payload
+
+
+def test_send_now_bash_builds_env_and_calls_sender():
+    """send_now for bash builds the ARM_* env from the event model and
+    forwards script_path/env_vars to send_bash."""
+    from arm.notifications.dispatcher import send_now
+
+    with patch("arm.notifications.dispatcher.send_bash",
+               return_value=(True, None)) as send:
+        ok, error = send_now(
+            "bash", {"type": "bash", "script_path": "/x"},
+            _started_event())
+
+    assert (ok, error) == (True, None)
+    send.assert_called_once()
+    kwargs = send.call_args.kwargs
+    assert kwargs["script_path"] == "/x"
+    env = kwargs["env_vars"]
+    assert env["ARM_EVENT_KEY"] == "job.started"
+    assert env["ARM_JOB_ID"] == "1"
+    assert "ARM_TITLE" in env
+
+
+def test_send_now_propagates_sender_failure():
+    """send_now returns the sender's failure tuple verbatim."""
+    from arm.notifications.dispatcher import send_now
+
+    with patch("arm.notifications.dispatcher.send_apprise",
+               return_value=(False, "boom")):
+        ok, error = send_now(
+            "apprise", {"type": "apprise", "url": "json://localhost/x"},
+            _started_event())
+
+    assert (ok, error) == (False, "boom")
+
+
+def test_send_now_unknown_type_returns_error():
+    """An unrecognized channel type returns (False, descriptive error)
+    without raising."""
+    from arm.notifications.dispatcher import send_now
+
+    ok, error = send_now("carrier-pigeon", {}, _started_event())
+    assert ok is False
+    assert "unknown channel type" in error.lower()
+    assert "carrier-pigeon" in error
+
+
 def test_dispatcher_loop_logs_cleanup_deletions(db_session):
     """When the periodic cleanup deletes rows, the loop logs the count
     (covers the deleted>0 branch)."""

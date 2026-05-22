@@ -102,6 +102,59 @@ def _reconstruct_event(event_payload: dict):
     return adapter.validate_python(event_payload)
 
 
+def _render_and_send(channel_type: str, config: dict, event,
+                     templates: dict | None = None,
+                     channel_ref: ChannelRef | None = None,
+                     ) -> tuple[bool, str | None]:
+    """Render the event's title/body and dispatch to one channel type.
+
+    Returns ``(ok, error)``. Does NOT touch the outbox. Used by both the
+    dispatcher (per-row, with the channel's stored templates and a real
+    ``channel_ref``) and the ad-hoc test-config endpoint (templates=None,
+    a placeholder ref → defaults).
+
+    ``render_title_and_body`` may raise ``TemplateRenderError``; callers
+    decide how to handle it (the dispatcher records a terminal failure;
+    the test endpoint reports it back to the UI).
+    """
+    tmpl_dict = (templates or {}).get(event.event_key)
+    tmpl = ChannelTemplate(**tmpl_dict) if tmpl_dict else None
+    title, body = render_title_and_body(event, channel_template=tmpl)
+    cfg = config or {}
+    if channel_type == "apprise":
+        return send_apprise(url=cfg.get("url", ""), title=title, body=body)
+    if channel_type == "webhook":
+        ref = channel_ref or ChannelRef(id=0, name="test", type="webhook")
+        payload = OutboundWebhookPayload(
+            event=event,
+            title=title,
+            body=body,
+            channel=ref,
+            arm_instance_name=None,
+            sent_at=datetime.datetime.utcnow(),
+        )
+        payload_dict = json.loads(payload.model_dump_json())
+        return send_webhook(
+            url=cfg.get("url", ""),
+            payload_dict=payload_dict,
+            shared_secret=cfg.get("shared_secret"),
+            headers=cfg.get("headers"),
+        )
+    if channel_type == "bash":
+        env_vars = _build_bash_env(json.loads(event.model_dump_json()),
+                                   title, body)
+        return send_bash(script_path=cfg.get("script_path", ""),
+                         title=title, body=body, env_vars=env_vars)
+    return False, f"unknown channel type: {channel_type}"
+
+
+def send_now(channel_type: str, config: dict, event) -> tuple[bool, str | None]:
+    """Public: render + send one event to an ad-hoc (unsaved) channel
+    config, using default templates. Synchronous; does not touch the
+    outbox. Lets the UI test a channel config before persisting it."""
+    return _render_and_send(channel_type, config, event, templates=None)
+
+
 def process_one_row(outbox_id: int) -> None:
     """Process a single in_flight outbox row.
 
@@ -125,54 +178,34 @@ def process_one_row(outbox_id: int) -> None:
             record_failure(outbox_id, "channel disabled", terminal=True)
             return
 
-        # 1. Reconstruct event + resolve template.
+        # 1. Reconstruct the event (template render is deferred to
+        #    _render_and_send so the render+send logic stays in one place).
         try:
             event = _reconstruct_event(row.event_payload)
-            tmpl_dict = (channel.templates or {}).get(row.event_key)
-            tmpl = ChannelTemplate(**tmpl_dict) if tmpl_dict else None
-            title, body = render_title_and_body(event, channel_template=tmpl)
-        except TemplateRenderError as exc:
-            record_failure(outbox_id, f"template render: {exc}", terminal=True)
-            return
         except Exception as exc:
             record_failure(outbox_id, f"event reconstruction: {exc}",
                            terminal=True)
             return
 
-        # 2. Dispatch by channel type.
-        cfg = channel.config or {}
+        # 2. Render + dispatch by channel type via the shared helper. The
+        #    helper renders the template and sends; we keep the outbox
+        #    bookkeeping (record_success/record_failure) and terminal-flag
+        #    handling here.
+        if channel.type not in ("apprise", "webhook", "bash"):
+            record_failure(outbox_id,
+                           f"unknown channel type: {channel.type}",
+                           terminal=True)
+            return
+        channel_ref = ChannelRef(id=channel.id, name=channel.name,
+                                 type=channel.type)
         try:
-            if channel.type == "apprise":
-                ok, error = send_apprise(
-                    url=cfg.get("url", ""), title=title, body=body)
-            elif channel.type == "webhook":
-                payload = OutboundWebhookPayload(
-                    event=event,
-                    title=title,
-                    body=body,
-                    channel=ChannelRef(id=channel.id, name=channel.name,
-                                       type=channel.type),
-                    arm_instance_name=None,
-                    sent_at=datetime.datetime.utcnow(),
-                )
-                payload_dict = json.loads(payload.model_dump_json())
-                ok, error = send_webhook(
-                    url=cfg.get("url", ""),
-                    payload_dict=payload_dict,
-                    shared_secret=cfg.get("shared_secret"),
-                    headers=cfg.get("headers"),
-                )
-            elif channel.type == "bash":
-                env_vars = _build_bash_env(row.event_payload, title, body)
-                ok, error = send_bash(
-                    script_path=cfg.get("script_path", ""),
-                    title=title, body=body, env_vars=env_vars,
-                )
-            else:
-                record_failure(outbox_id,
-                               f"unknown channel type: {channel.type}",
-                               terminal=True)
-                return
+            ok, error = _render_and_send(
+                channel.type, channel.config, event,
+                templates=channel.templates, channel_ref=channel_ref,
+            )
+        except TemplateRenderError as exc:
+            record_failure(outbox_id, f"template render: {exc}", terminal=True)
+            return
         except Exception as exc:
             # Last-resort catch — channel senders shouldn't raise, but if
             # one does, treat it as transient so a bug doesn't permanently
