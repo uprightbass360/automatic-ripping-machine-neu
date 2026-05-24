@@ -1,11 +1,14 @@
 """API v1 - Notification endpoints."""
 import datetime
+import logging
 
 from fastapi import APIRouter
 
 from arm.database import db
 from arm.models.notifications import Notifications
 from arm.services import jobs as svc_jobs
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["notifications"])
 
@@ -329,6 +332,10 @@ def test_config(body: dict):
     already committed the script path to the DB.
     """
     from arm.notifications.dispatcher import send_now, _reconstruct_event
+    from arm.notifications.url_safety import (
+        UnsafeUrlError,
+        assert_public_http_url,
+    )
 
     ch_type = body.get("type")
     if ch_type not in ("apprise", "webhook"):
@@ -336,16 +343,28 @@ def test_config(body: dict):
     config = body.get("config") or {}
 
     # Friendly (non-raising) validation so the form shows a message.
-    if not config.get("url"):
+    url = config.get("url")
+    if not url:
         return {"ok": False, "error": "url is required"}
+
+    # The webhook sender fetches this URL directly with the server's
+    # network identity, so a request-supplied URL is an SSRF risk. Apprise
+    # URLs route through the apprise library against known service hosts.
+    if ch_type == "webhook":
+        try:
+            assert_public_http_url(url)
+        except UnsafeUrlError as exc:
+            return {"ok": False, "error": str(exc)}
 
     event_key = body.get("event_key", "job.started")
     payload = _synthetic_event(event_key)  # raises 400 on unknown key
     event = _reconstruct_event(payload)
     try:
         ok, error = send_now(ch_type, config, event)
-    except Exception as exc:
-        return {"ok": False, "error": f"{exc}"}
+    except Exception:
+        # Don't echo exception/stack-trace text back to the caller.
+        log.exception("unsaved %s test failed", ch_type)
+        return {"ok": False, "error": "test send failed; see server logs"}
     return {"ok": ok, "error": error}
 
 
