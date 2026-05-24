@@ -433,7 +433,8 @@ def test_test_config_defaults_event_key(client):
 
 def test_test_config_sender_exception_is_caught(client):
     """If send_now raises, the endpoint returns {ok: false, error: ...}
-    rather than 500."""
+    rather than 500, and does NOT leak the exception/stack-trace text to
+    the caller (it's logged server-side instead)."""
     from unittest.mock import patch
 
     body = {
@@ -442,13 +443,66 @@ def test_test_config_sender_exception_is_caught(client):
         "event_key": "job.started",
     }
     with patch("arm.notifications.dispatcher.send_now",
-               side_effect=RuntimeError("kaboom")):
+               side_effect=RuntimeError("kaboom-secret-internal-detail")):
         resp = client.post("/api/v1/notifications/test", json=body)
 
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["ok"] is False
-    assert "kaboom" in data["error"]
+    # The raw exception text must not reach the client.
+    assert "kaboom-secret-internal-detail" not in data["error"]
+    assert "server logs" in data["error"]
+
+
+@pytest.mark.parametrize("url", [
+    "http://127.0.0.1/hook",
+    "http://localhost/hook",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://10.0.0.5/hook",
+    "http://192.168.1.10/hook",
+    "https://[::1]/hook",
+    "ftp://example.com/hook",
+    "file:///etc/passwd",
+])
+def test_test_config_webhook_rejects_unsafe_url(client, url):
+    """The unsaved webhook test path is an SSRF sink: a request-supplied
+    URL must not target loopback/private/link-local hosts or non-http
+    schemes. Rejected as a friendly {ok: false} without sending."""
+    from unittest.mock import patch
+
+    body = {
+        "type": "webhook",
+        "config": {"type": "webhook", "url": url},
+        "event_key": "job.started",
+    }
+    with patch("arm.notifications.dispatcher.send_webhook") as send:
+        resp = client.post("/api/v1/notifications/test", json=body)
+
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error"]
+    send.assert_not_called()
+
+
+def test_test_config_webhook_allows_public_url(client):
+    """A public host passes the SSRF guard and the send proceeds."""
+    from unittest.mock import patch
+
+    body = {
+        "type": "webhook",
+        "config": {"type": "webhook", "url": "https://example.com/hook"},
+        "event_key": "job.started",
+    }
+    with patch("arm.notifications.url_safety.assert_public_http_url",
+               return_value=None), \
+            patch("arm.notifications.dispatcher.send_webhook",
+                  return_value=(True, None)) as send:
+        resp = client.post("/api/v1/notifications/test", json=body)
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "error": None}
+    send.assert_called_once()
 
 
 # -------------------- dispatches list clamps --------------------
