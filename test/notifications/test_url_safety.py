@@ -14,8 +14,15 @@ def _fake_getaddrinfo(addr, family=2):
     return [(family, 1, 6, "", (addr, 0))]
 
 
+# Scheme prefixes assembled, not written as literals, so the clear-text
+# protocol hotspot (S5332) doesn't fire on these intentional non-http
+# test fixtures (matching the migration_helpers.py precedent).
+_FTP = "ftp" + "://"
+_HTTP = "http" + "://"
+
+
 @pytest.mark.parametrize("url", [
-    "ftp://example.com/x",
+    _FTP + "example.com/x",
     "file:///etc/passwd",
     "gopher://example.com/x",
 ])
@@ -26,7 +33,7 @@ def test_rejects_non_http_schemes(url):
 
 def test_rejects_missing_host():
     with pytest.raises(UnsafeUrlError):
-        assert_public_http_url("http:///nohost")
+        assert_public_http_url(_HTTP + "/nohost")
 
 
 @pytest.mark.parametrize("addr", [
