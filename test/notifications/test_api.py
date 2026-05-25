@@ -347,7 +347,9 @@ def test_test_config_apprise_success(client):
 
 
 def test_test_config_reports_failure(client):
-    """A sender failure is surfaced as {ok: false, error: ...} (200)."""
+    """A sender failure is surfaced as {ok: false} (200) with a fixed,
+    non-leaking message — the raw sender error (which can embed remote
+    response text) is logged server-side, not returned."""
     from unittest.mock import patch
 
     body = {
@@ -356,11 +358,14 @@ def test_test_config_reports_failure(client):
         "event_key": "job.started",
     }
     with patch("arm.notifications.dispatcher.send_apprise",
-               return_value=(False, "boom")):
+               return_value=(False, "boom-remote-detail")):
         resp = client.post("/api/v1/notifications/test", json=body)
 
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"ok": False, "error": "boom"}
+    data = resp.json()
+    assert data["ok"] is False
+    assert "boom-remote-detail" not in (data["error"] or "")
+    assert data["error"]
 
 
 def test_test_config_unknown_event_key(client):
