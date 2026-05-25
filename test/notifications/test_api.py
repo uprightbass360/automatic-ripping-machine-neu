@@ -588,3 +588,48 @@ def test_merge_patch_config_none_incoming_keeps_existing():
     from arm.api.v1.notifications import _merge_patch_config
     existing = {"type": "apprise", "url": "discord://x/y"}
     assert _merge_patch_config(existing, None) == existing
+
+
+# -------------------- apprise service_id --------------------
+
+def test_create_channel_apprise_persists_service_id(client):
+    body = {
+        "type": "apprise",
+        "name": "Discord w/ service id",
+        "config": {"type": "apprise", "url": "discord://1/2", "service_id": "discord"},
+        "subscribed_events": ["job.started"],
+    }
+    resp = client.post("/api/v1/notifications/channels", json=body)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["config"]["service_id"] == "discord"
+
+
+def test_patch_channel_apprise_updates_service_id_and_url(client):
+    create = client.post("/api/v1/notifications/channels", json={
+        "type": "apprise", "name": "c",
+        "config": {"type": "apprise", "url": "discord://1/2", "service_id": "discord"},
+        "subscribed_events": ["job.started"],
+    })
+    cid = create.json()["id"]
+    resp = client.patch(f"/api/v1/notifications/channels/{cid}", json={
+        "config": {"type": "apprise", "url": "slack://a/b/c", "service_id": "slack"},
+    })
+    assert resp.status_code == 200, resp.text
+    cfg = resp.json()["config"]
+    assert cfg["url"] == "slack://a/b/c"
+    assert cfg["service_id"] == "slack"
+
+
+def test_patch_channel_without_config_keeps_apprise_url(client):
+    create = client.post("/api/v1/notifications/channels", json={
+        "type": "apprise", "name": "c",
+        "config": {"type": "apprise", "url": "discord://1/2", "service_id": "discord"},
+        "subscribed_events": ["job.started"],
+    })
+    cid = create.json()["id"]
+    resp = client.patch(f"/api/v1/notifications/channels/{cid}", json={"name": "renamed"})
+    assert resp.status_code == 200, resp.text
+    cfg = resp.json()["config"]
+    assert cfg["url"] == "discord://1/2"
+    assert cfg["service_id"] == "discord"
+    assert resp.json()["name"] == "renamed"
