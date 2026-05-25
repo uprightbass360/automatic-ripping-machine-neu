@@ -395,8 +395,10 @@ def test_test_config_bash_is_rejected(client):
     arbitrary request-supplied script_path before the channel is saved.
     Bash channels remain testable via /channels/{id}/test after saving."""
     body = {
+        # Non-/tmp path: the endpoint rejects bash before the path is ever
+        # used, and a publicly-writable dir trips Sonar's S5443 needlessly.
         "type": "bash",
-        "config": {"type": "bash", "script_path": "/tmp/evil.sh"},
+        "config": {"type": "bash", "script_path": "/opt/arm/scripts/x.sh"},
         "event_key": "job.started",
     }
     resp = client.post("/api/v1/notifications/test", json=body)
