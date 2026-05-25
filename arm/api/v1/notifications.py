@@ -353,8 +353,13 @@ def test_config(body: dict):
     if ch_type == "webhook":
         try:
             assert_public_http_url(url)
-        except UnsafeUrlError as exc:
-            return {"ok": False, "error": str(exc)}
+        except UnsafeUrlError:
+            # Fixed message: never echo the exception text (which could
+            # reflect the resolved host) back to the caller.
+            return {
+                "ok": False,
+                "error": "URL must be a public http(s) address",
+            }
 
     event_key = body.get("event_key", "job.started")
     payload = _synthetic_event(event_key)  # raises 400 on unknown key
@@ -365,7 +370,12 @@ def test_config(body: dict):
         # Don't echo exception/stack-trace text back to the caller.
         log.exception("unsaved %s test failed", ch_type)
         return {"ok": False, "error": "test send failed; see server logs"}
-    return {"ok": ok, "error": error}
+    if ok:
+        return {"ok": True, "error": None}
+    # The sender's error string can embed remote response text / exception
+    # detail; log it server-side and return a fixed message instead.
+    log.warning("unsaved %s test send failed: %s", ch_type, error)
+    return {"ok": False, "error": "test send failed; see server logs"}
 
 
 @router.get("/notifications/dispatch/{dispatch_id}")
