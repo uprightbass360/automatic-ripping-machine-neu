@@ -59,16 +59,14 @@ def send_webhook(
 
     try:
         with httpx.Client(timeout=_TIMEOUT_SECONDS) as client:
-            # For saved channels the URL is operator-controlled (from the DB).
-            # The only request-controlled caller is the unsaved-config test
-            # endpoint, which validates the URL with
+            # SSRF note: for saved channels the URL is operator-controlled
+            # (from the DB). The only request-controlled caller is the
+            # unsaved-config test endpoint, which validates the URL with
             # url_safety.assert_public_http_url() (rejects loopback/private/
             # link-local/reserved hosts) before reaching here. CodeQL cannot
-            # model that custom IP allowlist as a sanitizer; see github/codeql
-            # issue #17353 where the team confirms this is the correct control
-            # for the webhook case and advises dismissing the alert. The
-            # suppression must sit on the flagged call line itself.
-            resp = client.post(  # codeql[py/full-ssrf]
+            # model that custom IP allowlist as a sanitizer; py/full-ssrf is
+            # suppressed centrally in .github/codeql/codeql-config.yml.
+            resp = client.post(
                 url, content=body_bytes, headers=request_headers
             )
     except httpx.HTTPError as exc:

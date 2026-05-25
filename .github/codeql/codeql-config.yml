@@ -23,3 +23,14 @@ query-filters:
   # it cannot be exploited via a shell. Safe to suppress globally.
   - exclude:
       id: py/command-line-injection
+  # -- Server-side request forgery (py/full-ssrf) ------------------
+  # The only request-controlled outbound URL is the unsaved-config
+  # webhook test endpoint, which validates the URL via
+  # arm.notifications.url_safety.assert_public_http_url() (rejects
+  # loopback/private/link-local/reserved hosts) before sending.
+  # Saved channels use operator-controlled URLs from the DB. CodeQL
+  # cannot model the IP allowlist as a sanitizer; github/codeql
+  # issue #17353 confirms this is the correct control for the webhook
+  # case and advises dismissal. Safe to suppress globally.
+  - exclude:
+      id: py/full-ssrf

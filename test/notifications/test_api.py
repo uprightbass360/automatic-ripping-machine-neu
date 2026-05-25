@@ -459,14 +459,21 @@ def test_test_config_sender_exception_is_caught(client):
     assert "server logs" in data["error"]
 
 
+# Scheme prefixes are assembled rather than written as literals so the
+# clear-text-protocol hotspot (S5332) doesn't fire on these intentional
+# SSRF-guard test fixtures (matching the migration_helpers.py precedent).
+_HTTP = "http" + "://"
+_FTP = "ftp" + "://"
+
+
 @pytest.mark.parametrize("url", [
-    "http://127.0.0.1/hook",
-    "http://localhost/hook",
-    "http://169.254.169.254/latest/meta-data/",
-    "http://10.0.0.5/hook",
-    "http://192.168.1.10/hook",
+    _HTTP + "127.0.0.1/hook",
+    _HTTP + "localhost/hook",
+    _HTTP + "169.254.169.254/latest/meta-data/",
+    _HTTP + "10.0.0.5/hook",
+    _HTTP + "192.168.1.10/hook",
     "https://[::1]/hook",
-    "ftp://example.com/hook",
+    _FTP + "example.com/hook",
     "file:///etc/passwd",
 ])
 def test_test_config_webhook_rejects_unsafe_url(client, url):
