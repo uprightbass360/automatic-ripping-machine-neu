@@ -760,3 +760,51 @@ def test_create_channel_apprise_composes_url_from_fields(client):
     # fields stored (and masked on GET — webhook_id is private, so the read shows <hidden>)
     from arm.api.v1.notifications import _HIDDEN_LITERAL
     assert cfg["fields"]["webhook_token"] == _HIDDEN_LITERAL
+
+
+def test_test_endpoint_with_channel_id_merges_fields(client):
+    """POST /notifications/test with {channel_id, fields, event_key}
+    loads the stored channel, merges incoming fields (keeping <hidden>
+    secrets), composes the url, and sends. Returns {ok, error}."""
+    from unittest.mock import patch as mockpatch
+    from arm.api.v1.notifications import _HIDDEN_LITERAL
+    create = client.post("/api/v1/notifications/channels", json={
+        "type": "apprise", "name": "d",
+        "config": {"type": "apprise", "url": "discord://realid/realtoken",
+                   "service_id": "discord",
+                   "fields": {"webhook_id": "realid", "webhook_token": "realtoken"}},
+        "subscribed_events": ["job.started"],
+    })
+    cid = create.json()["id"]
+    sent_urls: list[str] = []
+    def fake_send_apprise(*, url, title, body):
+        sent_urls.append(url)
+        return (True, None)
+    with mockpatch("arm.notifications.dispatcher.send_apprise", side_effect=fake_send_apprise):
+        resp = client.post("/api/v1/notifications/test", json={
+            "channel_id": cid,
+            "fields": {"webhook_id": _HIDDEN_LITERAL,
+                       "webhook_token": _HIDDEN_LITERAL,
+                       "thread": "9"},
+            "event_key": "job.started",
+        })
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "error": None}
+    assert len(sent_urls) == 1
+    assert "realid" in sent_urls[0]
+    assert "realtoken" in sent_urls[0]
+    assert "thread=9" in sent_urls[0]
+
+
+def test_test_endpoint_existing_unsaved_shape_still_works(client):
+    """The existing {type, config, event_key} body shape (used by the
+    Add form's Send test) keeps working unchanged."""
+    from unittest.mock import patch as mockpatch
+    with mockpatch("arm.notifications.dispatcher.send_apprise", return_value=(True, None)):
+        resp = client.post("/api/v1/notifications/test", json={
+            "type": "apprise",
+            "config": {"type": "apprise", "url": "discord://a/b"},
+            "event_key": "job.started",
+        })
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "error": None}
