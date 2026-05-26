@@ -455,6 +455,23 @@ def test_config(body: dict):
         raise HTTPException(422, "unsaved test supports only apprise and webhook")
     config = body.get("config") or {}
 
+    # The UI's apprise create path sends {service_id, fields} with url=""
+    # and lets neu compose the url server-side (matches the create_channel
+    # contract). Compose here too so the unsaved-test path works the same
+    # as the create path — otherwise users hit "url is required" after
+    # filling fields on the Add form.
+    if (
+        ch_type == "apprise"
+        and not config.get("url")
+        and isinstance(config.get("fields"), dict)
+        and config.get("service_id")
+    ):
+        composed = _compose_apprise_url_from_fields(
+            config["service_id"], config["fields"]
+        )
+        if composed:
+            config = {**config, "url": composed}
+
     # Friendly (non-raising) validation so the form shows a message.
     url = config.get("url")
     if not url:

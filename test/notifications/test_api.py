@@ -808,3 +808,27 @@ def test_test_endpoint_existing_unsaved_shape_still_works(client):
         })
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"ok": True, "error": None}
+
+
+def test_test_endpoint_unsaved_apprise_composes_url_from_fields(client):
+    """The Add form sends {type:'apprise', url:'', service_id, fields}
+    and expects neu to compose the url (matches the create path). Without
+    this server-side compose the form would error with 'url is required'
+    even after the user fills the catalog fields."""
+    from unittest.mock import patch as mockpatch
+    sent_urls: list[str] = []
+    def fake_send_apprise(*, url, title, body):
+        sent_urls.append(url)
+        return (True, None)
+    with mockpatch("arm.notifications.dispatcher.send_apprise", side_effect=fake_send_apprise):
+        resp = client.post("/api/v1/notifications/test", json={
+            "type": "apprise",
+            "config": {"type": "apprise", "url": "", "service_id": "discord",
+                       "fields": {"webhook_id": "wid", "webhook_token": "wtok"}},
+            "event_key": "job.started",
+        })
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"ok": True, "error": None}
+    assert len(sent_urls) == 1
+    assert "wid" in sent_urls[0]
+    assert "wtok" in sent_urls[0]
