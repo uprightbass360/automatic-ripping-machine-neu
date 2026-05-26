@@ -132,6 +132,15 @@ def _mask_config(cfg: dict) -> dict:
     if cfg.get("type") == "webhook" and "shared_secret" in cfg:
         if cfg["shared_secret"]:
             out["shared_secret"] = _HIDDEN_LITERAL
+    if cfg.get("type") == "apprise" and isinstance(cfg.get("fields"), dict):
+        service_id = cfg.get("service_id")
+        masked_fields: dict = {}
+        for k, v in cfg["fields"].items():
+            if service_id and _apprise_field_is_private(service_id, k) is True and v:
+                masked_fields[k] = _HIDDEN_LITERAL
+            else:
+                masked_fields[k] = v
+        out["fields"] = masked_fields
     return out
 
 

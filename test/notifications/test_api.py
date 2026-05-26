@@ -644,3 +644,41 @@ def test_apprise_field_private_lookup(app_context):
     assert _apprise_field_is_private("discord", "thread") is False
     assert _apprise_field_is_private("discord", "no_such_field") is None
     assert _apprise_field_is_private("no_such_service", "anything") is None
+
+
+def test_mask_config_apprise_masks_private_fields():
+    """Private apprise field values are replaced with the <hidden>
+    literal on GET; non-private values pass through unchanged."""
+    from arm.api.v1.notifications import _mask_config, _HIDDEN_LITERAL
+    cfg = {
+        "type": "apprise",
+        "url": "discord://1/2",
+        "service_id": "discord",
+        "fields": {"webhook_id": "1", "webhook_token": "2", "thread": "5"},
+    }
+    masked = _mask_config(cfg)
+    assert masked["fields"]["webhook_id"] == _HIDDEN_LITERAL  # private
+    assert masked["fields"]["webhook_token"] == _HIDDEN_LITERAL  # private
+    assert masked["fields"]["thread"] == "5"  # non-private
+    assert masked["url"] == "discord://1/2"  # url not masked in this pass
+    assert masked["service_id"] == "discord"
+
+
+def test_mask_config_apprise_no_fields_passes_through():
+    """Apprise channel with no fields (legacy/raw-URL) unchanged."""
+    from arm.api.v1.notifications import _mask_config
+    cfg = {"type": "apprise", "url": "discord://1/2", "service_id": "discord"}
+    assert _mask_config(cfg) == cfg
+
+
+def test_mask_config_apprise_without_service_id_passes_through():
+    """Without a service_id, _mask_config can't look up which fields are
+    private, so it leaves all fields unmasked (defensive — should never
+    happen for channels created via the API, but covers the guard branch)."""
+    from arm.api.v1.notifications import _mask_config
+    cfg = {
+        "type": "apprise",
+        "url": "discord://1/2",
+        "fields": {"webhook_id": "1", "webhook_token": "2"},
+    }
+    assert _mask_config(cfg) == cfg
