@@ -124,6 +124,31 @@ def _apprise_field_is_private(service_id: str, key: str) -> bool | None:
     return None
 
 
+def _compose_apprise_url_from_fields(
+    service_id: str | None, fields: dict
+) -> str | None:
+    """Compose an apprise url from a flat fields dict.
+
+    Looks up `service_id` in the catalog, partitions `fields` into
+    required vs advanced by the catalog's `required_fields` keys, and
+    returns the composed url. Returns None when service_id is missing
+    or unknown (callers decide whether that's an error)."""
+    if not service_id:
+        return None
+    from arm.notifications.catalog import build_catalog
+    from arm.notifications.url_composer import compose_apprise_url
+    cat = build_catalog()
+    svc = next((s for s in cat["services"] if s["id"] == service_id), None)
+    if svc is None:
+        return None
+    required_keys = {f["key"] for f in svc.get("required_fields", [])}
+    return compose_apprise_url(
+        service_id=service_id,
+        required={k: v for k, v in fields.items() if k in required_keys},
+        advanced={k: v for k, v in fields.items() if k not in required_keys},
+    )
+
+
 def _mask_config(cfg: dict) -> dict:
     """Replace secret fields with the masked literal for GET responses."""
     if not cfg:
@@ -179,18 +204,9 @@ def _merge_patch_config(existing: dict, incoming: dict | None) -> dict:
         merged["fields"] = merged_fields
         merged["service_id"] = service_id
         # Recompose url from merged fields.
-        if service_id:
-            from arm.notifications.catalog import build_catalog
-            from arm.notifications.url_composer import compose_apprise_url
-            cat = build_catalog()
-            svc = next((s for s in cat["services"] if s["id"] == service_id), None)
-            if svc:
-                required_keys = {f["key"] for f in svc.get("required_fields", [])}
-                required = {k: v for k, v in merged_fields.items() if k in required_keys}
-                advanced = {k: v for k, v in merged_fields.items() if k not in required_keys}
-                merged["url"] = compose_apprise_url(
-                    service_id=service_id, required=required, advanced=advanced
-                )
+        composed = _compose_apprise_url_from_fields(service_id, merged_fields)
+        if composed is not None:
+            merged["url"] = composed
     return merged
 
 
@@ -238,8 +254,6 @@ def get_channel(channel_id: int):
 
 @router.post("/notifications/channels", status_code=201)
 def create_channel(payload: ChannelCreate):
-    if payload.config.type == "apprise":
-        _validate_apprise_url(payload.config.url)
     config_dict = payload.config.model_dump(mode="json")
     # SecretStr -> plaintext for storage.
     if payload.config.type == "webhook":
@@ -247,6 +261,16 @@ def create_channel(payload: ChannelCreate):
         config_dict["shared_secret"] = (
             sec.get_secret_value() if sec is not None else None
         )
+    # Apprise: if the client sent {service_id, fields} (no url), compose
+    # server-side. Otherwise validate the provided url as before.
+    if payload.config.type == "apprise":
+        fields = config_dict.get("fields") or {}
+        service_id = config_dict.get("service_id")
+        if fields and service_id and not config_dict.get("url"):
+            composed = _compose_apprise_url_from_fields(service_id, fields)
+            if composed is not None:
+                config_dict["url"] = composed
+        _validate_apprise_url(config_dict.get("url", ""))
     ch = NotificationChannel(
         type=payload.type,
         name=payload.name,
