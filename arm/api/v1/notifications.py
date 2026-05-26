@@ -110,6 +110,20 @@ _TEST_SEND_COOLDOWN_SECONDS = 10
 _test_send_last: dict[int, datetime.datetime] = {}
 
 
+def _apprise_field_is_private(service_id: str, key: str) -> bool | None:
+    """Look up a field's `private` flag from the apprise catalog.
+    Returns True/False if found, None for unknown service or key."""
+    from arm.notifications.catalog import build_catalog
+    cat = build_catalog()
+    svc = next((s for s in cat["services"] if s["id"] == service_id), None)
+    if svc is None:
+        return None
+    for f in [*svc.get("required_fields", []), *svc.get("advanced_fields", [])]:
+        if f["key"] == key:
+            return bool(f.get("private"))
+    return None
+
+
 def _mask_config(cfg: dict) -> dict:
     """Replace secret fields with the masked literal for GET responses."""
     if not cfg:

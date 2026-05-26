@@ -633,3 +633,14 @@ def test_patch_channel_without_config_keeps_apprise_url(client):
     assert cfg["url"] == "discord://1/2"
     assert cfg["service_id"] == "discord"
     assert resp.json()["name"] == "renamed"
+
+
+def test_apprise_field_private_lookup(app_context):
+    """The mask/merge layer needs a way to look up a field's private
+    flag by service_id + field key. Helper returns True for known
+    private fields, False for known non-private, None for unknown."""
+    from arm.api.v1.notifications import _apprise_field_is_private
+    assert _apprise_field_is_private("discord", "webhook_token") is True
+    assert _apprise_field_is_private("discord", "thread") is False
+    assert _apprise_field_is_private("discord", "no_such_field") is None
+    assert _apprise_field_is_private("no_such_service", "anything") is None
