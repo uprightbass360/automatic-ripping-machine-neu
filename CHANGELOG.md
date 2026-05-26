@@ -1,5 +1,77 @@
 # Changelog
 
+## [19.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v18.1.0...v19.0.0) (2026-05-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **notifications:** The legacy flat-config notification fields (PB_KEY, IFTTT_KEY, IFTTT_EVENT, PO_USER_KEY, PO_APP_KEY, JSON_URL, APPRISE, BASH_SCRIPT, NOTIFY_RIP, NOTIFY_TRANSCODE) are removed. An alembic migration translates existing values into notification_channel rows and drops the columns. Notification channels are now managed via /api/v1/notifications/ and the arm-ui Notifications page.
+
+### Features
+
+* **api:** GET /api/v1/jobs/{id}/metadata returns merged MediaMetadata ([a5c1b8a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a5c1b8a22d83cdd20eb9174676a4f9a344cc2055))
+* **identify:** write full MediaMetadata blob alongside Job columns on match ([e5e1792](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e5e1792b930aeab6c598b7b3ccf898954289f3b8))
+* **job:** media_metadata_auto/manual columns + merged-read property ([225a835](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/225a83586d66ef44e3cc7cd973465532a39fb486))
+* **job:** migration drops legacy poster_url/artist/album triples after backfill ([8b24542](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8b24542249a48d28fcb04b78489f02bd1cccda7d))
+* **metadata:** migrate poster_url consumers to media_metadata ([7163ef8](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7163ef8ef7fc76612474a9f9e55794b837aff982))
+* **metadata:** MusicBrainz adapter returns MediaMetadata (additive) ([4266257](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4266257f942628711c7c88b2649d28180d681131))
+* **metadata:** OMDb adapter returns MediaMetadata (additive) ([ea1089c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ea1089cc97eb95c474fdf483904a35710d860091))
+* **metadata:** TMDb adapter returns MediaMetadata (additive) ([bb949e1](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/bb949e12c419a3637b1505fa843e725696fc5936))
+* **metadata:** TVDB adapter returns MediaMetadata (additive) ([f9bf4ef](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f9bf4ef4259aaae27953d74669e53afb38579790))
+* **naming:** derive PATTERN_VARIABLES from arm_contracts.PATTERN_TOKENS ([0327d42](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0327d4290aec0edcf542c8a1fc7eded7a833231e))
+* **notifications:** /test accepts channel_id+fields for editor send ([4ae8a0f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4ae8a0fdae9df456a711b88c9e1fc7cc410815c7))
+* **notifications:** add NotificationChannel + NotificationOutbox models ([9e3980c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/9e3980ce171c0a818352e67ae2f8715c5d300535))
+* **notifications:** add per-event default templates + render with overrides ([50f7aaa](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/50f7aaa60643dab39a9a7550ab17b47597af5c58))
+* **notifications:** add publish_event producer entry point ([824bab3](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/824bab3658f403ab76f00d229141572f6b9c9f6f))
+* **notifications:** alembic migration creating channel + outbox tables ([3f10541](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3f105413f0713869c6973a0b95494dfeb7d89c75))
+* **notifications:** apprise channel sender ([3594d5f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3594d5f48a7c7f4b2e597aee6d93c58772604075))
+* **notifications:** apprise URL composer for catalog form submissions ([ca8b557](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ca8b55756ce806c811780ca422777b6b35bf291c))
+* **notifications:** bash channel sender with timeout ([3b81b3d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3b81b3dffdfefa54cdde70961a522088eb178143))
+* **notifications:** channels CRUD + test send + catalog API ([1b95a4d](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1b95a4d911e2831fd691a0ac71eac3d5918f7df5))
+* **notifications:** compose apprise url server-side on create ([0139fd0](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/0139fd0be9aed30d148920578e8cbef00e532f0d))
+* **notifications:** data migration + drop legacy config columns ([e96339c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e96339ce58bd9e54fbef0dbd0e7560934eb8c547))
+* **notifications:** dispatcher worker with per-row processing ([4811488](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4811488904db51bd028b035b994cd13c02f9e8b1))
+* **notifications:** mask private apprise fields on GET ([ba0f142](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ba0f1428566fa8def78c4e17465abd271d14374c))
+* **notifications:** merge apprise fields + recompose url on PATCH ([cce3d85](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/cce3d8535fa3d035346082a040ae4a9cb46a9627))
+* **notifications:** migration helpers for legacy config translation ([b3bffa5](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/b3bffa501d1ef4bc26a836141d4e153ea5c79c69))
+* **notifications:** outbox enqueue, dequeue, retry, reaper, cleanup ([1d6371b](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1d6371bab8020b1b48686d07a45c12ee809126ae))
+* **notifications:** persist apprise service_id on create and patch ([2fae289](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2fae2893fb1b63a3fb9c73c825c9fe5869d51fdf))
+* **notifications:** publish manual_wait and duplicate_detected events from makemkv ([ab7bf34](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/ab7bf3442f115952a094a77d9f4690802e1afa34))
+* **notifications:** publish_event at lifecycle sites in arm_ripper ([3aac573](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3aac5735950acb63fdd3cc7e8ffa09ef47790b85))
+* **notifications:** service catalog introspected from apprise ([e5eec16](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/e5eec169955d8a925fb5009a31902f0ae537aa38))
+* **notifications:** start dispatcher in FastAPI lifespan ([fa7468e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/fa7468ebe709c3d3ed03852deffcec63893fb2ac))
+* **notifications:** test-send endpoint for unsaved channel config ([8e86e01](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/8e86e01c6531897b0f2d9559258ee1cb283485a1))
+* **notifications:** webhook channel sender with HMAC-SHA256 ([d3b986a](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d3b986a9541117f878749ed99fd4cc6451932f31))
+* **notifications:** wire outbox cleanup into existing periodic hook ([84f5acd](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/84f5acd75e2ba80a32e7c39272cdb9592e4e7edd))
+
+
+### Bug Fixes
+
+* **jobs:** project media_metadata in list + drive-summary wire shapes ([4a39d66](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/4a39d66d81348e85f494bb2401e9977f155346bd))
+* **jobs:** project media_metadata into wire shape ([19680dd](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/19680dd0608d615a7db72154c79884fa3bc38240))
+* **music:** write MediaMetadata blob from MusicBrainz path ([d18fede](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d18fede73ecc8e6748da4bd80d65029ed53e1dbb))
+* **notifications:** clear Sonar http-protocol hotspot in JSON_URL rewrite ([1a351a6](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1a351a662bd7f2de25d5cdae10cab2e9042675e5))
+* **notifications:** compose apprise url on unsaved-test (Add-form Send test) ([1961ea9](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1961ea9943e7703422d14ab9673d3881e36724a3))
+* **notifications:** exclude bash from the unsaved-config test endpoint ([d1b4fd7](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/d1b4fd759dbd7e9c7d74d77908ec541b487d8d3d))
+* **notifications:** harden dispatcher against bash retry and commit errors ([2dc2b56](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2dc2b56ff1a41d2f9ad58091b43fc1bc4fb14bd8))
+* **notifications:** make async tests CI-safe and clear Sonar hotspot ([23d5914](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/23d5914ea89da4ba9154865781f55a26723908ea))
+* **notifications:** put codeql ssrf suppression on the flagged line ([01f93dc](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/01f93dc1b42262d35095be67cc34123733b31436))
+* **notifications:** SSRF guard + drop exception text on unsaved test ([7eaf423](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/7eaf423bb4facd332da31ec1fc5916b7206f3d61))
+* **notifications:** suppress modeled-out SSRF, stop leaking error text ([6ef678f](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/6ef678fdfdbc95246cb75f236cdbabaa4f4b7cec))
+* **notifications:** suppress SSRF in codeql config, clear Sonar hotspots ([1123810](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/1123810f62e93b46c4a97e4d8b721fa3fe8c8978))
+* **test:** move drives/with-jobs test where the client mounts the drives router ([3c7bb9e](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3c7bb9eb4296dce0fc3b508f144e5e73a9530a2d))
+* **test:** seed required status/disctype on backfill migration test rows ([519dbca](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/519dbcada390b44684f2ae612d0373179086613e))
+
+
+### Performance Improvements
+
+* **dispatcher:** interruptible tick sleep so test teardown is instant ([2b00510](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/2b00510f9bde5a8ee1048baf5f7af5367892a6d8))
+
+
+### Documentation
+
+* **notifications:** document the typed multi-channel notification system ([f0e7d01](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/f0e7d01ceb202adaa06beb2f2d78be98f8c1c5eb))
+
 ## [18.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v18.0.0...v18.1.0) (2026-05-10)
 
 
