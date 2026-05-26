@@ -398,13 +398,13 @@ def test_send(channel_id: int, body: dict | None = None):
 
 @router.post("/notifications/test")
 def test_config(body: dict):
-    """Test-send to an UNSAVED channel config, synchronously.
+    """Test-send. Two body shapes:
 
-    Lets the arm-ui "Add channel" form verify a config before saving it.
-    Body: ``{type, config: {...}, event_key?}``. Returns ``{ok, error}``.
-    Persists nothing. Unknown ``event_key`` → 400; unsupported ``type`` →
-    422; send/validation problems are returned as ``{ok: false, error}``
-    (200) so the UI can show a friendly message.
+    - {type, config, event_key?} — unsaved test (Add form). Existing.
+    - {channel_id, fields, event_key?} — saved channel with re-entered
+      fields (editor Send test). Loads stored config, merges fields
+      per the same <hidden>-preserve rules as PATCH, composes the url,
+      sends synchronously. Returns {ok, error}.
 
     Only ``apprise`` and ``webhook`` (URL-based senders) can be tested
     unsaved. ``bash`` is intentionally excluded: it would execute an
@@ -419,6 +419,37 @@ def test_config(body: dict):
         assert_public_http_url,
     )
 
+    event_key = body.get("event_key", "job.started")
+
+    # Branch A: saved-channel test with re-entered fields.
+    if "channel_id" in body:
+        ch = NotificationChannel.query.get(body["channel_id"])
+        if ch is None:
+            raise HTTPException(404, "channel not found")
+        if ch.type != "apprise":
+            raise HTTPException(422, "channel_id test path supports apprise only")
+        incoming_fields = body.get("fields") or {}
+        merged = _merge_patch_config(
+            ch.config or {},
+            {"type": "apprise", "service_id": ch.config.get("service_id"),
+             "fields": incoming_fields},
+        )
+        url = merged.get("url")
+        if not url:
+            return {"ok": False, "error": "could not compose url from fields"}
+        payload = _synthetic_event(event_key)
+        event = _reconstruct_event(payload)
+        try:
+            ok, error = send_now("apprise", {"type": "apprise", "url": url}, event)
+        except Exception:
+            log.exception("editor apprise test send failed")
+            return {"ok": False, "error": "test send failed; see server logs"}
+        if ok:
+            return {"ok": True, "error": None}
+        log.warning("editor apprise test send failed: %s", error)
+        return {"ok": False, "error": "test send failed; see server logs"}
+
+    # Branch B: existing unsaved-config test (Add form).
     ch_type = body.get("type")
     if ch_type not in ("apprise", "webhook"):
         raise HTTPException(422, "unsaved test supports only apprise and webhook")
@@ -443,7 +474,6 @@ def test_config(body: dict):
                 "error": "URL must be a public http(s) address",
             }
 
-    event_key = body.get("event_key", "job.started")
     payload = _synthetic_event(event_key)  # raises 400 on unknown key
     event = _reconstruct_event(payload)
     try:
