@@ -280,4 +280,16 @@ async def run_dispatcher_loop(stop_event: Optional[asyncio.Event] = None) -> Non
                 log.exception("notification outbox cleanup failed")
             next_cleanup_at = loop.time() + _CLEANUP_INTERVAL_SECONDS
 
-        await asyncio.sleep(_TICK_INTERVAL_SECONDS)
+        # Interruptible sleep: wake immediately when stop_event is set,
+        # otherwise sleep up to _TICK_INTERVAL_SECONDS. A plain
+        # asyncio.sleep blocks for the full interval and silently swallows
+        # shutdown signals until it returns, which adds ~5s per test that
+        # exits the FastAPI lifespan (test suite was burning ~25 min on
+        # this alone).
+        if stop_event is not None:
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=_TICK_INTERVAL_SECONDS)
+            except asyncio.TimeoutError:
+                pass
+        else:
+            await asyncio.sleep(_TICK_INTERVAL_SECONDS)
