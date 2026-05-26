@@ -15,6 +15,15 @@ from sqlalchemy.pool import StaticPool
 from arm.database import db
 
 
+@pytest.fixture(autouse=True)
+def _clear_catalog_cache():
+    """Clear build_catalog() cache before each test so mocks work."""
+    from arm.notifications.catalog import build_catalog
+    build_catalog.cache_clear()
+    yield
+    build_catalog.cache_clear()
+
+
 @pytest.fixture
 def db_session(app_context):
     """Use the shared app_context fixture from test/conftest.py which
