@@ -740,3 +740,23 @@ def test_patch_channel_apprise_with_hidden_secret_keeps_url_token(client):
     assert "realid" in cfg["url"]
     assert "realtoken" in cfg["url"]
     assert "thread=9" in cfg["url"]
+
+
+def test_create_channel_apprise_composes_url_from_fields(client):
+    """When the client sends {service_id, fields} (no url), neu
+    composes the url server-side and stores both."""
+    body = {
+        "type": "apprise", "name": "d",
+        "config": {"type": "apprise", "url": "",  # url absent / blank
+                   "service_id": "discord",
+                   "fields": {"webhook_id": "1", "webhook_token": "2"}},
+        "subscribed_events": ["job.started"],
+    }
+    resp = client.post("/api/v1/notifications/channels", json=body)
+    assert resp.status_code == 201, resp.text
+    cfg = resp.json()["config"]
+    assert cfg["url"] == "discord://1/2"
+    assert cfg["service_id"] == "discord"
+    # fields stored (and masked on GET — webhook_id is private, so the read shows <hidden>)
+    from arm.api.v1.notifications import _HIDDEN_LITERAL
+    assert cfg["fields"]["webhook_token"] == _HIDDEN_LITERAL
