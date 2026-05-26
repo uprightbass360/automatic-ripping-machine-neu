@@ -11,6 +11,7 @@ A blocklist filters out operational args that aren't user-facing
 list pins the ten most common services for the UI's primary picker
 slot; everything else lives in the long tail.
 """
+import functools
 import logging
 from typing import Any
 
@@ -118,6 +119,7 @@ def _build_service_entry(plugin_cls) -> dict | None:
     }
 
 
+@functools.lru_cache(maxsize=1)
 def build_catalog() -> dict:
     """Build the service catalog from the live apprise plugin manager.
 

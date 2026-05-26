@@ -682,3 +682,61 @@ def test_mask_config_apprise_without_service_id_passes_through():
         "fields": {"webhook_id": "1", "webhook_token": "2"},
     }
     assert _mask_config(cfg) == cfg
+
+
+def test_merge_patch_config_apprise_hidden_preserves_secret():
+    """A PATCH whose private field value is <hidden> preserves the
+    stored value; new values overwrite."""
+    from arm.api.v1.notifications import _merge_patch_config, _HIDDEN_LITERAL
+    existing = {"type": "apprise", "service_id": "discord", "url": "discord://1/2",
+                "fields": {"webhook_id": "1", "webhook_token": "2", "thread": "5"}}
+    incoming = {"type": "apprise", "service_id": "discord",
+                "fields": {"webhook_id": _HIDDEN_LITERAL, "webhook_token": "NEW", "thread": "7"}}
+    merged = _merge_patch_config(existing, incoming)
+    assert merged["fields"]["webhook_id"] == "1"  # <hidden> -> kept
+    assert merged["fields"]["webhook_token"] == "NEW"  # overwritten
+    assert merged["fields"]["thread"] == "7"  # non-private overwritten
+    # url is recomposed from the merged fields:
+    assert merged["url"].startswith("discord://1/NEW")
+    assert "thread=7" in merged["url"]
+
+
+def test_merge_patch_config_apprise_missing_keys_keeps_stored():
+    """Keys in stored fields but absent from incoming are kept."""
+    from arm.api.v1.notifications import _merge_patch_config
+    existing = {"type": "apprise", "service_id": "discord", "url": "discord://1/2",
+                "fields": {"webhook_id": "1", "webhook_token": "2", "thread": "5"}}
+    incoming = {"type": "apprise", "service_id": "discord",
+                "fields": {"thread": "9"}}  # only sending the one change
+    merged = _merge_patch_config(existing, incoming)
+    assert merged["fields"]["webhook_id"] == "1"
+    assert merged["fields"]["webhook_token"] == "2"
+    assert merged["fields"]["thread"] == "9"
+
+
+def test_patch_channel_apprise_with_hidden_secret_keeps_url_token(client):
+    """End-to-end PATCH: client sends <hidden> for webhook_token; the
+    server keeps the stored token and the recomposed url still uses it."""
+    from arm.api.v1.notifications import _HIDDEN_LITERAL
+    create = client.post("/api/v1/notifications/channels", json={
+        "type": "apprise", "name": "d",
+        "config": {"type": "apprise", "url": "discord://realid/realtoken",
+                   "service_id": "discord",
+                   "fields": {"webhook_id": "realid", "webhook_token": "realtoken"}},
+        "subscribed_events": ["job.started"],
+    })
+    cid = create.json()["id"]
+    resp = client.patch(f"/api/v1/notifications/channels/{cid}", json={
+        "config": {"type": "apprise", "url": "", "service_id": "discord",
+                   "fields": {"webhook_id": _HIDDEN_LITERAL,
+                              "webhook_token": _HIDDEN_LITERAL,
+                              "thread": "9"}},
+    })
+    assert resp.status_code == 200, resp.text
+    cfg = resp.json()["config"]
+    # masked on GET, but the url contains the kept secrets:
+    assert cfg["fields"]["webhook_token"] == _HIDDEN_LITERAL
+    assert cfg["fields"]["thread"] == "9"
+    assert "realid" in cfg["url"]
+    assert "realtoken" in cfg["url"]
+    assert "thread=9" in cfg["url"]

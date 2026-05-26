@@ -145,17 +145,52 @@ def _mask_config(cfg: dict) -> dict:
 
 
 def _merge_patch_config(existing: dict, incoming: dict | None) -> dict:
-    """When the client sends a PATCH with config.shared_secret=<hidden>,
-    preserve the existing secret instead of overwriting it."""
+    """When the client sends a PATCH with config.<secret>=<hidden>,
+    preserve the existing secret instead of overwriting it.
+    For apprise channels, also merge `fields` per-key and recompose
+    `url` from the merged fields."""
     if incoming is None:
         return existing
     merged = dict(incoming)
+    # Webhook shared_secret (existing behavior).
     if (
         existing.get("type") == "webhook"
         and merged.get("type") == "webhook"
         and merged.get("shared_secret") == _HIDDEN_LITERAL
     ):
         merged["shared_secret"] = existing.get("shared_secret")
+    # Apprise per-field merge + url recompose.
+    if (
+        existing.get("type") == "apprise"
+        and merged.get("type") == "apprise"
+        and isinstance(merged.get("fields"), dict)
+    ):
+        service_id = merged.get("service_id") or existing.get("service_id")
+        stored_fields = existing.get("fields") or {}
+        merged_fields: dict = dict(stored_fields)  # start from stored
+        for k, v in merged["fields"].items():
+            # <hidden> on a private field -> keep stored value
+            if (
+                _apprise_field_is_private(service_id, k) is True
+                and v == _HIDDEN_LITERAL
+            ):
+                continue  # keep stored
+            merged_fields[k] = v
+        merged["fields"] = merged_fields
+        merged["service_id"] = service_id
+        # Recompose url from merged fields.
+        if service_id:
+            from arm.notifications.catalog import build_catalog
+            from arm.notifications.url_composer import compose_apprise_url
+            cat = build_catalog()
+            svc = next((s for s in cat["services"] if s["id"] == service_id), None)
+            if svc:
+                required_keys = {f["key"] for f in svc.get("required_fields", [])}
+                required = {k: v for k, v in merged_fields.items() if k in required_keys}
+                advanced = {k: v for k, v in merged_fields.items() if k not in required_keys}
+                merged["url"] = compose_apprise_url(
+                    service_id=service_id, required=required, advanced=advanced
+                )
     return merged
 
 
@@ -246,7 +281,7 @@ def patch_channel(channel_id: int, payload: ChannelUpdate):
             incoming["shared_secret"] = (
                 sec.get_secret_value() if sec is not None else None
             )
-        if payload.config.type == "apprise":
+        if payload.config.type == "apprise" and payload.config.url:
             _validate_apprise_url(payload.config.url)
         ch.config = _merge_patch_config(ch.config or {}, incoming)
     db.session.commit()
