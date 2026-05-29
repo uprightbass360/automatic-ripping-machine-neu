@@ -35,3 +35,37 @@ class TestWebhookManifestHonorsEnabled:
         payload = _build_webhook_payload("done", "body", sample_job, "raw_dir")
         numbers = {t["track_number"] for t in (payload.get("tracks") or [])}
         assert numbers == {"1", "2"}, "all-disabled must fall back to sending all tracks"
+
+
+import unittest.mock
+
+
+class TestProcessSingleTracksHonorsEnabled:
+    def test_disabled_track_not_ripped(self, app_context, sample_job, tmp_path):
+        from arm.ripper import makemkv
+        from arm_contracts.enums import SkipReason
+
+        keep = _add_track(sample_job, '1', enabled=True)
+        drop = _add_track(sample_job, '2', enabled=False)
+        keep.process = True
+        keep.length = 3600
+        drop.length = 3600
+        sample_job.config.MKV_ARGS = ''  # fixture omits this; real config always has it
+        db.session.commit()
+
+        ripped_numbers = []
+
+        def fake_run(cmd, _out):
+            # cmd is [..., source, track_number, rawpath]; capture the title arg
+            ripped_numbers.append(cmd[-2])
+            return iter(())
+
+        with unittest.mock.patch('arm.ripper.makemkv.run', side_effect=fake_run), \
+             unittest.mock.patch('arm.ripper.makemkv.progress_log', return_value=str(tmp_path / 'p.log')):
+            makemkv.process_single_tracks(sample_job, str(tmp_path), 'manual')
+
+        assert '1' in ripped_numbers, "enabled track must be ripped"
+        assert '2' not in ripped_numbers, "disabled track must NOT be ripped"
+        db.session.refresh(drop)
+        assert drop.process is False
+        assert drop.skip_reason == SkipReason.user_disabled.value
