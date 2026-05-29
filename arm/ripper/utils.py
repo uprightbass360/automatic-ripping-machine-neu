@@ -148,8 +148,20 @@ def _build_webhook_payload(title, body, job, raw_basename):
     # Pre-rendered per-track names from ARM's naming engine.
     rendered = render_all_tracks(job, config_dict)
     rendered_map = {r["track_number"]: r for r in rendered}
+    # Honor user/MAINFEATURE-disabled tracks: a track explicitly disabled
+    # (enabled is False) is never transcoded. enabled is None (legacy NULL)
+    # or True is included — mirrors _track_to_dict's NULL fold in
+    # arm/api/v1/jobs.py. If every track is disabled, fall back to all
+    # tracks rather than ship an empty/absent manifest that strands the job.
+    candidate_tracks = [t for t in job.tracks if t.enabled is not False]
+    if not candidate_tracks:
+        logging.warning(
+            "Job %s: all tracks disabled — sending full track list to transcoder",
+            job.job_id,
+        )
+        candidate_tracks = list(job.tracks)
     tracks_meta = []
-    for track in job.tracks:
+    for track in candidate_tracks:
         r = rendered_map.get(str(track.track_number or ''), {})
         # Prefer episode_name for series tracks - track.title can be stale
         # if the user corrected episodes via the UI after auto-match.
