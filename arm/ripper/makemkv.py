@@ -1384,6 +1384,14 @@ def process_single_tracks(job, rawpath, mode: str):
     """
     # process one track at a time based on track length
     for track in job.tracks:
+        # User/MAINFEATURE-disabled tracks never rip on the per-title path.
+        # (The mkv-all fast path is intentionally not gated — see spec.)
+        if track.enabled is False:
+            logging.info("Track #%s disabled by user — skipping rip.", track.track_number)
+            track.process = False
+            track.skip_reason = SkipReason.user_disabled.value
+            db.session.commit()
+            continue
         # Process single track automatically based on start and finish times
         if mode == 'auto':
             if track.length < int(job.config.MINLENGTH):
