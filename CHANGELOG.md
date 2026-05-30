@@ -1,5 +1,13 @@
 # Changelog
 
+## [19.1.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v19.0.0...v19.1.0) (2026-05-30)
+
+
+### Features
+
+* **rip:** skip user-disabled tracks on the per-title rip path ([a7ec97c](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/a7ec97c019b5db39a368ae22388764af9b7aa076))
+* **transcode:** skip user-disabled tracks in webhook manifest ([3dda8ad](https://github.com/uprightbass360/automatic-ripping-machine-neu/commit/3dda8ad4f7f1d2291c89c6eaaed02f6de82fec0c))
+
 ## [19.0.0](https://github.com/uprightbass360/automatic-ripping-machine-neu/compare/v18.1.0...v19.0.0) (2026-05-26)
 
 
