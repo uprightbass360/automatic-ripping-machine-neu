@@ -244,12 +244,15 @@ class TestLogParserUnit:
         assert "Entering" in result["event"]
 
     def test_resolve_within_oserror_returns_none(self, monkeypatch, tmp_path):
+        import os
         from pathlib import Path
 
-        def boom(self, *a, **kw):
+        def boom(*a, **kw):
             raise OSError("disk gone")
 
-        monkeypatch.setattr(Path, "resolve", boom)
+        # _resolve_within now confines via arm.common.path_safety.safe_join,
+        # which resolves paths with os.path.realpath rather than Path.resolve.
+        monkeypatch.setattr(os.path, "realpath", boom)
         assert log_parser._resolve_within("x.log", Path(tmp_path)) is None
 
     def test_parse_oversized_line_skipped(self):

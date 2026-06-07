@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import arm.config.config as cfg
+from arm.common.path_safety import safe_join
 
 # ARM plain text log format: "{timestamp} {logger}: {LEVEL}: {message}"
 # e.g. "02-28-2026 04:59:16 ARM: INFO: Ripping complete"
@@ -44,14 +45,19 @@ def _log_dir() -> Path:
 
 
 def _resolve_within(name: str, root: Path) -> Path | None:
-    """Resolve a filename safely within root, stripping any directory components."""
+    """Resolve a filename safely within root, stripping any directory components.
+
+    Log files live flat in LOGPATH, so any directory component in *name* is
+    stripped before confinement. The basename is then routed through
+    :func:`arm.common.path_safety.safe_join`, which resolves symlinks and
+    rejects anything that escapes *root*.
+    """
     try:
         safe_name = Path(name).name
         if not safe_name or safe_name in ('.', '..'):
             return None
-        resolved = (root / safe_name).resolve()
-        if resolved.is_relative_to(root.resolve()):
-            return resolved
+        # safe_join raises ValueError on any path that escapes root.
+        return Path(safe_join(str(root), safe_name))
     except (ValueError, OSError):
         pass
     return None

@@ -70,7 +70,7 @@ def scan_iso_endpoint(req: IsoScanRequest):
             status_code=400,
         )
     try:
-        validate_iso_path(req.path, ingress_path)
+        safe_path = validate_iso_path(req.path, ingress_path)
     except FileNotFoundError:
         return JSONResponse(
             {"success": False, "error": "ISO file not found"},
@@ -82,8 +82,8 @@ def scan_iso_endpoint(req: IsoScanRequest):
             status_code=422,
         )
 
-    meta = extract_metadata(req.path)
-    info = prescan_iso_disc_type(req.path)
+    meta = extract_metadata(safe_path)
+    info = prescan_iso_disc_type(safe_path)
     return {
         "success": True,
         "disc_type": info["disc_type"],
@@ -107,7 +107,7 @@ def create_iso_job(req: IsoCreateRequest):
         )
 
     try:
-        validate_iso_path(req.source_path, ingress_path)
+        safe_source_path = validate_iso_path(req.source_path, ingress_path)
     except FileNotFoundError:
         return JSONResponse(
             {"success": False, "error": "Source ISO not found"},
@@ -120,7 +120,7 @@ def create_iso_job(req: IsoCreateRequest):
         )
 
     existing = Job.query.filter(
-        Job.source_path == req.source_path,
+        Job.source_path == safe_source_path,
         ~Job.finished,
     ).first()
     if existing:
@@ -132,7 +132,7 @@ def create_iso_job(req: IsoCreateRequest):
             status_code=409,
         )
 
-    job = Job.from_iso(req.source_path, req.disctype)
+    job = Job.from_iso(safe_source_path, req.disctype)
     apply_request_metadata_to_job(job, req)
     job.status = JobState.IDENTIFYING.value
 
@@ -143,7 +143,7 @@ def create_iso_job(req: IsoCreateRequest):
     db.session.add(config)
     db.session.commit()
 
-    log.info("Created ISO import job %s for %s (prescanning)", job.job_id, req.source_path)
+    log.info("Created ISO import job %s for %s (prescanning)", job.job_id, safe_source_path)
 
     thread = threading.Thread(
         target=_prescan_and_wait, args=(job.job_id,), daemon=True

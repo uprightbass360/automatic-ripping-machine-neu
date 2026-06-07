@@ -6,6 +6,7 @@ from pathlib import Path
 
 import xmltodict
 
+from arm.common.path_safety import safe_join
 from arm.ripper.arm_matcher import parse_label
 
 # Non-anchored regex for extracting disc info from folder names with trailing junk
@@ -23,14 +24,22 @@ _FOLDER_SEASON_RE = re.compile(
 logger = logging.getLogger(__name__)
 
 
-def validate_ingress_path(path: str, ingress_root: str) -> None:
-    """Validate that path is under ingress_root after resolving symlinks."""
-    real_path = os.path.realpath(path)
-    real_root = os.path.realpath(ingress_root)
-    if not real_path.startswith(real_root + os.sep) and real_path != real_root:
-        raise ValueError(f"Path {path} resolves outside ingress root")
+def validate_ingress_path(path: str, ingress_root: str) -> str:
+    """Validate that path is under ingress_root after resolving symlinks.
+
+    Confines the user-controlled `path` to `ingress_root` via
+    :func:`arm.common.path_safety.safe_join` and returns the validated
+    absolute path. Callers should use the returned value for filesystem
+    access.
+    """
+    # safe_join resolves symlinks and raises ValueError on any escape.
+    try:
+        real_path = safe_join(ingress_root, path)
+    except ValueError as exc:
+        raise ValueError(f"Path {path} resolves outside ingress root") from exc
     if not os.path.exists(real_path):
         raise FileNotFoundError(f"Path does not exist: {path}")
+    return real_path
 
 
 def detect_disc_type(folder_path: str) -> str:
@@ -95,9 +104,9 @@ def extract_metadata(folder_path: str, disc_type: str) -> dict:
 
 def scan_folder(folder_path: str, ingress_root: str) -> dict:
     """Top-level scan: validate, detect type, extract metadata."""
-    validate_ingress_path(folder_path, ingress_root)
-    disc_type = detect_disc_type(folder_path)
-    metadata = extract_metadata(folder_path, disc_type)
+    safe_path = validate_ingress_path(folder_path, ingress_root)
+    disc_type = detect_disc_type(safe_path)
+    metadata = extract_metadata(safe_path, disc_type)
     return {"disc_type": disc_type, **metadata}
 
 
