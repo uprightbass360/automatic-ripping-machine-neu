@@ -17,7 +17,10 @@
 
 services:
   arm-rippers:
-    build: .
+    build:
+      context: .
+      additional_contexts:
+        contracts: ./components/contracts
     image: arm:dev
     volumes:
       - ./dev-data/music:/home/arm/music
@@ -28,7 +31,10 @@ services:
       - ./dev-data/makemkv:/home/arm/.MakeMKV
 
   arm-ui:
-    build: ${UI_SRC_PATH:-../automatic-ripping-machine-ui}
+    build:
+      context: ${UI_SRC_PATH:-../automatic-ripping-machine-ui}
+      additional_contexts:
+        contracts: ${UI_SRC_PATH:-../automatic-ripping-machine-ui}/components/contracts
     command:
       - uvicorn
       - backend.main:app
@@ -50,6 +56,8 @@ services:
     build:
       context: ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}
       dockerfile: Dockerfile.dev
+      additional_contexts:
+        contracts: ${TRANSCODER_SRC_PATH:-../automatic-ripping-machine-transcoder}/components/contracts
     command:
       - python
       - -m
