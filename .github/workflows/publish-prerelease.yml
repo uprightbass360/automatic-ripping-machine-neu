@@ -71,6 +71,8 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             IMAGE_TAG=${{ steps.version.outputs.version }}-rc
+          build-contexts: |
+            contracts=components/contracts
           tags: |
             ${{ env.DOCKERHUB_IMAGE }}:${{ steps.version.outputs.version }}-rc
             ${{ env.GHCR_IMAGE }}:${{ steps.version.outputs.version }}-rc

@@ -59,6 +59,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=90s --retries=5 CMD /hea
 FROM base AS automatic-ripping-machine
 
 COPY . /opt/arm/
+COPY --from=contracts . /opt/arm/components/contracts
 
 # Ensure Python deps are up-to-date, install rsync for NFS-safe file transfer,
 # create udev symlink, allow git in container

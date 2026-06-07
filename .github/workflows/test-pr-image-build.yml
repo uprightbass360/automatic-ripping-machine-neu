@@ -35,3 +35,5 @@ jobs:
           context: .
           platforms: linux/amd64
           tags: automatic-ripping-machine:pr${{ github.event.number }}
+          build-contexts: |
+            contracts=components/contracts
