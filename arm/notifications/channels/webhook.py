@@ -13,12 +13,14 @@ import hmac
 import json
 import logging
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 
 log = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 15.0
+_ALLOWED_SCHEMES = {"http", "https"}
 
 
 def _is_terminal_status(status_code: int) -> bool:
@@ -44,6 +46,17 @@ def send_webhook(
     :returns: ``(True, None)`` on success, ``(False, "<message> terminal=<bool>")``
         on failure. The dispatcher parses the marker.
     """
+    # SSRF guard: validate the URL scheme before issuing any request.
+    # Rejects file://, gopher://, etc. so a non-http(s) URL can never
+    # reach the HTTP client. (Saved channels are operator-controlled and
+    # the unsaved-test path additionally resolves/blocks non-public hosts
+    # via url_safety.assert_public_http_url().)
+    parsed_url = urlparse(url)
+    if parsed_url.scheme.lower() not in _ALLOWED_SCHEMES:
+        return False, "invalid webhook URL: scheme must be http or https terminal=true"
+    if not parsed_url.hostname:
+        return False, "invalid webhook URL: missing host terminal=true"
+
     body_bytes = json.dumps(
         payload_dict, separators=(",", ":"), sort_keys=True
     ).encode("utf-8")

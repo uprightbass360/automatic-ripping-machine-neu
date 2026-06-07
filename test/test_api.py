@@ -1,5 +1,6 @@
 """Tests for the REST API layer (arm/api/v1/)."""
 import unittest.mock
+from urllib.parse import urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -445,7 +446,10 @@ class TestApiSystemVersion:
         assert data["db_path"] is not None
         assert "secret" not in data["db_path"]      # password gone
         assert "arm" in data["db_path"]              # username preserved
-        assert "db.example.com" in data["db_path"]   # host preserved
+        # host preserved - check the parsed hostname, not a substring, so the
+        # assertion can't be satisfied by an attacker-style host such as
+        # "db.example.com.evil.test".
+        assert urlparse(data["db_path"]).hostname == "db.example.com"
         assert "postgresql" in data["db_path"]       # dialect preserved
         # db_size_bytes is None for non-sqlite (file size meaningless)
         assert data["db_size_bytes"] is None

@@ -1307,7 +1307,12 @@ class TestConfiguredKey:
 
         assert result["success"] is False
         assert result["provider"] == "makemkv"
-        assert "forum.makemkv.com" in result["message"]
+        # result["message"] is human-readable error text (not a URL), e.g.
+        # "Could not reach forum.makemkv.com - set MAKEMKV_PERMA_KEY ...".
+        # Assert the exact phrase rather than a bare host substring so this is
+        # unambiguously a message-content check, not a URL-host authorization
+        # check (which CodeQL's incomplete-URL-sanitization query targets).
+        assert "Could not reach forum.makemkv.com" in result["message"]
         assert result["checked_at"] is None
 
 
