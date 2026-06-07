@@ -105,7 +105,7 @@ def create_folder_job(req: FolderCreateRequest):
 
     # Validate path is under ingress root
     try:
-        validate_ingress_path(req.source_path, ingress_path)
+        safe_source_path = validate_ingress_path(req.source_path, ingress_path)
     except FileNotFoundError:
         raise HTTPException(status_code=400, detail="Source folder not found")
     except ValueError:
@@ -113,7 +113,7 @@ def create_folder_job(req: FolderCreateRequest):
 
     # Check for duplicate active job with same source_path
     existing = Job.query.filter(
-        Job.source_path == req.source_path,
+        Job.source_path == safe_source_path,
         ~Job.finished,
     ).first()
     if existing:
@@ -123,7 +123,7 @@ def create_folder_job(req: FolderCreateRequest):
         )
 
     # Create job
-    job = Job.from_folder(req.source_path, req.disctype)
+    job = Job.from_folder(safe_source_path, req.disctype)
     apply_request_metadata_to_job(job, req)
     job.status = JobState.IDENTIFYING.value
 
@@ -135,7 +135,7 @@ def create_folder_job(req: FolderCreateRequest):
     db.session.add(config)
     db.session.commit()
 
-    log.info("Created folder import job %s for %s (prescanning)", job.job_id, req.source_path)
+    log.info("Created folder import job %s for %s (prescanning)", job.job_id, safe_source_path)
 
     # Run prescan in background - populates tracks, then moves to MANUAL_PAUSED
     thread = threading.Thread(

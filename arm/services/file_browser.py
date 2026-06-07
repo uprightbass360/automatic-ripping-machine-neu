@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import arm.config.config as cfg
+from arm.common.path_safety import is_within, safe_join
 
 log = logging.getLogger(__name__)
 
@@ -151,13 +152,18 @@ def validate_path(path: str) -> Path:
     :raises ValueError: if path escapes allowed roots
     :raises FileNotFoundError: if path does not exist
     """
-    resolved = Path(path).resolve()
     roots = get_allowed_roots()
     for root_path in roots.values():
-        if str(resolved) == root_path or str(resolved).startswith(root_path + os.sep):
-            if not resolved.exists():
-                raise FileNotFoundError(f"Path not found: {path}")
-            return resolved
+        try:
+            # Route the user-controlled path through the confinement helper.
+            # safe_join resolves symlinks and guarantees the result stays
+            # inside this allowed root; it raises ValueError otherwise.
+            confined = Path(safe_join(root_path, path))
+        except ValueError:
+            continue
+        if not confined.exists():
+            raise FileNotFoundError(f"Path not found: {path}")
+        return confined
     raise ValueError("Path is outside allowed media directories")
 
 
@@ -325,16 +331,14 @@ def rename_item(path: str, new_name: str) -> dict:
         raise ValueError("Name cannot be empty")
 
     resolved = validate_path(path)
-    new_path = resolved.parent / new_name
 
-    # Ensure destination is still under an allowed root
-    new_resolved = new_path.resolve()
+    # Confine the new name to the (already validated) parent directory and
+    # re-check that it stays under an allowed root. safe_join rejects any
+    # traversal; the explicit root check guards against the parent itself
+    # sitting on a root boundary.
+    new_path = Path(safe_join(str(resolved.parent), new_name))
     roots = get_allowed_roots()
-    under_root = False
-    for root_path in roots.values():
-        if str(new_resolved).startswith(root_path + os.sep) or str(new_resolved) == root_path:
-            under_root = True
-            break
+    under_root = any(is_within(root_path, new_path) for root_path in roots.values())
     if not under_root:
         raise ValueError("Destination is outside allowed media directories")
 
@@ -360,7 +364,8 @@ def move_item(path: str, destination: str) -> dict:
     if not dest_dir.is_dir():
         raise NotADirectoryError(f"Destination is not a directory: {destination}")
 
-    final_path = dest_dir / source.name
+    # Confine the moved item to the (already validated) destination dir.
+    final_path = Path(safe_join(str(dest_dir), source.name))
     if final_path.exists():
         raise FileExistsError(f"Already exists at destination: {source.name}")
 
@@ -410,7 +415,8 @@ def create_directory(path: str, name: str) -> dict:
     if not parent.is_dir():
         raise NotADirectoryError(f"Parent is not a directory: {path}")
 
-    new_dir = parent / name
+    # Confine the new directory to the (already validated) parent dir.
+    new_dir = Path(safe_join(str(parent), name))
     if new_dir.exists():
         raise FileExistsError(f"Already exists: {name}")
 

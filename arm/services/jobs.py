@@ -22,6 +22,7 @@ from arm.models.track import Track
 from arm.models.ui_settings import UISettings
 from arm.database import db
 from arm.services.files import database_updater, job_id_validator
+from arm.common.path_safety import safe_join
 
 log = logging.getLogger(__name__)
 
@@ -380,8 +381,14 @@ def generate_log(logpath, job_id):
     if job is None or job.logfile is None or job.logfile == "":
         log.debug(f"Cant find the job {job_id}")
         return {'success': False, 'job': job_id, 'log': 'Not found'}
-    # Assemble full path
-    fullpath = os.path.join(logpath, job.logfile)
+    # Assemble full path, confining the (DB-stored, user-influenced) logfile
+    # name to the trusted LOGPATH root. safe_join raises ValueError on any
+    # attempt to escape the log directory via traversal or absolute paths.
+    try:
+        fullpath = safe_join(logpath, job.logfile)
+    except ValueError:
+        log.debug("Refusing logfile outside log dir for job %s", job_id)
+        return {'success': False, 'job': job_id, 'log': 'File not found'}
     # Check if the logfile exists
     my_file = Path(fullpath)
     if not my_file.is_file():

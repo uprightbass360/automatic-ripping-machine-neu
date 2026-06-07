@@ -11,11 +11,18 @@ import logging
 import os
 import re
 
+from arm.common.path_safety import safe_join
+
 log = logging.getLogger(__name__)
 
 
-def validate_iso_path(path: str, ingress_root: str) -> None:
+def validate_iso_path(path: str, ingress_root: str) -> str:
     """Validate that `path` is an .iso file under `ingress_root`.
+
+    Confines the user-controlled `path` to `ingress_root` via
+    :func:`arm.common.path_safety.safe_join` and returns the validated
+    absolute path. Callers should use the returned value for filesystem
+    access.
 
     Raises:
         ValueError: extension is not .iso, or path resolves outside ingress.
@@ -23,12 +30,12 @@ def validate_iso_path(path: str, ingress_root: str) -> None:
     """
     if not path.lower().endswith(".iso"):
         raise ValueError(f"Not an ISO file (expected .iso extension): {path}")
-    real_path = os.path.realpath(path)
-    real_root = os.path.realpath(ingress_root)
-    if not real_path.startswith(real_root + os.sep) and real_path != real_root:
-        raise ValueError(f"Path {path} resolves outside ingress root")
+    # Route the user input through the confinement helper. safe_join raises
+    # ValueError when `path` resolves outside the trusted ingress root.
+    real_path = safe_join(ingress_root, path)
     if not os.path.isfile(real_path):
         raise FileNotFoundError(f"ISO file does not exist: {path}")
+    return real_path
 
 
 def extract_metadata(iso_path: str) -> dict:
