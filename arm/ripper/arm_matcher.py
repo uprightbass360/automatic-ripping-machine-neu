@@ -117,8 +117,14 @@ _SEASON_KEYWORD_RE = re.compile(
     re.IGNORECASE,
 )
 
-# SKU patterns at end of string
-_SKU_RE = re.compile(r' *SKU\w*', re.IGNORECASE)
+# SKU patterns at end of string.
+# The leading space-run is bounded ({0,4}) instead of an unbounded ` *`.
+# An unbounded greedy run before the literal "SKU" backtracks one space at
+# a time at every start offset, so re.sub over a long run of spaces is
+# polynomial (ReDoS). Real labels never have more than a couple of spaces
+# before a SKU token, so a small bound preserves matching while removing
+# the backtracking blow-up.
+_SKU_RE = re.compile(r' {0,4}SKU\w*', re.IGNORECASE)
 
 # Aspect ratio markers
 _ASPECT_RE = re.compile(r'\b16[xX]9\b')

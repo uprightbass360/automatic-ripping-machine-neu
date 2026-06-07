@@ -142,8 +142,15 @@ def _build_variables(job):
 
 
 def _clean_empty_parens(s):
-    """Remove empty parentheses like '()' left from missing variables."""
-    return re.sub(r' *\( *\)', '', s).strip()
+    """Remove empty parentheses like '()' left from missing variables.
+
+    The space-runs are bounded ({0,4}) rather than unbounded ` *`. An
+    unbounded greedy run before a literal that can fail backtracks one
+    space at a time at every offset, making re.sub polynomial (ReDoS) on a
+    long run of spaces. Empty-paren artifacts only ever carry a handful of
+    spaces, so a small bound preserves behaviour without the blow-up.
+    """
+    return re.sub(r' {0,4}\( {0,4}\)', '', s).strip()
 
 
 def clean_for_filename(s):
@@ -418,7 +425,14 @@ def validate_pattern(pattern):
 
     Returns {"valid": bool, "invalid_vars": [...], "suggestions": {...}}.
     """
-    tokens = re.findall(r'\{(\w+)[^}]*\}', pattern)
+    # Match {name} or {name:format_spec}. The token name (\w+) and an
+    # optional ":"-introduced format spec are disjoint: the format spec is
+    # gated behind a literal ":" (not a word char), so the two quantifiers
+    # can't overlap and backtrack against each other. The previous
+    # r'\{(\w+)[^}]*\}' let \w+ and [^}]* both consume word chars, which is
+    # polynomial (ReDoS) on input like "{a" followed by many word chars and
+    # no closing brace.
+    tokens = re.findall(r'\{(\w+)(?::[^}]*)?\}', pattern)
     invalid = [t for t in tokens if t not in VALID_VARS]
     suggestions = {}
     for inv in invalid:
