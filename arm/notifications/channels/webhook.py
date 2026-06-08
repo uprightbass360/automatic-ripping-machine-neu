@@ -13,14 +13,14 @@ import hmac
 import json
 import logging
 from typing import Optional
-from urllib.parse import urlparse
 
 import httpx
+
+from arm.notifications.url_safety import UnsafeUrlError, assert_public_http_url
 
 log = logging.getLogger(__name__)
 
 _TIMEOUT_SECONDS = 15.0
-_ALLOWED_SCHEMES = {"http", "https"}
 
 
 def _is_terminal_status(status_code: int) -> bool:
@@ -46,16 +46,13 @@ def send_webhook(
     :returns: ``(True, None)`` on success, ``(False, "<message> terminal=<bool>")``
         on failure. The dispatcher parses the marker.
     """
-    # SSRF guard: validate the URL scheme before issuing any request.
-    # Rejects file://, gopher://, etc. so a non-http(s) URL can never
-    # reach the HTTP client. (Saved channels are operator-controlled and
-    # the unsaved-test path additionally resolves/blocks non-public hosts
-    # via url_safety.assert_public_http_url().)
-    parsed_url = urlparse(url)
-    if parsed_url.scheme.lower() not in _ALLOWED_SCHEMES:
-        return False, "invalid webhook URL: scheme must be http or https terminal=true"
-    if not parsed_url.hostname:
-        return False, "invalid webhook URL: missing host terminal=true"
+    # SSRF guard: validate the target on every send (not just the unsaved-test
+    # path). assert_public_http_url() requires http(s) and rejects hosts that
+    # resolve to loopback/private/link-local/reserved addresses.
+    try:
+        assert_public_http_url(url)
+    except UnsafeUrlError as exc:
+        return False, f"unsafe webhook URL: {exc} terminal=true"
 
     body_bytes = json.dumps(
         payload_dict, separators=(",", ":"), sort_keys=True
@@ -72,13 +69,6 @@ def send_webhook(
 
     try:
         with httpx.Client(timeout=_TIMEOUT_SECONDS) as client:
-            # SSRF note: for saved channels the URL is operator-controlled
-            # (from the DB). The only request-controlled caller is the
-            # unsaved-config test endpoint, which validates the URL with
-            # url_safety.assert_public_http_url() (rejects loopback/private/
-            # link-local/reserved hosts) before reaching here. CodeQL cannot
-            # model that custom IP allowlist as a sanitizer; py/full-ssrf is
-            # suppressed centrally in .github/codeql/codeql-config.yml.
             resp = client.post(
                 url, content=body_bytes, headers=request_headers
             )

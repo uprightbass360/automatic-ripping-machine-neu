@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import threading
@@ -24,6 +25,17 @@ from arm_contracts import RsyncProgressEvent, RsyncProgressTracker
 import arm.config.config as cfg
 
 logger = logging.getLogger(__name__)
+
+
+def _redact_rsync(target: str) -> str:
+    """Strip embedded credentials from rsync/ssh/url-style targets before
+    logging (e.g. ``user:password@host`` or ``rsync://user:pass@host``).
+
+    Plain local paths contain no ``credential@`` segment and are returned
+    unchanged. This also breaks the secret -> log taint flow that CodeQL
+    reports for logged rsync targets.
+    """
+    return re.sub(r'(\b\w+:)[^@/\s]*(@)', r'\1<redacted>\2', str(target))
 
 
 def run_rsync_sync(
@@ -79,7 +91,10 @@ def run_rsync_sync(
         # of whether the failure happened before rsync was even invoked.
         raise OSError(f"rsync setup failed for {dst}: {exc}") from exc
 
-    logger.info(f"rsync {'(move)' if remove_source else '(copy)'}: {src} -> {dst}")
+    logger.info(
+        f"rsync {'(move)' if remove_source else '(copy)'}: "
+        f"{_redact_rsync(src)} -> {_redact_rsync(dst)}"
+    )
 
     tracker = RsyncProgressTracker()
     proc = subprocess.Popen(
@@ -138,7 +153,7 @@ def run_rsync_sync(
         # rsync --remove-source-files removes files but leaves empty dirs
         shutil.rmtree(src, ignore_errors=True)
 
-    logger.info(f"rsync complete: {src} -> {dst}")
+    logger.info(f"rsync complete: {_redact_rsync(src)} -> {_redact_rsync(dst)}")
 
 
 def _emit(

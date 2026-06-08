@@ -27,20 +27,29 @@ def get_config():
     """Return live arm.yaml config with sensitive fields masked."""
     from arm.ripper.naming import PATTERN_VARIABLES
 
-    raw_config = dict(cfg.arm_config)
-    config = {}
-    for key in raw_config.keys():
-        if key in hidden_attribs and raw_config[key]:
-            config[str(key)] = HIDDEN_VALUE
-        else:
-            config[str(key)] = str(raw_config[key]) if raw_config[key] is not None else None
+    try:
+        raw_config = dict(cfg.arm_config)
+        config = {}
+        for key in raw_config.keys():
+            if key in hidden_attribs and raw_config[key]:
+                config[str(key)] = HIDDEN_VALUE
+            else:
+                config[str(key)] = str(raw_config[key]) if raw_config[key] is not None else None
 
-    comments = generate_comments()
-    return {
-        "config": config,
-        "comments": comments,
-        "naming_variables": PATTERN_VARIABLES,
-    }
+        comments = generate_comments()
+        return {
+            "config": config,
+            "comments": comments,
+            "naming_variables": PATTERN_VARIABLES,
+        }
+    except Exception:
+        # Log the full detail server-side; never return the exception text
+        # (or a stack trace) to the client.
+        log.exception("Failed to build settings config response")
+        return JSONResponse(
+            {"success": False, "error": "Failed to load configuration"},
+            status_code=500,
+        )
 
 
 @router.put('/settings/config')
@@ -117,7 +126,10 @@ def _abcde_path() -> str:
     raw = str(cfg.arm_config.get("ABCDE_CONFIG_FILE", "/etc/abcde.conf"))
     resolved = os.path.realpath(raw)
     if not os.path.isabs(resolved):
-        raise ValueError(f"ABCDE_CONFIG_FILE resolved to a relative path: {resolved}")
+        # Log the resolved value server-side; keep the exception message free
+        # of the (config-derived) path so it cannot reach a client sink.
+        log.error("ABCDE_CONFIG_FILE resolved to a relative path: %s", resolved)
+        raise ValueError("ABCDE_CONFIG_FILE resolved to a relative path")
     return resolved
 
 
