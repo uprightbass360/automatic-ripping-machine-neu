@@ -171,8 +171,12 @@ def send_to_remote_db(job_id):
     url = f"{base_url}/api/v1/?mode=p&api_key={api_key}&crc64={job.crc_id}&t={job.title}" \
           f"&y={job.year}&imdb={job.imdb_id}" \
           f"&hnt={job.hasnicetitle}&l={job.label}&vt={job.video_type}"
-    redacted_url = url.replace(api_key, "<redacted>") if api_key else "<no api key>"
-    log.debug("Remote DB URL: %s", str(redacted_url))
+    # Build the logged string from non-secret parts only; never derive it from
+    # the secret-containing `url` (string .replace() is not a CodeQL sanitizer).
+    display_url = f"{base_url}/api/v1/?mode=p&api_key=<redacted>&crc64={job.crc_id}&t={job.title}" \
+                  f"&y={job.year}&imdb={job.imdb_id}" \
+                  f"&hnt={job.hasnicetitle}&l={job.label}&vt={job.video_type}"
+    log.debug("Remote DB URL: %s", display_url)
     response = requests.get(url, timeout=15)
     req = json.loads(response.text)
     log.debug("Remote DB response success: %s", str(req.get('success', 'unknown')))

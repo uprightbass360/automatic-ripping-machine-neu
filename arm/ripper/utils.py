@@ -69,7 +69,7 @@ def _move_to_shared_storage(cfg, raw_basename, job=None):
         database_updater({'status': JobState.COPYING.value}, job)
     os.makedirs(dst, exist_ok=True)
 
-    from arm.ripper.rsync_helper import run_rsync_with_side_file
+    from arm.ripper.rsync_helper import run_rsync_with_side_file, _redact_rsync
     try:
         run_rsync_with_side_file(
             src, dst,
@@ -78,7 +78,7 @@ def _move_to_shared_storage(cfg, raw_basename, job=None):
             remove_source=True,
         )
     except OSError as e:
-        logging.error(f"Failed to move {src} -> {dst}: {e}")
+        logging.error(f"Failed to move {_redact_rsync(src)} -> {_redact_rsync(dst)}: {e}")
         raise
 
 
