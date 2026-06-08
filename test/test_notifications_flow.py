@@ -7,6 +7,7 @@ N19 — channels are now driven by ``publish_event`` + the outbox
 dispatcher.
 """
 import os
+import tempfile
 import unittest.mock
 
 import pytest
@@ -97,7 +98,7 @@ class TestRipMusic:
         job = unittest.mock.MagicMock()
         job.disctype = 'music'
         job.devpath = '/dev/sr0'
-        job.config.LOGPATH = '/tmp'
+        job.config.LOGPATH = tempfile.gettempdir()
         return job
 
     @staticmethod
@@ -116,7 +117,9 @@ class TestRipMusic:
 
         job = self._make_job()
         original = cfg.arm_config.get('ABCDE_CONFIG_FILE', '')
-        cfg.arm_config['ABCDE_CONFIG_FILE'] = '/tmp/test_abcde.conf'
+        fd, abcde_conf = tempfile.mkstemp(prefix='test_abcde_', suffix='.conf')
+        os.close(fd)
+        cfg.arm_config['ABCDE_CONFIG_FILE'] = abcde_conf
         try:
             mock_proc = self._mock_popen(0)
             with unittest.mock.patch('os.path.isfile', return_value=True), \
@@ -128,9 +131,10 @@ class TestRipMusic:
                 result = rip_music(job, 'test.log')
                 assert result is True
                 cmd = mock_cmd.call_args[0][0]
-                assert '-c' in cmd and '/tmp/test_abcde.conf' in cmd
+                assert '-c' in cmd and abcde_conf in cmd
         finally:
             cfg.arm_config['ABCDE_CONFIG_FILE'] = original
+            os.remove(abcde_conf)
 
     def test_default_abcde_when_no_config(self):
         """Uses default abcde when no config file exists."""
