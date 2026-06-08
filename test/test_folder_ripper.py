@@ -1,7 +1,12 @@
 """Tests for folder ripper pipeline."""
 import os
+import tempfile
 import pytest
 from unittest.mock import MagicMock, patch
+
+# Secure temp dir used only as a mock return value for setup_rawpath; nothing
+# is written here (db and filesystem ops are mocked in these tests).
+_RAW_DIR = tempfile.mkdtemp(prefix="arm_test_raw_")
 
 
 class TestRipFolder:
@@ -169,7 +174,8 @@ class TestRipFolder:
 
     @patch("arm.ripper.folder_ripper.db")
     @patch("arm.ripper.folder_ripper.prescan_track_info", side_effect=RuntimeError("MakeMKV failed"))
-    @patch("arm.ripper.folder_ripper.setup_rawpath", return_value="/tmp/raw/Test Movie")
+    @patch("arm.ripper.folder_ripper.setup_rawpath",
+           return_value=os.path.join(_RAW_DIR, "Test Movie"))
     @patch("arm.ripper.folder_ripper.prep_mkv")
     def test_rip_error_sets_failure(
         self, mock_prep, mock_setup, mock_prescan, mock_db, tmp_path
@@ -206,7 +212,8 @@ class TestRipFolder:
     @patch("arm.ripper.folder_ripper.db")
     @patch("arm.ripper.folder_ripper.structlog")
     @patch("arm.ripper.folder_ripper.prescan_track_info", side_effect=RuntimeError("boom"))
-    @patch("arm.ripper.folder_ripper.setup_rawpath", return_value="/tmp/raw/Test")
+    @patch("arm.ripper.folder_ripper.setup_rawpath",
+           return_value=os.path.join(_RAW_DIR, "Test"))
     @patch("arm.ripper.folder_ripper.prep_mkv")
     def test_clear_contextvars_called_on_failure(
         self, mock_prep, mock_setup, mock_prescan, mock_structlog, mock_db, tmp_path
@@ -225,7 +232,8 @@ class TestRipFolder:
 
     @patch("arm.ripper.folder_ripper.db")
     @patch("arm.ripper.folder_ripper.prescan_track_info", side_effect=RuntimeError("boom"))
-    @patch("arm.ripper.folder_ripper.setup_rawpath", return_value="/tmp/raw/Test")
+    @patch("arm.ripper.folder_ripper.setup_rawpath",
+           return_value=os.path.join(_RAW_DIR, "Test"))
     @patch("arm.ripper.folder_ripper.prep_mkv")
     def test_file_handler_removed_on_failure(
         self, mock_prep, mock_setup, mock_prescan, mock_db, tmp_path

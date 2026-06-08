@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -13,7 +14,13 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 class TestArmInfo(unittest.TestCase):
 
     def setUp(self):
-        self.arm_info = ARMInfo(_PROJECT_ROOT, '/tmp/arm_test_legacy.db')
+        fd, self._db_file = tempfile.mkstemp(prefix='arm_test_legacy_', suffix='.db')
+        os.close(fd)
+        self.arm_info = ARMInfo(_PROJECT_ROOT, self._db_file)
+
+    def tearDown(self):
+        if os.path.exists(self._db_file):
+            os.remove(self._db_file)
 
     """
     ************************************************************

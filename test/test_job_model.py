@@ -263,10 +263,10 @@ class TestJobGuid:
             job2 = Job('/dev/sr1')
         assert job1.guid != job2.guid
 
-    def test_folder_job_has_guid(self, app_context):
+    def test_folder_job_has_guid(self, app_context, tmp_path):
         """Folder-import jobs also get GUIDs."""
         from arm.models.job import Job
-        job = Job.from_folder('/tmp/test', 'dvd')
+        job = Job.from_folder(str(tmp_path / "test"), 'dvd')
         assert job.guid is not None
         parsed = uuid.UUID(job.guid)
         assert parsed.version == 4

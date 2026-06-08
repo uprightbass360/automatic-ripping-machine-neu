@@ -465,7 +465,9 @@ class TestApiSystemVersion:
         nonexistent = tmp_path / "does_not_exist.db"
         db_uri = f"sqlite:///{nonexistent}"
 
-        db_version, _db_head = _read_db_revisions(db_uri, install_path="/tmp/dummy")
+        db_version, _db_head = _read_db_revisions(
+            db_uri, install_path=str(tmp_path / "dummy")
+        )
 
         assert db_version == "unknown"
         assert not nonexistent.exists(), (
@@ -1986,10 +1988,11 @@ class TestApiJobStart:
         assert response.status_code == 200
         assert response.json()["success"] is True
 
-    def test_start_waiting_folder_job_spawns_folder_thread(self, client, sample_job, app_context):
+    def test_start_waiting_folder_job_spawns_folder_thread(self, client, sample_job, app_context, tmp_path):
         from arm.ripper.utils import database_updater
         database_updater(
-            {"status": "manual_paused", "source_type": "folder", "source_path": "/tmp/x"},
+            {"status": "manual_paused", "source_type": "folder",
+             "source_path": str(tmp_path / "x")},
             sample_job,
         )
         with unittest.mock.patch("arm.api.v1.jobs.threading.Thread") as mock_thread:
@@ -2001,10 +2004,11 @@ class TestApiJobStart:
         kwargs = mock_thread.call_args.kwargs
         assert kwargs["target"] is jobs_module._rip_folder_by_id
 
-    def test_start_waiting_iso_job_spawns_iso_thread(self, client, sample_job, app_context):
+    def test_start_waiting_iso_job_spawns_iso_thread(self, client, sample_job, app_context, tmp_path):
         from arm.ripper.utils import database_updater
         database_updater(
-            {"status": "manual_paused", "source_type": "iso", "source_path": "/tmp/x.iso"},
+            {"status": "manual_paused", "source_type": "iso",
+             "source_path": str(tmp_path / "x.iso")},
             sample_job,
         )
         with unittest.mock.patch("arm.api.v1.jobs.threading.Thread") as mock_thread:

@@ -20,6 +20,7 @@ status=TrackStatus.failed.value)`` directly. This test pins:
 * ``ripped`` is False.
 """
 import os
+import tempfile
 import unittest.mock
 
 import pytest
@@ -93,7 +94,7 @@ def music_job(app_context):
         'RAW_PATH': '/home/arm/media/raw',
         'TRANSCODE_PATH': '/home/arm/media/transcode',
         'COMPLETED_PATH': '/home/arm/media/completed',
-        'LOGPATH': '/tmp/arm_test/logs',
+        'LOGPATH': tempfile.mkdtemp(prefix='arm_test_logs_'),
         'EXTRAS_SUB': 'extras',
         'MINLENGTH': '600',
         'MAXLENGTH': '99999',

@@ -272,8 +272,11 @@ class TestTvdbTokenLock:
 
         call_count = 0
 
+        # Not a real secret - a dummy marker returned by the mocked TVDB API.
+        fake_token = "dummy-not-a-secret"  # noqa: S105,S106
+
         mock_response = unittest.mock.MagicMock()
-        mock_response.json.return_value = {"data": {"token": "serialized_token"}}
+        mock_response.json.return_value = {"data": {"token": fake_token}}
         mock_response.raise_for_status = unittest.mock.MagicMock()
 
         async def mock_post(url, json=None):
@@ -300,7 +303,7 @@ class TestTvdbTokenLock:
         tokens = asyncio.run(run_concurrent())
 
         # All should get the same token
-        assert all(t == "serialized_token" for t in tokens)
+        assert all(t == fake_token for t in tokens)
         # Lock serializes: first call fetches, rest reuse cached
         assert call_count == 1
 

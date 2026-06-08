@@ -332,8 +332,10 @@ class TestMoveItem:
 
     def test_reject_destination_outside_roots(self, media_tree):
         src = os.path.join(media_tree['roots']['raw'], "Serial Mom (1994)", "title00.mkv")
+        # Use the tmp_path parent, which sits outside the configured media roots.
+        outside_roots = str(media_tree['tmp_path'])
         with pytest.raises(ValueError):
-            file_browser.move_item(src, "/tmp")
+            file_browser.move_item(src, outside_roots)
 
     def test_reject_existing_at_destination(self, media_tree):
         # Create a file with same name in dest
