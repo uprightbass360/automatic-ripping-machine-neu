@@ -4,6 +4,13 @@
 [![Docker Image](https://img.shields.io/docker/v/uprightbass360/automatic-ripping-machine?label=docker)](https://hub.docker.com/r/uprightbass360/automatic-ripping-machine)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> [!IMPORTANT]
+> **This repository will be archived soon.**
+>
+> Development of the ARM (neu) ecosystem is moving to the upstream [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine) project. Keep an eye on that repository in the very near future for what comes next.
+>
+> Once archived, this repository stays available read-only, but it will no longer receive updates or accept new issues and pull requests. Thank you to everyone who used, tested, and contributed.
+
 # Automatic Ripping Machine (ARM) - Neu
 
 A fork of the [Automatic Ripping Machine](https://github.com/automatic-ripping-machine/automatic-ripping-machine) with many bug fixes, new features, and a companion service architecture for offloading GPU transcoding to a separate machine.
